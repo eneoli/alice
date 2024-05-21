@@ -1,17 +1,9 @@
-mod certificate;
+use self::prop::Prop;
+
+pub mod prop;
+pub mod proof_term;
 pub mod parse;
 pub mod prove;
-
-#[derive(Clone, PartialEq, Eq, Debug)]
-pub enum Prop {
-    Atom(String),
-    And(Box<Prop>, Box<Prop>),
-    Or(Box<Prop>, Box<Prop>),
-    Implication(Box<Prop>, Box<Prop>),
-
-    True,
-    False,
-}
 
 #[derive(Clone, Debug)]
 pub struct Sequent {
