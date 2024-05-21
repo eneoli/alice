@@ -1,5 +1,6 @@
-use crate::core::{Prop, Sequent};
 use std::ops::Deref;
+
+use super::{prop::Prop, Sequent};
 
 pub fn prove(prop: Prop) -> bool {
     let sequent = Sequent::new(&prop);
@@ -8,10 +9,11 @@ pub fn prove(prop: Prop) -> bool {
 }
 
 fn prove_right(sequent: Sequent) -> bool {
-    use Prop::*;
+
+    use super::Prop::*;
 
     match sequent.goal {
-        Atom(_) => sequent.ctx_contains(&sequent.goal) || prove_left(sequent),
+        Atom(_, None) => sequent.ctx_contains(&sequent.goal) || prove_left(sequent),
 
         And(ref left, ref right) => {
             prove_right(sequent.with_new_goal(left)) && prove_right(sequent.with_new_goal(right))
@@ -19,7 +21,7 @@ fn prove_right(sequent: Sequent) -> bool {
 
         Or(_, _) => prove_left(sequent),
 
-        Implication(ref left, ref right) => {
+        Impl(ref left, ref right) => {
             let mut seq = sequent.with_new_goal(right);
             seq.push_inv(left);
 
@@ -29,18 +31,20 @@ fn prove_right(sequent: Sequent) -> bool {
         True => true,
 
         False => prove_left(sequent),
+
+        _ => todo!(),
     }
 }
 
 fn prove_left(mut sequent: Sequent) -> bool {
-    use Prop::*;
+    use super::Prop::*;
 
     let inv_prop = sequent.pop_inv();
 
     // we have an inversable prop
     if let Some(prop) = inv_prop {
         return match prop {
-            Atom(_) => {
+            Atom(_, None) => {
                 (sequent.goal == prop) || {
                     sequent.add_non_inv(&prop);
                     prove_left(sequent)
@@ -65,7 +69,7 @@ fn prove_left(mut sequent: Sequent) -> bool {
                 prove_left(left_goal) && prove_left(right_goal)
             }
 
-            Implication(_, _) => {
+            Impl(_, _) => {
                 sequent.add_non_inv(&prop);
 
                 prove_left(sequent)
@@ -74,6 +78,8 @@ fn prove_left(mut sequent: Sequent) -> bool {
             True => prove_left(sequent),
 
             False => true,
+
+            _ => todo!(),
         };
     }
 
@@ -101,7 +107,7 @@ fn prove_left(mut sequent: Sequent) -> bool {
     }
 
     for (i, non_inv_prop) in sequent.non_inv_ctx.iter().enumerate() {
-        if let Implication(ref left, ref right) = non_inv_prop {
+        if let Impl(ref left, ref right) = non_inv_prop {
             if *left.deref() == sequent.goal {
                 continue;
             }

@@ -1,32 +1,27 @@
-use std::path::MAIN_SEPARATOR;
-
-use chumsky::prelude::*;
-
-use server::core::parse::{lexer, fol_parser};
-use server::core::Prop;
-use server::core::Prop::Implication;
+use chumsky::Parser;
+use server::core::{parse::{fol::fol_parser, lexer::lexer}, prop::Prop};
 
 fn main() {
-    let prop = Implication(
+    let prop = Prop::Impl(
         Box::new(Prop::And(
             Box::new(Prop::And(
-                Box::new(Prop::Atom(String::from("A"))),
-                Box::new(Implication(
-                    Box::new(Prop::Atom(String::from("A"))),
-                    Box::new(Prop::Atom(String::from("B"))),
+                Box::new(Prop::Atom(String::from("A"), None)),
+                Box::new(Prop::Impl(
+                    Box::new(Prop::Atom(String::from("A"), None)),
+                    Box::new(Prop::Atom(String::from("B"), None)),
                 )),
             )),
-            Box::new(Implication(
-                Box::new(Prop::Atom(String::from("B"))),
-                Box::new(Prop::Atom(String::from("C"))),
+            Box::new(Prop::Impl(
+                Box::new(Prop::Atom(String::from("B"), None)),
+                Box::new(Prop::Atom(String::from("C"), None)),
             )),
         )),
-        Box::new(Prop::Atom(String::from("C"))),
+        Box::new(Prop::Atom(String::from("C"), None)),
     );
 
-    let prop2 = Implication(
-        Box::new(Prop::Atom(String::from("A"))),
-        Box::new(Prop::Atom(String::from("A"))),
+    let prop2 = Prop::Impl(
+        Box::new(Prop::Atom(String::from("A"), None)),
+        Box::new(Prop::Atom(String::from("A"), None)),
     );
 
     let src = std::fs::read_to_string("test.proof").unwrap();
