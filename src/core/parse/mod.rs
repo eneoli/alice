@@ -1,0 +1,20 @@
+pub mod lexer;
+pub mod fol;
+pub mod proof_term;
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Token {
+    IDENT(String),
+    AND,
+    OR,
+    IMPLICATION,
+    NOT,
+    LROUND,
+    RROUND,
+    EXISTS,
+    FORALL,
+    DOT,
+    COMMA,
+    TRUE,
+    FALSE,
+}
