@@ -105,7 +105,7 @@ pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
         implication
     });
 
-    prop.then_ignore(end())
+    prop
 }
 
 // === TESTS ===
