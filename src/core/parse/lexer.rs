@@ -27,7 +27,10 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
     .map(|_| Token::FALSE)
     .boxed();
 
-    let ident = text::ident().map(|s| Token::IDENT(s));
+    let ident = text::ident().map(|s: String| match s.to_lowercase().as_str() {
+        "fn" => Token::FN,
+        _ => Token::IDENT(s),
+    });
 
     let and = choice((just("&&"), just("&"), just("^"), just("∧")))
         .map(|_| Token::AND)
@@ -59,6 +62,8 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
     let dot = just(".").map(|_| Token::DOT).boxed();
 
     let comma = just(",").map(|_| Token::COMMA).boxed();
+
+    let colon = just(":").map(|_| Token::COLON).boxed();
 
     let exists = choice((just("∃"), just("\\exists")))
         .map(|_| Token::EXISTS)
@@ -94,6 +99,7 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         rround,
         dot,
         comma,
+        colon,
         forall,
         exists,
     ))
