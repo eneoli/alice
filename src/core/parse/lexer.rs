@@ -29,6 +29,8 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
 
     let ident = text::ident().map(|s: String| match s.to_lowercase().as_str() {
         "fn" => Token::FN,
+        "case" => Token::CASE,
+        "of" => Token::OF,
         _ => Token::IDENT(s),
     });
 

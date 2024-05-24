@@ -15,6 +15,11 @@ pub enum Token {
     FORALL,
     DOT,
     COMMA,
+    COLON,
     TRUE,
     FALSE,
+
+    FN,
+    CASE,
+    OF,
 }
