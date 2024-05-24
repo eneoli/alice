@@ -10,7 +10,7 @@ use super::Token;
 
     Prop = Implication ;
 
-    Implication = { Or, "=>" }, (Or | Quantor) ;
+    Implication = { Or, "=>" }, (Or | Quantor) ; // This prevents LL(1) but isn't that dramatic.
 
     Or          = And, { "||", (And | Quantor) } ;
 
