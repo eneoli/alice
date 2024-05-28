@@ -22,4 +22,7 @@ pub enum Token {
     FN,
     CASE,
     OF,
+    LET,
+    IN,
+    EQUAL,
 }
