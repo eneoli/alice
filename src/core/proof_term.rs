@@ -1,10 +1,12 @@
 use super::prop::Prop;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ProofTerm {
 
     Ident(String),
     Pair(Box<ProofTerm>, Box<ProofTerm>),
+    ProjectFst(Box<ProofTerm>),
+    ProjectSnd(Box<ProofTerm>),
     Function {
         param_ident: String,
         param_prop: Prop,
@@ -14,7 +16,12 @@ pub enum ProofTerm {
         function: Box<ProofTerm>,
         applicant: Box<ProofTerm>,
     },
-    LetIn,
+    LetIn {
+        fst_ident: String,
+        snd_ident: String,
+        pair_proof_term: Box<ProofTerm>,
+        body: Box<ProofTerm>,
+    },
     OrLeft(Box<ProofTerm>),
     OrRight(Box<ProofTerm>),
     Case {
@@ -28,4 +35,10 @@ pub enum ProofTerm {
     },
     Abort(Box<ProofTerm>),
     Unit,
+}
+
+impl ProofTerm {
+    pub fn boxed(&self) -> Box<Self> {
+        Box::new(self.clone())
+    }
 }
