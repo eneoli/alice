@@ -31,6 +31,8 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         "fn" => Token::FN,
         "case" => Token::CASE,
         "of" => Token::OF,
+        "let" => Token::LET,
+        "in" => Token::IN,
         _ => Token::IDENT(s),
     });
 
@@ -67,13 +69,15 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
 
     let colon = just(":").map(|_| Token::COLON).boxed();
 
+    let forall = choice((just("∀"), just("\\forall")))
+        .map(|_| Token::FORALL)
+        .boxed();
+
     let exists = choice((just("∃"), just("\\exists")))
         .map(|_| Token::EXISTS)
         .boxed();
 
-    let forall = choice((just("∀"), just("\\forall")))
-        .map(|_| Token::FORALL)
-        .boxed();
+    let equal = just("=").map(|_| Token::EQUAL).boxed();
 
     let comment_single_line = just("//")
         .then(text::newline().not().repeated().then(text::newline()))
@@ -104,6 +108,7 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         colon,
         forall,
         exists,
+        equal,
     ))
     .padded_by(comment.repeated())
     .padded()
