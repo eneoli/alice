@@ -10,7 +10,7 @@ use super::Token;
 
     Prop = Implication ;
 
-    Implication = { Or, "=>" }, (Or | Quantor) ; // This prevents LL(1) but isn't that dramatic.
+    Implication = { Or, "->" }, (Or | Quantor) ; // This prevents LL(1) but isn't that dramatic.
 
     Or          = And, { "||", (And | Quantor) } ;
 
@@ -22,9 +22,9 @@ use super::Token;
 
     Quantor     = Allquant | Existsquant ;
 
-    Allquant    = "∀", Ident, ".", Prop ;
+    Allquant    = "∀", Ident, ":", Ident, ".", Prop ;
 
-    Existsquant = "∃", Ident, ".", Prop ;
+    Existsquant = "∃", Ident, ":", Ident, ".", Prop ;
 */
 pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
     let ident = select! { Token::IDENT(ident) => ident };
@@ -32,20 +32,26 @@ pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
     let prop = recursive(|prop: Recursive<Token, Prop, Simple<Token>>| {
         let allquant = just(Token::FORALL)
             .ignore_then(ident)
+            .then_ignore(just(Token::COLON))
+            .then(ident)
             .then_ignore(just(Token::DOT))
             .then(prop.clone())
-            .map(|(ident, body)| Prop::ForAll {
-                ident,
+            .map(|((object_ident, object_type_ident), body)| Prop::ForAll {
+                object_ident,
+                object_type_ident,
                 body: Box::new(body.clone()),
             })
             .boxed();
 
         let existsquant = just(Token::EXISTS)
             .ignore_then(ident)
+            .then_ignore(just(Token::COLON))
+            .then(ident)
             .then_ignore(just(Token::DOT))
             .then(prop.clone())
-            .map(|(ident, body)| Prop::Exists {
-                ident,
+            .map(|((object_ident, object_type_ident), body)| Prop::Exists {
+                object_ident,
+                object_type_ident,
                 body: Box::new(body.clone()),
             })
             .boxed();
@@ -137,7 +143,10 @@ mod tests {
 
         assert_eq!(
             ast,
-            Prop::Impl(Prop::Atom(String::from("A"), None).boxed(), Prop::False.boxed())
+            Prop::Impl(
+                Prop::Atom(String::from("A"), None).boxed(),
+                Prop::False.boxed()
+            )
         );
     }
 
@@ -150,7 +159,11 @@ mod tests {
             ast,
             Prop::Impl(
                 Prop::Impl(
-                    Prop::Impl(Prop::Atom(String::from("A"), None).boxed(), Prop::False.boxed()).boxed(),
+                    Prop::Impl(
+                        Prop::Atom(String::from("A"), None).boxed(),
+                        Prop::False.boxed()
+                    )
+                    .boxed(),
                     Prop::False.boxed()
                 )
                 .boxed(),
@@ -231,13 +244,14 @@ mod tests {
 
     #[test]
     fn test_global_forall() {
-        let token = lexer().parse("\\forall x. A => B").unwrap();
+        let token = lexer().parse("\\forall x:t. A => B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
             ast,
             Prop::ForAll {
-                ident: String::from("x"),
+                object_ident: String::from("x"),
+                object_type_ident: String::from("t"),
                 body: Prop::Impl(
                     Prop::Atom(format!("A"), None).boxed(),
                     Prop::Atom(format!("B"), None).boxed()
@@ -249,13 +263,14 @@ mod tests {
 
     #[test]
     fn test_global_exists() {
-        let token = lexer().parse("\\exists x. A => B").unwrap();
+        let token = lexer().parse("\\exists x:t. A => B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
             ast,
             Prop::Exists {
-                ident: String::from("x"),
+                object_ident: String::from("x"),
+                object_type_ident: String::from("t"),
                 body: Prop::Impl(
                     Prop::Atom(format!("A"), None).boxed(),
                     Prop::Atom(format!("B"), None).boxed()
@@ -267,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_left_forall() {
-        let token = lexer().parse("A && \\forall x. A => B").unwrap();
+        let token = lexer().parse("A && \\forall x:t. A => B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -275,9 +290,13 @@ mod tests {
             Prop::And(
                 Prop::Atom(format!("A"), None).boxed(),
                 Prop::ForAll {
-                    ident: format!("x"),
-                    body: Prop::Impl(Prop::Atom(s!("A"), None).boxed(), Prop::Atom(s!("B"), None).boxed())
-                        .boxed()
+                    object_ident: "x".to_string(),
+                    object_type_ident: "t".to_string(),
+                    body: Prop::Impl(
+                        Prop::Atom(s!("A"), None).boxed(),
+                        Prop::Atom(s!("B"), None).boxed()
+                    )
+                    .boxed()
                 }
                 .boxed()
             )
@@ -286,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_left_exists() {
-        let token = lexer().parse("A && \\exists x. A => B").unwrap();
+        let token = lexer().parse("A && \\exists x:t. A => B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -294,9 +313,13 @@ mod tests {
             Prop::And(
                 Prop::Atom(format!("A"), None).boxed(),
                 Prop::Exists {
-                    ident: format!("x"),
-                    body: Prop::Impl(Prop::Atom(s!("A"), None).boxed(), Prop::Atom(s!("B"), None).boxed())
-                        .boxed()
+                    object_ident: "x".to_string(),
+                    object_type_ident: "t".to_string(),
+                    body: Prop::Impl(
+                        Prop::Atom(s!("A"), None).boxed(),
+                        Prop::Atom(s!("B"), None).boxed()
+                    )
+                    .boxed()
                 }
                 .boxed()
             )
@@ -305,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_nested_forall() {
-        let token = lexer().parse("A && (\\forall x. x) && C").unwrap();
+        let token = lexer().parse("A && (\\forall x:t. x) && C").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -314,7 +337,8 @@ mod tests {
                 Prop::And(
                     Prop::Atom(s!("A"), None).boxed(),
                     Prop::ForAll {
-                        ident: s!("x"),
+                        object_ident: "x".to_string(),
+                        object_type_ident: "t".to_string(),
                         body: Prop::Atom(s!("x"), None).boxed()
                     }
                     .boxed()
@@ -327,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_nested_exists() {
-        let token = lexer().parse("A && (\\exists x. x) && C").unwrap();
+        let token = lexer().parse("A && (\\exists x:t. x) && C").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -336,7 +360,8 @@ mod tests {
                 Prop::And(
                     Prop::Atom(s!("A"), None).boxed(),
                     Prop::Exists {
-                        ident: s!("x"),
+                        object_ident: "x".to_string(),
+                        object_type_ident: "t".to_string(),
                         body: Prop::Atom(s!("x"), None).boxed()
                     }
                     .boxed()
