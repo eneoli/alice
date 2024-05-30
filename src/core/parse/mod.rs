@@ -1,5 +1,6 @@
 pub mod lexer;
 pub mod fol;
+pub mod proof;
 pub mod proof_term;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -17,6 +18,7 @@ pub enum Token {
     DOT,
     COMMA,
     COLON,
+    SEMICOLON,
     TRUE,
     FALSE,
 
@@ -26,4 +28,5 @@ pub enum Token {
     LET,
     IN,
     EQUAL,
+    DATATYPE,
 }

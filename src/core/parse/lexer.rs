@@ -33,6 +33,7 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         "of" => Token::OF,
         "let" => Token::LET,
         "in" => Token::IN,
+        "datatype" => Token::DATATYPE,
         _ => Token::IDENT(s),
     });
 
@@ -48,7 +49,9 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         .map(|_| Token::ARROW)
         .boxed();
 
-    let implication = choice((just("->"), just("→"), just("⊃")));
+    let implication = choice((just("->"), just("→"), just("⊃")))
+        .map(|_| Token::IMPLICATION)
+        .boxed();
 
     let not = choice((just("~"), just("!"), just("¬")))
         .map(|_| Token::NOT)
@@ -63,6 +66,8 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
     let comma = just(",").map(|_| Token::COMMA).boxed();
 
     let colon = just(":").map(|_| Token::COLON).boxed();
+
+    let semicolon = just(";").map(|_| Token::SEMICOLON).boxed();
 
     let forall = choice((just("∀"), just("\\forall")))
         .map(|_| Token::FORALL)
@@ -95,13 +100,14 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         and,
         or,
         arrow,
-        double_arrow,
+        implication,
         not,
         lround,
         rround,
         dot,
         comma,
         colon,
+        semicolon,
         forall,
         exists,
         equal,
