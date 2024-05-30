@@ -7,8 +7,16 @@ pub enum Prop {
     Or(Box<Prop>, Box<Prop>),
     Impl(Box<Prop>, Box<Prop>),
 
-    ForAll { ident: String, body: Box<Prop> },
-    Exists { ident: String, body: Box<Prop> },
+    ForAll {
+        object_ident: String,
+        object_type_ident: String,
+        body: Box<Prop>,
+    },
+    Exists {
+        object_ident: String,
+        object_type_ident: String,
+        body: Box<Prop>,
+    },
 
     True,
     False,
@@ -50,8 +58,28 @@ impl Debug for Prop {
                 format!("{:?}", left),
                 format!("{:?}", right)
             ),
-            Prop::ForAll { ident, body } => write!(f, "∀{}. ({})", ident, format!("{:?}", body)),
-            Prop::Exists { ident, body } => write!(f, "∃{}. ({})", ident, format!("{:?}", body)),
+            Prop::ForAll {
+                object_ident,
+                object_type_ident,
+                body,
+            } => write!(
+                f,
+                "∀{}:{}. ({})",
+                object_ident,
+                object_type_ident,
+                format!("{:?}", body)
+            ),
+            Prop::Exists {
+                object_ident,
+                object_type_ident,
+                body,
+            } => write!(
+                f,
+                "∃{}:{}. ({})",
+                object_ident,
+                object_type_ident,
+                format!("{:?}", body)
+            ),
 
             Prop::True => write!(f, "T"),
             Prop::False => write!(f, "⊥"),
