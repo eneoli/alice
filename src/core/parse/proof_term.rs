@@ -11,7 +11,7 @@ use super::{fol::fol_parser, Token};
     Unit           = "(", ")" ;
     Pair           = "(", Expr, ",", Expr, ")" ;
     Atom           = "(", Expr, ")" | Ident | Pair | Unit ;
-    Function       = "fn", Ident, ":", "(", Prop, ")", "=>", Expr ;
+    Function       = "fn", Ident, ":", Prop, "=>", Expr ;
     CaseExpr       = Case | Application ;
     Case           = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
     Application    = Atom, {Atom | Function | Case} ;
@@ -48,8 +48,8 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
         let function = just(Token::FN)
             .ignore_then(ident_token)
             .then_ignore(just(Token::COLON))
-            .then(fol_parser().delimited_by(just(Token::LROUND), just(Token::RROUND)))
-            .then_ignore(just(Token::IMPLICATION))
+            .then(fol_parser())
+            .then_ignore(just(Token::ARROW))
             .then(proof_term.clone())
             .map(|((param_ident, param_prop), body)| ProofTerm::Function {
                 param_ident,
@@ -87,13 +87,13 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     //
                     .then_ignore(just(Token::IDENT("inl".to_string())))
                     .then(ident_token.clone())
-                    .then_ignore(just(Token::IMPLICATION))
+                    .then_ignore(just(Token::ARROW))
                     .then(proof_term.clone())
                     .then_ignore(just(Token::COMMA))
                     //
                     .then_ignore(just(Token::IDENT("inr".to_string())))
                     .then(ident_token.clone())
-                    .then_ignore(just(Token::IMPLICATION))
+                    .then_ignore(just(Token::ARROW))
                     .then(proof_term.clone())
                     .then_ignore(just(Token::COMMA).or_not())
                     .map(
