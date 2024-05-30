@@ -7,6 +7,7 @@ pub enum Token {
     IDENT(String),
     AND,
     OR,
+    ARROW,
     IMPLICATION,
     NOT,
     LROUND,

@@ -44,16 +44,11 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         .map(|_| Token::OR)
         .boxed();
 
-    let implication = choice((
-        just("=>"),
-        just("->"),
-        just("⇒"),
-        just("⟹"),
-        just("→"),
-        just("⊃"),
-    ))
-    .map(|_| Token::IMPLICATION)
-    .boxed();
+    let arrow = choice((just("=>"), just("⇒"), just("⟹")))
+        .map(|_| Token::ARROW)
+        .boxed();
+
+    let implication = choice((just("->"), just("→"), just("⊃")));
 
     let not = choice((just("~"), just("!"), just("¬")))
         .map(|_| Token::NOT)
@@ -99,7 +94,8 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         ident,
         and,
         or,
-        implication,
+        arrow,
+        double_arrow,
         not,
         lround,
         rround,
