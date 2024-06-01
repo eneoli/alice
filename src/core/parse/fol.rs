@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn test_precedence_propositional_logic() {
-        let token = lexer().parse("A || B && ~C => D").unwrap();
+        let token = lexer().parse("A || B && ~C -> D").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -244,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_global_forall() {
-        let token = lexer().parse("\\forall x:t. A => B").unwrap();
+        let token = lexer().parse("\\forall x:t. A -> B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -263,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_global_exists() {
-        let token = lexer().parse("\\exists x:t. A => B").unwrap();
+        let token = lexer().parse("\\exists x:t. A -> B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_left_forall() {
-        let token = lexer().parse("A && \\forall x:t. A => B").unwrap();
+        let token = lexer().parse("A && \\forall x:t. A -> B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
@@ -305,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_left_exists() {
-        let token = lexer().parse("A && \\exists x:t. A => B").unwrap();
+        let token = lexer().parse("A && \\exists x:t. A -> B").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
