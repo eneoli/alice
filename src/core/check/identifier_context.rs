@@ -6,6 +6,10 @@ pub struct IdentifierContext {
 }
 
 impl IdentifierContext {
+    pub fn new() -> Self {
+        Self { ctx: Vec::new() }
+    }
+
     pub fn insert(&mut self, ident: String, identifer_type: Type) {
         self.ctx.push((ident, identifer_type));
     }
