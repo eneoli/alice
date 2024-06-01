@@ -1,15 +1,20 @@
 use super::prop::Prop;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub enum ProofTerm {
+pub enum Type {
+    Prop(Prop),
+    Datatype(String),
+}
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum ProofTerm {
     Ident(String),
     Pair(Box<ProofTerm>, Box<ProofTerm>),
     ProjectFst(Box<ProofTerm>),
     ProjectSnd(Box<ProofTerm>),
     Function {
         param_ident: String,
-        param_prop: Prop,
+        param_type: Type,
         body: Box<ProofTerm>,
     },
     Application {

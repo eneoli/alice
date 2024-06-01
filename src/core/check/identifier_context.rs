@@ -1,20 +1,16 @@
-#[derive(Clone)]
-pub enum IdentifierType {
-    Variable,
-    Datatype,
-}
+use crate::core::proof_term::Type;
 
 #[derive(Clone)]
 pub struct IdentifierContext {
-    ctx: Vec<(String, IdentifierType)>,
+    ctx: Vec<(String, Type)>,
 }
 
 impl IdentifierContext {
-    pub fn insert(&mut self, ident: String, identifer_type: IdentifierType) {
+    pub fn insert(&mut self, ident: String, identifer_type: Type) {
         self.ctx.push((ident, identifer_type));
     }
 
-    pub fn get(&self, ident: &String) -> Option<&IdentifierType> {
+    pub fn get(&self, ident: &String) -> Option<&Type> {
         self.ctx
             .iter()
             .rev()
@@ -22,7 +18,7 @@ impl IdentifierContext {
             .map(|pair| &pair.1)
     }
 
-    pub fn remove(&mut self, ident: &String) -> Option<IdentifierType> {
+    pub fn remove(&mut self, ident: &String) -> Option<Type> {
         let idx = self
             .ctx
             .iter()
