@@ -1,7 +1,10 @@
 use std::fmt::{self, Debug};
 
+use super::proof_term::Type;
+
 #[derive(Clone, PartialEq, Eq)]
 pub enum Prop {
+    Any,
     Atom(String, Option<String>),
     And(Box<Prop>, Box<Prop>),
     Or(Box<Prop>, Box<Prop>),
@@ -28,9 +31,16 @@ impl Prop {
     }
 }
 
+impl Into<Type> for Prop {
+    fn into(self) -> Type {
+        Type::Prop(self)
+    }
+}
+
 impl Debug for Prop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Prop::Any => write!(f, "*"),
             Prop::Atom(ident, param) => match param {
                 Some(param_ident) => write!(
                     f,
