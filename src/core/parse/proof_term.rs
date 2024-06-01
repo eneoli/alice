@@ -1,20 +1,21 @@
 use chumsky::prelude::*;
 
-use crate::core::proof_term::ProofTerm;
+use crate::core::proof_term::{ProofTerm, Type};
 
 use super::{fol::fol_parser, Token};
 
 /*
     == Proof Term Parser ==
 
-    Expr           = Function | Case | Application ;
+    Expr           = Function | Case | Application | LetIn ;
     Unit           = "(", ")" ;
     Pair           = "(", Expr, ",", Expr, ")" ;
     Atom           = "(", Expr, ")" | Ident | Pair | Unit ;
     Function       = "fn", Ident, ":", Prop, "=>", Expr ;
-    CaseExpr       = Case | Application ;
+    CaseExpr       = Case | Application | LetIn;
     Case           = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
-    Application    = Atom, {Atom | Function | Case} ;
+    Application    = Atom, {Atom | Function | Case | LetIn} ;
+    LetIn          = "let", "(", Ident, ",", Ident, ")", "=", Expr, "in", Expr ;
 */
 pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token>> {
     let ident_token = select! { Token::IDENT(ident) => ident };
@@ -51,9 +52,9 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .then(fol_parser())
             .then_ignore(just(Token::ARROW))
             .then(proof_term.clone())
-            .map(|((param_ident, param_prop), body)| ProofTerm::Function {
+            .map(|((param_ident, param_type), body)| ProofTerm::Function {
                 param_ident,
-                param_prop,
+                param_type: Type::Prop(param_type),
                 body: Box::new(body),
             })
             .boxed();
@@ -157,7 +158,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 mod tests {
     use chumsky::Parser;
 
-    use crate::core::{parse::lexer::lexer, proof_term::ProofTerm, prop::Prop};
+    use crate::core::{parse::lexer::lexer, proof_term::{ProofTerm, Type}, prop::Prop};
 
     use super::proof_term_parser;
 
@@ -170,7 +171,7 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "x".to_string(),
-                param_prop: Prop::Atom("A".to_string(), None),
+                param_type: Type::Prop(Prop::Atom("A".to_string(), None)),
                 body: ProofTerm::Ident("x".to_string()).boxed()
             }
         )
@@ -185,10 +186,10 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "x".to_string(),
-                param_prop: Prop::And(
+                param_type: Type::Prop(Prop::And(
                     Prop::Atom("A".to_string(), None).boxed(),
                     Prop::Atom("B".to_string(), None).boxed(),
-                ),
+                )),
                 body: ProofTerm::Pair(
                     ProofTerm::ProjectSnd(ProofTerm::Ident("x".to_string()).boxed()).boxed(),
                     ProofTerm::ProjectFst(ProofTerm::Ident("x".to_string()).boxed()).boxed(),
@@ -210,11 +211,11 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "f".to_string(),
-                param_prop: Prop::Atom("A".to_string(), None),
+                param_type: Type::Prop(Prop::Atom("A".to_string(), None)),
                 body: ProofTerm::Application {
                     function: ProofTerm::Function {
                         param_ident: "x".to_string(),
-                        param_prop: Prop::Atom("B".to_string(), None),
+                        param_type: Type::Prop(Prop::Atom("B".to_string(), None)),
                         body: ProofTerm::Application {
                             function: ProofTerm::Ident("f".to_string()).boxed(),
                             applicant: ProofTerm::Application {
@@ -228,7 +229,7 @@ mod tests {
                     .boxed(),
                     applicant: ProofTerm::Function {
                         param_ident: "x".to_string(),
-                        param_prop: Prop::Atom("B".to_string(), None),
+                        param_type: Type::Prop(Prop::Atom("B".to_string(), None)),
                         body: ProofTerm::Application {
                             function: ProofTerm::Ident("f".to_string()).boxed(),
                             applicant: ProofTerm::Application {
@@ -302,13 +303,13 @@ mod tests {
             ProofTerm::Application {
                 function: ProofTerm::Function {
                     param_ident: "u".to_string(),
-                    param_prop: Prop::True,
+                    param_type: Type::Prop(Prop::True),
                     body: ProofTerm::Ident("u".to_string()).boxed(),
                 }
                 .boxed(),
                 applicant: ProofTerm::Function {
                     param_ident: "x".to_string(),
-                    param_prop: Prop::False,
+                    param_type: Type::Prop(Prop::False),
                     body: ProofTerm::Ident("x".to_string()).boxed(),
                 }
                 .boxed()
@@ -325,10 +326,10 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "u".to_string(),
-                param_prop: Prop::True,
+                param_type: Type::Prop(Prop::True),
                 body: ProofTerm::Function {
                     param_ident: "x".to_string(),
-                    param_prop: Prop::False,
+                    param_type: Type::Prop(Prop::False),
                     body: ProofTerm::Ident("x".to_string()).boxed(),
                 }
                 .boxed()
@@ -459,7 +460,7 @@ mod tests {
                 pair_proof_term: ProofTerm::Ident("M".to_string()).boxed(),
                 body: ProofTerm::Function {
                     param_ident: "x".to_string(),
-                    param_prop: Prop::Atom("A".to_string(), None),
+                    param_type: Type::Prop(Prop::Atom("A".to_string(), None)),
                     body: ProofTerm::Ident("a".to_string()).boxed(),
                 }
                 .boxed()
