@@ -13,7 +13,7 @@ fn prove_right(sequent: Sequent) -> bool {
     use super::Prop::*;
 
     match sequent.goal {
-        Atom(_, None) => sequent.ctx_contains(&sequent.goal) || prove_left(sequent),
+        Atom(_, ref params) if params.is_empty() => sequent.ctx_contains(&sequent.goal) || prove_left(sequent),
 
         And(ref left, ref right) => {
             prove_right(sequent.with_new_goal(left)) && prove_right(sequent.with_new_goal(right))
@@ -44,7 +44,7 @@ fn prove_left(mut sequent: Sequent) -> bool {
     // we have an inversable prop
     if let Some(prop) = inv_prop {
         return match prop {
-            Atom(_, None) => {
+            Atom(_, ref params) if params.is_empty() => {
                 (sequent.goal == prop) || {
                     sequent.add_non_inv(&prop);
                     prove_left(sequent)
