@@ -71,19 +71,17 @@ impl ResolveDatatypes {
                 param_type,
                 body,
             } => {
-                let mut real_param_type = param_type;
-
-                if let Type::Prop(Prop::Atom(ident, None)) = &real_param_type {
-                    // check if datatype
-                    if datatypes.contains(&ident) {
-                        real_param_type = Type::Datatype(ident.clone());
+                let real_param_type = match param_type {
+                    Type::Prop(Prop::Atom(ident, params))
+                        if params.is_empty() && datatypes.contains(&ident) =>
+                    {
+                        Type::Datatype(ident.clone())
                     }
-                } else if let Type::Prop(prop) = &real_param_type {
-                    // check that prop does not contain data types.
-                    if self.has_datatype_identifier(&prop, &datatypes) {
-                        panic!("Props are not allowed to contain datatype identifers");
+                    Type::Prop(prop) if self.has_datatype_identifier(&prop, &datatypes) => {
+                        panic!("Props are not allowed to contain datatype identifers")
                     }
-                }
+                    _ => param_type,
+                };
 
                 ProofTerm::Function {
                     param_ident,
