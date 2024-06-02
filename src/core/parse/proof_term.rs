@@ -156,9 +156,15 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use chumsky::Parser;
 
-    use crate::core::{parse::lexer::lexer, proof_term::{ProofTerm, Type}, prop::Prop};
+    use crate::core::{
+        parse::lexer::lexer,
+        proof_term::{ProofTerm, Type},
+        prop::Prop,
+    };
 
     use super::proof_term_parser;
 
@@ -171,7 +177,7 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "x".to_string(),
-                param_type: Type::Prop(Prop::Atom("A".to_string(), None)),
+                param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
                 body: ProofTerm::Ident("x".to_string()).boxed()
             }
         )
@@ -187,8 +193,8 @@ mod tests {
             ProofTerm::Function {
                 param_ident: "x".to_string(),
                 param_type: Type::Prop(Prop::And(
-                    Prop::Atom("A".to_string(), None).boxed(),
-                    Prop::Atom("B".to_string(), None).boxed(),
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
                 )),
                 body: ProofTerm::Pair(
                     ProofTerm::ProjectSnd(ProofTerm::Ident("x".to_string()).boxed()).boxed(),
@@ -211,11 +217,11 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "f".to_string(),
-                param_type: Type::Prop(Prop::Atom("A".to_string(), None)),
+                param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
                 body: ProofTerm::Application {
                     function: ProofTerm::Function {
                         param_ident: "x".to_string(),
-                        param_type: Type::Prop(Prop::Atom("B".to_string(), None)),
+                        param_type: Type::Prop(Prop::Atom("B".to_string(), vec![])),
                         body: ProofTerm::Application {
                             function: ProofTerm::Ident("f".to_string()).boxed(),
                             applicant: ProofTerm::Application {
@@ -229,7 +235,7 @@ mod tests {
                     .boxed(),
                     applicant: ProofTerm::Function {
                         param_ident: "x".to_string(),
-                        param_type: Type::Prop(Prop::Atom("B".to_string(), None)),
+                        param_type: Type::Prop(Prop::Atom("B".to_string(), vec![])),
                         body: ProofTerm::Application {
                             function: ProofTerm::Ident("f".to_string()).boxed(),
                             applicant: ProofTerm::Application {
@@ -460,7 +466,7 @@ mod tests {
                 pair_proof_term: ProofTerm::Ident("M".to_string()).boxed(),
                 body: ProofTerm::Function {
                     param_ident: "x".to_string(),
-                    param_type: Type::Prop(Prop::Atom("A".to_string(), None)),
+                    param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
                     body: ProofTerm::Ident("a".to_string()).boxed(),
                 }
                 .boxed()
