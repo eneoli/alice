@@ -1,3 +1,5 @@
+use std::vec;
+
 use chumsky::prelude::*;
 
 use crate::core::prop::Prop;
@@ -18,7 +20,7 @@ use super::Token;
 
     Not         = { "~" }, Atom ;
 
-    Atom        = ⊤ | ⊥ | Ident, [ "(", Ident, ")" ] | "(", Prop, ")" ;
+    Atom        = ⊤ | ⊥ | Ident, [ "(", Ident, { ",", Ident }, [","],  ")" ] | "(", Prop, ")" ;
 
     Quantor     = Allquant | Existsquant ;
 
@@ -61,10 +63,23 @@ pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
         let atom = ident
             .then(
                 ident
+                    .then(
+                        just(Token::COMMA)
+                            .ignore_then(ident)
+                            .repeated()
+                            .then_ignore(just(Token::COMMA).or_not()),
+                    )
                     .delimited_by(just(Token::LROUND), just(Token::RROUND))
                     .or_not(),
             )
-            .map(|(ident, param)| Prop::Atom(ident, param))
+            .map(|(ident, params)| {
+                if let Some((head, mut tail)) = params {
+                    tail.insert(0, head);
+                    Prop::Atom(ident, tail)
+                } else {
+                    Prop::Atom(ident, vec![])
+                }
+            })
             .or(prop
                 .clone()
                 .delimited_by(just(Token::LROUND), just(Token::RROUND)))
@@ -133,7 +148,73 @@ mod tests {
         let token = lexer().parse("A").unwrap();
         let ast = fol_parser().parse(token).unwrap();
 
-        assert_eq!(ast, Prop::Atom(String::from("A"), None));
+        assert_eq!(ast, Prop::Atom(String::from("A"), vec![]));
+    }
+
+    #[test]
+    fn test_parameterized_prop_one() {
+        let token = lexer().parse("A(x)").unwrap();
+        let ast = fol_parser().parse(token).unwrap();
+
+        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]))
+    }
+
+    #[test]
+    fn test_parameterized_prop_one_trailling_comma() {
+        let token = lexer().parse("A(x,)").unwrap();
+        let ast = fol_parser().parse(token).unwrap();
+
+        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]))
+    }
+
+    #[test]
+    fn test_parameterized_prop_two() {
+        let token = lexer().parse("A(x, y)").unwrap();
+        let ast = fol_parser().parse(token).unwrap();
+
+        assert_eq!(
+            ast,
+            Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()])
+        )
+    }
+
+    #[test]
+    fn test_parameterized_prop_two_trailling_comma() {
+        let token = lexer().parse("A(x, y, )").unwrap();
+        let ast = fol_parser().parse(token).unwrap();
+
+        assert_eq!(
+            ast,
+            Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()])
+        )
+    }
+
+    #[test]
+    fn test_parameterized_prop_three() {
+        let token = lexer().parse("A(x, y, z)").unwrap();
+        let ast = fol_parser().parse(token).unwrap();
+
+        assert_eq!(
+            ast,
+            Prop::Atom(
+                "A".to_string(),
+                vec!["x".to_string(), "y".to_string(), "z".to_string()]
+            )
+        )
+    }
+
+    #[test]
+    fn test_parameterized_prop_three_trailling_comma() {
+        let token = lexer().parse("A(x, y, z,)").unwrap();
+        let ast = fol_parser().parse(token).unwrap();
+
+        assert_eq!(
+            ast,
+            Prop::Atom(
+                "A".to_string(),
+                vec!["x".to_string(), "y".to_string(), "z".to_string()]
+            )
+        )
     }
 
     #[test]
@@ -144,7 +225,7 @@ mod tests {
         assert_eq!(
             ast,
             Prop::Impl(
-                Prop::Atom(String::from("A"), None).boxed(),
+                Prop::Atom(String::from("A"), vec![]).boxed(),
                 Prop::False.boxed()
             )
         );
@@ -160,7 +241,7 @@ mod tests {
             Prop::Impl(
                 Prop::Impl(
                     Prop::Impl(
-                        Prop::Atom(String::from("A"), None).boxed(),
+                        Prop::Atom(String::from("A"), vec![]).boxed(),
                         Prop::False.boxed()
                     )
                     .boxed(),
@@ -180,8 +261,8 @@ mod tests {
         assert_eq!(
             ast,
             Prop::And(
-                Box::new(Prop::Atom(String::from("A"), None)),
-                Box::new(Prop::Atom(String::from("B"), None)),
+                Box::new(Prop::Atom(String::from("A"), vec![])),
+                Box::new(Prop::Atom(String::from("B"), vec![])),
             )
         );
     }
@@ -195,10 +276,10 @@ mod tests {
             ast,
             Prop::And(
                 Box::new(Prop::And(
-                    Box::new(Prop::Atom(String::from("A"), None)),
-                    Box::new(Prop::Atom(String::from("B"), None))
+                    Box::new(Prop::Atom(String::from("A"), vec![])),
+                    Box::new(Prop::Atom(String::from("B"), vec![]))
                 )),
-                Box::new(Prop::Atom(String::from("C"), None)),
+                Box::new(Prop::Atom(String::from("C"), vec![])),
             )
         );
     }
@@ -211,10 +292,10 @@ mod tests {
         assert_eq!(
             ast,
             Prop::And(
-                Box::new(Prop::Atom(String::from("A"), None)),
+                Box::new(Prop::Atom(String::from("A"), vec![])),
                 Box::new(Prop::And(
-                    Box::new(Prop::Atom(String::from("B"), None)),
-                    Box::new(Prop::Atom(String::from("C"), None))
+                    Box::new(Prop::Atom(String::from("B"), vec![])),
+                    Box::new(Prop::Atom(String::from("C"), vec![]))
                 )),
             )
         );
@@ -229,15 +310,16 @@ mod tests {
             ast,
             Prop::Impl(
                 Prop::Or(
-                    Prop::Atom(s!("A"), None).boxed(),
+                    Prop::Atom(s!("A"), vec![]).boxed(),
                     Prop::And(
-                        Prop::Atom(s!("B"), None).boxed(),
-                        Prop::Impl(Prop::Atom(s!("C"), None).boxed(), Prop::False.boxed()).boxed()
+                        Prop::Atom(s!("B"), vec![]).boxed(),
+                        Prop::Impl(Prop::Atom(s!("C"), vec![]).boxed(), Prop::False.boxed())
+                            .boxed()
                     )
                     .boxed()
                 )
                 .boxed(),
-                Prop::Atom(s!("D"), None).boxed()
+                Prop::Atom(s!("D"), vec![]).boxed()
             )
         )
     }
@@ -253,8 +335,8 @@ mod tests {
                 object_ident: String::from("x"),
                 object_type_ident: String::from("t"),
                 body: Prop::Impl(
-                    Prop::Atom(format!("A"), None).boxed(),
-                    Prop::Atom(format!("B"), None).boxed()
+                    Prop::Atom(format!("A"), vec![]).boxed(),
+                    Prop::Atom(format!("B"), vec![]).boxed()
                 )
                 .boxed()
             }
@@ -272,8 +354,8 @@ mod tests {
                 object_ident: String::from("x"),
                 object_type_ident: String::from("t"),
                 body: Prop::Impl(
-                    Prop::Atom(format!("A"), None).boxed(),
-                    Prop::Atom(format!("B"), None).boxed()
+                    Prop::Atom(format!("A"), vec![]).boxed(),
+                    Prop::Atom(format!("B"), vec![]).boxed()
                 )
                 .boxed()
             }
@@ -288,13 +370,13 @@ mod tests {
         assert_eq!(
             ast,
             Prop::And(
-                Prop::Atom(format!("A"), None).boxed(),
+                Prop::Atom(format!("A"), vec![]).boxed(),
                 Prop::ForAll {
                     object_ident: "x".to_string(),
                     object_type_ident: "t".to_string(),
                     body: Prop::Impl(
-                        Prop::Atom(s!("A"), None).boxed(),
-                        Prop::Atom(s!("B"), None).boxed()
+                        Prop::Atom(s!("A"), vec![]).boxed(),
+                        Prop::Atom(s!("B"), vec![]).boxed()
                     )
                     .boxed()
                 }
@@ -311,13 +393,13 @@ mod tests {
         assert_eq!(
             ast,
             Prop::And(
-                Prop::Atom(format!("A"), None).boxed(),
+                Prop::Atom(format!("A"), vec![]).boxed(),
                 Prop::Exists {
                     object_ident: "x".to_string(),
                     object_type_ident: "t".to_string(),
                     body: Prop::Impl(
-                        Prop::Atom(s!("A"), None).boxed(),
-                        Prop::Atom(s!("B"), None).boxed()
+                        Prop::Atom(s!("A"), vec![]).boxed(),
+                        Prop::Atom(s!("B"), vec![]).boxed()
                     )
                     .boxed()
                 }
@@ -335,16 +417,16 @@ mod tests {
             ast,
             Prop::And(
                 Prop::And(
-                    Prop::Atom(s!("A"), None).boxed(),
+                    Prop::Atom(s!("A"), vec![]).boxed(),
                     Prop::ForAll {
                         object_ident: "x".to_string(),
                         object_type_ident: "t".to_string(),
-                        body: Prop::Atom(s!("x"), None).boxed()
+                        body: Prop::Atom(s!("x"), vec![]).boxed()
                     }
                     .boxed()
                 )
                 .boxed(),
-                Prop::Atom(s!("C"), None).boxed()
+                Prop::Atom(s!("C"), vec![]).boxed()
             )
         );
     }
@@ -358,16 +440,16 @@ mod tests {
             ast,
             Prop::And(
                 Prop::And(
-                    Prop::Atom(s!("A"), None).boxed(),
+                    Prop::Atom(s!("A"), vec![]).boxed(),
                     Prop::Exists {
                         object_ident: "x".to_string(),
                         object_type_ident: "t".to_string(),
-                        body: Prop::Atom(s!("x"), None).boxed()
+                        body: Prop::Atom(s!("x"), vec![]).boxed()
                     }
                     .boxed()
                 )
                 .boxed(),
-                Prop::Atom(s!("C"), None).boxed()
+                Prop::Atom(s!("C"), vec![]).boxed()
             )
         );
     }
