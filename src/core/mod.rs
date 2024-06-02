@@ -62,14 +62,18 @@ impl Sequent {
     }
 }
 
-// TODO: checken das der Typ einer quantifizierten Variable auch ein Datentyp und kein Prop ist.
-// TODO: checken das paramitriserte Atomns A(...) nur identifier haben die auch eingeführt wurden.
+// TODO: Schon erledigt? checken das der Typ einer quantifizierten Variable auch ein Datentyp und kein Prop ist.
+// TODO: Schon erledigt? checken das paramitriserte Atomns A(...) nur identifier haben die auch eingeführt wurden. (besonders (aber nicht nur) bei Exists)
 
-pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut IdentifierContext) -> Type {
+pub fn typify(
+    proof_term: &ProofTerm,
+    datatypes: &Vec<String>,
+    ctx: &mut IdentifierContext,
+) -> Type {
     match proof_term {
         ProofTerm::Unit => Prop::True.into(),
         ProofTerm::Abort(body) => {
-            let body_type = typify(*body, datatypes, ctx);
+            let body_type = typify(&body, datatypes, ctx);
 
             if let Type::Prop(Prop::False) = body_type {
                 return Prop::Any.into();
@@ -78,19 +82,25 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
             panic!("Failed to type check: abort Statement needs body of type falsum.");
         }
         ProofTerm::Pair(fst, snd) => {
-            let fst_type = typify(*fst, datatypes, ctx);
-            let snd_type = typify(*snd, datatypes, ctx);
+            let fst_type = typify(&fst, datatypes, ctx);
+            let snd_type = typify(&snd, datatypes, ctx);
 
             match (fst_type, snd_type) {
-                (Type::Datatype(ident), Type::Prop(snd_prop)) => Prop::Exists {
-                    object_ident: "x".to_string(), // TODO: unique
-                    object_type_ident: ident,
-                    body: snd_prop.boxed(),
-                },
+                (Type::Datatype(type_ident), Type::Prop(snd_prop)) => {
+                    if let ProofTerm::Ident(ident) = &**fst {
+                        Prop::Exists {
+                            object_ident: ident.to_string(),
+                            object_type_ident: type_ident.to_string(),
+                            body: snd_prop.boxed(),
+                        }
+                    } else {
+                        panic!("Architecture error: Expected identifier. Are you implementing datatytpe functions?");
+                    }
+                }
                 (Type::Prop(fst_prop), Type::Prop(snd_prop)) => {
                     Prop::And(fst_prop.boxed(), snd_prop.boxed()).into()
                 }
-                (Type::Datatype(ident), Type::Datatype(_)) => panic!("Snd has to be a Prop."),
+                (Type::Datatype(_), Type::Datatype(_)) => panic!("Snd has to be a Prop."),
                 (Type::Prop(_), Type::Datatype(_)) => panic!("Snd has to be a Prop."),
             }
             .into()
@@ -110,15 +120,17 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
             body,
         } => {
             ctx.insert(param_ident.clone(), param_type.clone());
-            let body_type = typify(*body, datatypes, ctx);
+            let body_type = typify(&body, datatypes, ctx);
             ctx.remove(&param_ident);
 
             match (param_type, body_type) {
-                (Type::Datatype(ident), Type::Prop(body_type)) => Prop::ForAll {
-                    object_ident: param_ident,
-                    object_type_ident: ident.clone(),
-                    body: body_type.boxed(),
-                },
+                (Type::Datatype(ident), Type::Prop(body_type)) => {
+                    Prop::ForAll {
+                        object_ident: param_ident.clone(),
+                        object_type_ident: ident.clone(),
+                        body: body_type.boxed(), // TODO have I to replace parameterized props?
+                    }
+                }
                 (Type::Prop(fst), Type::Prop(snd)) => Prop::Impl(fst.boxed(), snd.boxed()),
                 (Type::Datatype(_), Type::Datatype(_)) => panic!("Body has to be Prop."),
                 (Type::Prop(_), Type::Datatype(_)) => panic!("Body has to be Prop."),
@@ -129,8 +141,8 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
             function,
             applicant,
         } => {
-            let function_type = typify(*function, datatypes, ctx);
-            let applicant_type = typify(*applicant, datatypes, ctx);
+            let function_type = typify(&function, datatypes, ctx);
+            let applicant_type = typify(&applicant, datatypes, ctx);
 
             // either implication or allquant
 
@@ -149,11 +161,17 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
             }) = function_type
             {
                 // check if applicant is datatype
-                if let Type::Datatype(ident) = applicant_type {
-                    return Type::Prop(*body);
+                if applicant_type == Type::Datatype(object_type_ident) {
+                    if let ProofTerm::Ident(ident) = &**applicant {
+                        let mut substitued_body = *body.clone();
+                        substitued_body.substitue_free_parameter(&object_ident, &ident);
+                        return Type::Prop(substitued_body);
+                    } else {
+                        panic!("Architecture error: Expected identifier. Are you implementing datatytpe functions?");
+                    }
                 }
 
-                panic!("Failed to type check: Expected data type.");
+                panic!("Failed to type check: Applicant does not match.");
             }
 
             panic!("Failed to type check: Not a function.")
@@ -166,17 +184,17 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
             right_ident,
             right_term,
         } => {
-            let proof_term_type = typify(*proof_term, datatypes, ctx);
+            let proof_term_type = typify(&proof_term, datatypes, ctx);
 
             if let Type::Prop(Prop::And(fst, snd)) = proof_term_type {
                 // fst
                 ctx.insert(left_ident.clone(), Type::Prop(*fst));
-                let fst_type = typify(*left_term, datatypes, ctx);
+                let fst_type = typify(&left_term, datatypes, ctx);
                 ctx.remove(&left_ident);
 
                 // snd
                 ctx.insert(right_ident.clone(), Type::Prop(*snd));
-                let snd_type = typify(*right_term, datatypes, ctx);
+                let snd_type = typify(&right_term, datatypes, ctx);
                 ctx.remove(&right_ident);
 
                 if fst_type != snd_type {
@@ -189,7 +207,7 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
             }
         }
         ProofTerm::ProjectFst(body) => {
-            let body_type = typify(*body, datatypes, ctx);
+            let body_type = typify(&body, datatypes, ctx);
 
             if let Type::Prop(Prop::And(fst, _)) = body_type {
                 return Type::Prop(*fst);
@@ -199,7 +217,7 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
         }
 
         ProofTerm::ProjectSnd(body) => {
-            let body_type = typify(*body, datatypes, ctx);
+            let body_type = typify(&body, datatypes, ctx);
 
             if let Type::Prop(Prop::And(_, snd)) = body_type {
                 return Type::Prop(*snd);
@@ -213,7 +231,7 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
             pair_proof_term,
             body,
         } => {
-            let pair_proof_term_type = typify(*pair_proof_term, datatypes, ctx);
+            let pair_proof_term_type = typify(&pair_proof_term, datatypes, ctx);
 
             if let Type::Prop(Prop::Exists {
                 object_ident,
@@ -224,10 +242,17 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
                 ctx.insert(fst_ident.clone(), Type::Datatype(object_type_ident));
                 ctx.insert(snd_ident.clone(), Type::Prop(*exists_body));
 
-                let body_type = typify(*body, datatypes, ctx);
+                let body_type = typify(&body, datatypes, ctx);
 
                 ctx.remove(&fst_ident);
                 ctx.remove(&snd_ident);
+
+                // check that quantified object does not escape it's scope
+                if let Type::Prop(prop) = &body_type {
+                    if prop.get_free_parameters().contains(&object_ident) {
+                        panic!("Failed to type check: Quantified object cannot escape it's scope.");
+                    }
+                }
 
                 body_type
             } else {
@@ -236,13 +261,13 @@ pub fn typify(proof_term: ProofTerm, datatypes: &Vec<String>, ctx: &mut Identifi
         }
 
         ProofTerm::OrLeft(body) => {
-            let body_type = typify(*body, datatypes, ctx);
+            let body_type = typify(&body, datatypes, ctx);
 
             todo!()
         }
 
         ProofTerm::OrRight(body) => {
-            let body_type = typify(*body, datatypes, ctx);
+            let body_type = typify(&body, datatypes, ctx);
 
             todo!()
         }
