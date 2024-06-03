@@ -27,8 +27,14 @@ pub enum ProofTerm {
         pair_proof_term: Box<ProofTerm>,
         body: Box<ProofTerm>,
     },
-    OrLeft(Box<ProofTerm>),
-    OrRight(Box<ProofTerm>),
+    OrLeft {
+        body: Box<ProofTerm>,
+        other: Prop,
+    },
+    OrRight {
+        body: Box<ProofTerm>,
+        other: Prop,
+    },
     Case {
         proof_term: Box<ProofTerm>,
 
