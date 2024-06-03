@@ -1,21 +1,27 @@
 use chumsky::prelude::*;
 
-use crate::core::proof_term::{ProofTerm, Type};
+use crate::core::{
+    proof_term::{ProofTerm, Type},
+    prop::Prop,
+};
 
 use super::{fol::fol_parser, Token};
 
 /*
     == Proof Term Parser ==
 
-    Expr           = Function | Case | Application | LetIn ;
-    Unit           = "(", ")" ;
-    Pair           = "(", Expr, ",", Expr, ")" ;
-    Atom           = "(", Expr, ")" | Ident | Pair | Unit ;
-    Function       = "fn", Ident, ":", Prop, "=>", Expr ;
-    CaseExpr       = Case | Application | LetIn;
-    Case           = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
-    Application    = Atom, [ "<",Prop , ">" ], {Atom | Function | Case | LetIn} ;
-    LetIn          = "let", "(", Ident, ",", Ident, ")", "=", Expr, "in", Expr ;
+    Expr            = Function | Case | Application | LetIn ;
+    Unit            = "(", ")" ;
+    Pair            = "(", Expr, ",", Expr, ")" ;
+    Atom            = "(", Expr, ")" | Ident | Pair | Unit ;
+    Function        = "fn", Ident, ":", Prop, "=>", Expr ;
+    CaseExpr        = Case | Application | LetIn;
+    Case            = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
+    BracketAtom     = "(", Expr, ")" | Pair | Unit ;
+    IdentAtom       = Ident, [ "<", Prop, ">" ] ;
+    ApplicationAtom = BracketAtom | IdentAtom ;
+    Application     = ApplicationAtom, { Atom | Function | Case | LetIn } ;
+    LetIn           = "let", "(", Ident, ",", Ident, ")", "=", Expr, "in", Expr ;
 */
 pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token>> {
     let ident_token = select! { Token::IDENT(ident) => ident };
@@ -112,14 +118,36 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             })
         };
 
+        enum ApplicantAtom {
+            BracketAtom(ProofTerm),
+            IdentAtom(ProofTerm, Option<Prop>),
+        }
+
+        let bracket_atom = choice((
+            just(Token::LROUND)
+                .ignore_then(proof_term.clone())
+                .then_ignore(just(Token::RROUND)),
+            pair,
+            unit,
+        ))
+        .map(|proof_term| ApplicantAtom::BracketAtom(proof_term))
+        .boxed();
+
+        let ident_atom = ident_term
+            .then(
+                just(Token::LANGLE)
+                    .ignore_then(fol_parser())
+                    .then_ignore(just(Token::RANGLE))
+                    .or_not(),
+            )
+            .map(|(proof_term, prop)| ApplicantAtom::IdentAtom(proof_term, prop))
+            .boxed();
+
+        let application_atom = choice((bracket_atom, ident_atom));
+
         let application = recursive(|application| {
-            atom.clone()
-                .then(
-                    just(Token::LANGLE)
-                        .ignore_then(fol_parser())
-                        .then_ignore(just(Token::RANGLE))
-                        .or_not(),
-                )
+            application_atom
+                .clone()
                 .then(
                     choice((
                         atom.clone(),
@@ -129,47 +157,58 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     ))
                     .repeated(),
                 )
-                .try_map(|((lhs, generic), mut rhs), span| {
-                    if rhs.len() == 0 && generic.is_none() {
-                        return Ok(lhs);
-                    }
+                .try_map(|(applicant_atom, mut rhs), span| {
+                    let init = match applicant_atom {
+                        ApplicantAtom::BracketAtom(proof_term) if rhs.len() > 0 => proof_term,
+                        ApplicantAtom::BracketAtom(proof_term) if rhs.len() == 0 => {
+                            return Ok(proof_term);
+                        }
 
-                    if rhs.len() == 0 && generic.is_some() {
-                        return Err(Simple::custom(span, "Missing applicant"));
-                    }
+                        ApplicantAtom::IdentAtom(proof_term, None) if rhs.len() > 0 => proof_term,
+                        ApplicantAtom::IdentAtom(proof_term, None) if rhs.len() == 0 => {
+                            return Ok(proof_term);
+                        }
 
-                    let fst = rhs.remove(0);
+                        ApplicantAtom::IdentAtom(_, Some(_)) if rhs.len() == 0 => {
+                            return Err(Simple::custom(span, "Missing applicant"));
+                        }
+                        ApplicantAtom::IdentAtom(ProofTerm::Ident(ident), Some(other))
+                            if rhs.len() > 0 =>
+                        {
+                            let fst = rhs.remove(0);
 
-                    let init = if let Some(generic) = generic {
-                        if let ProofTerm::Ident(ident) = lhs {
                             match ident.as_str() {
                                 "inl" => ProofTerm::OrLeft {
                                     body: fst.boxed(),
-                                    other: generic,
+                                    other,
                                 },
                                 "inr" => ProofTerm::OrRight {
                                     body: fst.boxed(),
-                                    other: generic,
+                                    other,
                                 },
                                 _ => {
-                                    return Err(Simple::custom(span, "Unexpected angle brackets."))
+                                    return Err(Simple::custom(span, "Unexpected angle brackets."));
                                 }
                             }
-                        } else {
+                        }
+                        ApplicantAtom::IdentAtom(_, Some(_)) => {
                             return Err(Simple::custom(span, "Unexpected angle brackets."));
                         }
-                    } else {
-                        rhs.insert(0, fst);
-                        lhs
+                        _ => unreachable!(),
                     };
 
-                    Ok(rhs.into_iter().fold(init, |acc, x| {
-                        if let ProofTerm::Ident(ident) = acc.clone() {
+                    rhs.into_iter().try_fold(init, |acc, x| {
+                        Ok(if let ProofTerm::Ident(ref ident) = acc {
                             match ident.as_str() {
                                 "abort" => ProofTerm::Abort(Box::new(x)),
                                 "fst" => ProofTerm::ProjectFst(Box::new(x)),
                                 "snd" => ProofTerm::ProjectSnd(Box::new(x)),
-                                "inl" | "inr" => panic!("NO NO NO! You need generics!"),
+                                "inl" | "inr" => {
+                                    return Err(Simple::custom(
+                                        span.clone(),
+                                        "Missing other Prop specifier.",
+                                    ))
+                                }
                                 _ => ProofTerm::Application {
                                     function: Box::new(acc),
                                     applicant: Box::new(x),
@@ -180,8 +219,8 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                                 function: Box::new(acc),
                                 applicant: Box::new(x),
                             }
-                        }
-                    }))
+                        })
+                    })
                 })
                 .boxed()
         });
@@ -400,27 +439,127 @@ mod tests {
         )
     }
 
-    /*#[test]
+    #[test]
     pub fn test_inl() {
-        let tokens = lexer().parse("inl a").unwrap();
+        let tokens = lexer().parse("inl<A -> B(x)> a").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
 
         assert_eq!(
             ast,
-            ProofTerm::OrLeft(ProofTerm::Ident("a".to_string()).boxed())
+            ProofTerm::OrLeft {
+                body: ProofTerm::Ident("a".to_string()).boxed(),
+                other: Prop::Impl(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
+                )
+            }
         )
     }
 
     #[test]
     pub fn test_inr() {
-        let tokens = lexer().parse("inr a").unwrap();
+        let tokens = lexer().parse("inr<A -> B(x)> a").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
 
         assert_eq!(
             ast,
-            ProofTerm::OrRight(ProofTerm::Ident("a".to_string()).boxed())
+            ProofTerm::OrRight {
+                body: ProofTerm::Ident("a".to_string()).boxed(),
+                other: Prop::Impl(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
+                )
+            }
         )
-    } */
+    }
+
+    #[test]
+    pub fn test_inr_no_applicant() {
+        let tokens = lexer().parse("inr<A>").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_inl_no_applicant() {
+        let tokens = lexer().parse("inl<A>").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_no_nested_inl() {
+        let tokens = lexer().parse("fst inl<A> u").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_no_nested_inr() {
+        let tokens = lexer().parse("fst inr<A> u").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_abort_no_angle_brackets() {
+        let tokens = lexer().parse("abort<A> u").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_fst_no_angle_brackets() {
+        let tokens = lexer().parse("fst<A> u").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_snd_no_angle_brackets() {
+        let tokens = lexer().parse("snd<A> u").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_application_no_angle_brackets() {
+        let tokens = lexer().parse("test<A> u").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_pair_no_angle_brackets() {
+        let tokens = lexer().parse("(a, b)<A>").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_unit_no_angle_brackets() {
+        let tokens = lexer().parse("()<A>").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
+
+    #[test]
+    pub fn test_nested_expr_no_angle_brackets() {
+        let tokens = lexer().parse("(fn u: A => u)<A>").unwrap();
+        let ast = proof_term_parser().parse(tokens);
+
+        assert!(ast.is_err())
+    }
 
     #[test]
     pub fn test_snd_projection() {
