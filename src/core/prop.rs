@@ -206,8 +206,6 @@ impl Debug for Prop {
 mod tests {
     use std::vec;
 
-    use chumsky::chain::Chain;
-
     use super::Prop;
 
     #[test]
