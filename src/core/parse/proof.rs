@@ -31,7 +31,7 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
 
 #[cfg(test)]
 mod tests {
-    use chumsky::Parser;
+    use chumsky::{primitive::end, Parser};
 
     use crate::core::{
         parse::lexer::lexer,
@@ -140,5 +140,16 @@ mod tests {
                 proof_term: ProofTerm::Unit
             }
         )
+    }
+
+    #[test]
+    fn test_datatypes_after_proof_term() {
+        let tokens = lexer()
+            .parse("datatype nat; (fn u: A => u) datatype uff;")
+            .unwrap();
+
+        let ast = proof_parser().then_ignore(end()).parse(tokens);
+
+        assert!(ast.is_err())
     }
 }
