@@ -102,11 +102,11 @@ impl ResolveDatatypes {
                 body: self.resolve_datatypes(*body, datatypes).boxed(),
             },
 
-            ProofTerm::OrLeft(body) => {
-                ProofTerm::OrLeft(self.resolve_datatypes(*body, datatypes).boxed())
+            ProofTerm::OrLeft { body, other } => {
+                ProofTerm::OrLeft { body: self.resolve_datatypes(*body, datatypes).boxed(), other }
             }
-            ProofTerm::OrRight(body) => {
-                ProofTerm::OrRight(self.resolve_datatypes(*body, datatypes).boxed())
+            ProofTerm::OrRight { body, other } => {
+                ProofTerm::OrRight {body: self.resolve_datatypes(*body, datatypes).boxed(), other }
             }
             ProofTerm::ProjectFst(body) => {
                 ProofTerm::ProjectFst(self.resolve_datatypes(*body, datatypes).boxed())
