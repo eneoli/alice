@@ -218,6 +218,36 @@ mod tests {
     }
 
     #[test]
+    pub fn test_parameterized_prop_nested() {
+        let token = lexer()
+            .parse("A & B(x, y) || C(x) -> \\forall z:t. Z(z, x)")
+            .unwrap();
+        let ast = fol_parser().parse(token).unwrap();
+
+        assert_eq!(
+            ast,
+            Prop::Impl(
+                Prop::Or(
+                    Prop::And(
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                        Prop::Atom("B".to_string(), vec!["x".to_string(), "y".to_string()]).boxed()
+                    )
+                    .boxed(),
+                    Prop::Atom("C".to_string(), vec!["x".to_string()]).boxed()
+                )
+                .boxed(),
+                Prop::ForAll {
+                    object_ident: "z".to_string(),
+                    object_type_ident: "t".to_string(),
+                    body: Prop::Atom("Z".to_string(), vec!["z".to_string(), "x".to_string()])
+                        .boxed(),
+                }
+                .boxed()
+            ),
+        )
+    }
+
+    #[test]
     fn test_simple_not() {
         let token = lexer().parse("~A").unwrap();
         let ast = fol_parser().parse(token).unwrap();
