@@ -224,7 +224,5 @@ pub fn typify(
                 panic!("Failed to type check: Expected Prop")
             }
         }
-
-        _ => todo!(),
     }
 }
