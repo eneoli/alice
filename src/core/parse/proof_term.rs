@@ -474,6 +474,41 @@ mod tests {
     }
 
     #[test]
+    pub fn test_inl_inr_case() {
+        let tokens = lexer()
+            .parse("fn u: A ∨ B => case u of inl a => inr<B> a, inr b => inl<A> b")
+            .unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+
+        assert_eq!(
+            ast,
+            ProofTerm::Function {
+                param_ident: "u".to_string(),
+                param_type: Type::Prop(Prop::Or(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                )),
+                body: ProofTerm::Case {
+                    proof_term: ProofTerm::Ident("u".to_string()).boxed(),
+                    left_ident: "a".to_string(),
+                    left_term: ProofTerm::OrRight {
+                        body: ProofTerm::Ident("a".to_string()).boxed(),
+                        other: Prop::Atom("B".to_string(), vec![])
+                    }
+                    .boxed(),
+                    right_ident: "b".to_string(),
+                    right_term: ProofTerm::OrLeft {
+                        body: ProofTerm::Ident("b".to_string()).boxed(),
+                        other: Prop::Atom("A".to_string(), vec![])
+                    }
+                    .boxed()
+                }
+                .boxed()
+            }
+        )
+    }
+
+    #[test]
     pub fn test_inr_no_applicant() {
         let tokens = lexer().parse("inr<A>").unwrap();
         let ast = proof_term_parser().parse(tokens);
