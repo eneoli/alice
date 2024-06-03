@@ -13,6 +13,8 @@ pub enum Token {
     NOT,
     LROUND,
     RROUND,
+    LANGLE,
+    RANGLE,
     EXISTS,
     FORALL,
     DOT,

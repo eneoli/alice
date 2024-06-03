@@ -61,6 +61,10 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
 
     let rround = just(")").map(|_| Token::RROUND).boxed();
 
+    let langle = just("<").map(|_| Token::LANGLE).boxed();
+
+    let rangle = just(">").map(|_| Token::RANGLE).boxed();
+
     let dot = just(".").map(|_| Token::DOT).boxed();
 
     let comma = just(",").map(|_| Token::COMMA).boxed();
@@ -104,6 +108,8 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         not,
         lround,
         rround,
+        langle,
+        rangle,
         dot,
         comma,
         colon,
