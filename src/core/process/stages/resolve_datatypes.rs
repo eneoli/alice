@@ -8,6 +8,10 @@ use crate::core::{
 pub struct ResolveDatatypes {}
 
 impl ResolveDatatypes {
+    pub fn new() -> Self {
+        Self {}
+    }
+
     pub fn boxed() -> Box<Self> {
         Box::new(Self {})
     }
@@ -102,12 +106,14 @@ impl ResolveDatatypes {
                 body: self.resolve_datatypes(*body, datatypes).boxed(),
             },
 
-            ProofTerm::OrLeft { body, other } => {
-                ProofTerm::OrLeft { body: self.resolve_datatypes(*body, datatypes).boxed(), other }
-            }
-            ProofTerm::OrRight { body, other } => {
-                ProofTerm::OrRight {body: self.resolve_datatypes(*body, datatypes).boxed(), other }
-            }
+            ProofTerm::OrLeft { body, other } => ProofTerm::OrLeft {
+                body: self.resolve_datatypes(*body, datatypes).boxed(),
+                other,
+            },
+            ProofTerm::OrRight { body, other } => ProofTerm::OrRight {
+                body: self.resolve_datatypes(*body, datatypes).boxed(),
+                other,
+            },
             ProofTerm::ProjectFst(body) => {
                 ProofTerm::ProjectFst(self.resolve_datatypes(*body, datatypes).boxed())
             }
@@ -131,5 +137,156 @@ impl ProofPipelineStage for ResolveDatatypes {
             proof_term: new_proof_term,
             datatypes,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::core::{
+        proof_term::{ProofTerm, Type},
+        prop::Prop,
+    };
+
+    use super::ResolveDatatypes;
+
+    #[test]
+    fn test_simple_resolve() {
+        let resolver = ResolveDatatypes::new();
+
+        let mut proof_term = ProofTerm::Function {
+            param_ident: "u".to_string(),
+            param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+            body: ProofTerm::Unit.boxed(),
+        };
+
+        proof_term = resolver.resolve_datatypes(proof_term, &vec!["nat".to_string()]);
+
+        assert_eq!(
+            proof_term,
+            ProofTerm::Function {
+                param_ident: "u".to_string(),
+                param_type: Type::Datatype("nat".to_string()),
+                body: ProofTerm::Unit.boxed(),
+            }
+        )
+    }
+
+    #[test]
+    fn test_simple_resolve_none() {
+        let resolver = ResolveDatatypes::new();
+
+        let mut proof_term = ProofTerm::Function {
+            param_ident: "u".to_string(),
+            param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+            body: ProofTerm::Unit.boxed(),
+        };
+
+        proof_term = resolver.resolve_datatypes(proof_term, &vec![]);
+
+        assert_eq!(
+            proof_term,
+            ProofTerm::Function {
+                param_ident: "u".to_string(),
+                param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+                body: ProofTerm::Unit.boxed(),
+            }
+        )
+    }
+
+    #[test]
+    fn test_resolve_nested() {
+        let resolver = ResolveDatatypes::new();
+
+        let mut proof_term = ProofTerm::Function {
+            param_ident: "u".to_string(),
+            param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+            body: ProofTerm::Function {
+                param_ident: "v".to_string(),
+                param_type: Type::Prop(Prop::Atom("list".to_string(), vec![])),
+                body: ProofTerm::Pair(
+                    ProofTerm::Function {
+                        param_ident: "w".to_string(),
+                        param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                        body: ProofTerm::Unit.boxed(),
+                    }
+                    .boxed(),
+                    ProofTerm::Function {
+                        param_ident: "x".to_string(),
+                        param_type: Type::Prop(Prop::Atom("t".to_string(), vec![])),
+                        body: ProofTerm::Unit.boxed(),
+                    }
+                    .boxed(),
+                )
+                .boxed(),
+            }
+            .boxed(),
+        };
+
+        proof_term = resolver.resolve_datatypes(
+            proof_term,
+            &vec!["nat".to_string(), "list".to_string(), "t".to_string()],
+        );
+
+        assert_eq!(
+            proof_term,
+            ProofTerm::Function {
+                param_ident: "u".to_string(),
+                param_type: Type::Datatype("nat".to_string()),
+                body: ProofTerm::Function {
+                    param_ident: "v".to_string(),
+                    param_type: Type::Datatype("list".to_string()),
+                    body: ProofTerm::Pair(
+                        ProofTerm::Function {
+                            param_ident: "w".to_string(),
+                            param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                            body: ProofTerm::Unit.boxed(),
+                        }
+                        .boxed(),
+                        ProofTerm::Function {
+                            param_ident: "x".to_string(),
+                            param_type: Type::Datatype("t".to_string()),
+                            body: ProofTerm::Unit.boxed(),
+                        }
+                        .boxed(),
+                    )
+                    .boxed(),
+                }
+                .boxed(),
+            }
+        )
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_no_nested_datatypes() {
+        let resolver = ResolveDatatypes::new();
+
+        let proof_term = ProofTerm::Function {
+            param_ident: "u".to_string(),
+            param_type: Type::Prop(Prop::And(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::Atom("nat".to_string(), vec![]).boxed(),
+            )),
+            body: ProofTerm::Unit.boxed(),
+        };
+
+        resolver.resolve_datatypes(proof_term, &vec!["nat".to_string()]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_no_datatypes_with_params() {
+        let resolver = ResolveDatatypes::new();
+
+        let proof_term = ProofTerm::Function {
+            param_ident: "u".to_string(),
+            param_type: Type::Prop(Prop::Atom(
+                "nat".to_string(),
+                vec!["x".to_string(), "y".to_string()],
+            )),
+            body: ProofTerm::Unit.boxed(),
+        };
+
+        resolver.resolve_datatypes(proof_term, &vec!["nat".to_string()]);
     }
 }
