@@ -29,7 +29,7 @@ impl IdentifierContext {
             .rev()
             .enumerate()
             .find(|(_, (ctx_ident, _))| ctx_ident == ident)
-            .map(|(idx, _)| idx);
+            .map(|(idx, _)| self.ctx.len() - 1 - idx);
 
         if let Some(idx) = idx {
             Some(self.ctx.remove(idx).1)
