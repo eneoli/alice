@@ -84,7 +84,12 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
     let equal = just("=").map(|_| Token::EQUAL).boxed();
 
     let comment_single_line = just("//")
-        .then(text::newline().not().repeated().then(text::newline()))
+        .then(
+            text::newline()
+                .not()
+                .repeated()
+                .then(text::newline().or(end())),
+        )
         .padded()
         .map(|_| ())
         .boxed();
