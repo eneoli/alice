@@ -28,15 +28,4 @@ fn main() {
     let _type = typify(&processed_proof.proof_term);
 
     println!("{:#?}", _type);
-
-    let t = lexer().parse("A & B(x, x) & \\forall x:t. A(x)").unwrap();
-    let mut p = fol_parser().parse(t).unwrap();
-
-    p.substitue_free_parameter(&"x".to_string(), &"y".to_string());
-
-    println!("{:#?}", p);
-
-    let mut c = IdentifierContext::new();
-
-    c.insert("x".to_string(), Type::Datatype("t".to_string()));
 }
