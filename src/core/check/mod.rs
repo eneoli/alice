@@ -181,9 +181,10 @@ pub fn typify(
             if let Type::Prop(Prop::Exists {
                 object_ident,
                 object_type_ident,
-                body: exists_body,
+                body: mut exists_body,
             }) = pair_proof_term_type
             {
+                exists_body.substitue_free_parameter(&object_ident, &fst_ident);
                 ctx.insert(fst_ident.clone(), Type::Datatype(object_type_ident));
                 ctx.insert(snd_ident.clone(), Type::Prop(*exists_body));
 
@@ -194,7 +195,8 @@ pub fn typify(
 
                 // check that quantified object does not escape it's scope
                 if let Type::Prop(prop) = &body_type {
-                    if prop.get_free_parameters().contains(&object_ident) {
+                    println!("{:#?}", object_ident);
+                    if prop.get_free_parameters().contains(&fst_ident) {
                         panic!("Failed to type check: Quantified object cannot escape it's scope.");
                     }
                 }
@@ -224,5 +226,471 @@ pub fn typify(
                 panic!("Failed to type check: Expected Prop")
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::vec;
+
+    use chumsky::Parser;
+
+    use crate::core::{
+        parse::{
+            lexer::{self, lexer},
+            proof::proof_parser,
+            proof_term::proof_term_parser,
+        },
+        process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
+        proof_term::Type,
+        prop::Prop,
+    };
+
+    use super::{identifier_context::IdentifierContext, typify};
+
+    #[test]
+    fn test_proof_implication_to_and() {
+        let tokens = lexer().parse("fn u: A => fn w: B => (u, w)").unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::Impl(
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                    Prop::And(
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                        Prop::Atom("B".to_string(), vec![]).boxed()
+                    )
+                    .boxed(),
+                )
+                .boxed(),
+            ))
+        );
+    }
+
+    #[test]
+    fn test_commutativity_of_conjunction() {
+        let tokens = lexer().parse("fn u: (A && B) => (snd u, fst u)").unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::And(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec![]).boxed()
+                )
+                .boxed(),
+                Prop::And(
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                    Prop::Atom("A".to_string(), vec![]).boxed()
+                )
+                .boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_interaction_law_of_distributivity() {
+        let tokens = lexer()
+            .parse("fn u: (A -> (B & C)) => (fn w: A => fst (u w), fn w: A => snd (u w))")
+            .unwrap();
+
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Impl(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::And(
+                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                        Prop::Atom("C".to_string(), vec![]).boxed(),
+                    )
+                    .boxed(),
+                )
+                .boxed(),
+                Prop::And(
+                    Prop::Impl(
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                        Prop::Atom("B".to_string(), vec![]).boxed()
+                    )
+                    .boxed(),
+                    Prop::Impl(
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                        Prop::Atom("C".to_string(), vec![]).boxed()
+                    )
+                    .boxed()
+                )
+                .boxed()
+            )),
+        )
+    }
+
+    #[test]
+    fn test_commutativity_of_disjunction() {
+        let tokens = lexer()
+            .parse("fn u: A || B => case u of inl a => inr<B> a, inr b => inl<A> b")
+            .unwrap();
+
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Or(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                )
+                .boxed(),
+                Prop::Or(
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                )
+                .boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_true() {
+        let tokens = lexer().parse("()").unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(_type, Type::Prop(Prop::True))
+    }
+
+    #[test]
+    fn test_composition() {
+        let tokens = lexer()
+            .parse("fn u: ((A -> B) && (B -> C)) => fn w: A => (snd u) ((fst u) w)")
+            .unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::And(
+                    Prop::Impl(
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                        Prop::Atom("B".to_string(), vec![]).boxed()
+                    )
+                    .boxed(),
+                    Prop::Impl(
+                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                        Prop::Atom("C".to_string(), vec![]).boxed()
+                    )
+                    .boxed()
+                )
+                .boxed(),
+                Prop::Impl(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("C".to_string(), vec![]).boxed()
+                )
+                .boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_composition_of_identities() {
+        let tokens = lexer().parse("(fn u: ((A -> A) && (A -> A)) => fn w: A => (snd u) ((fst u) w)) ((fn x: A => x), (fn y: A => y))").unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::Atom("A".to_string(), vec![]).boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_non_minimal_identity_proof() {
+        let tokens = lexer().parse("fn u: A => (fn w: A => w) u").unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::Atom("A".to_string(), vec![]).boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_projection_function() {
+        let tokens = lexer().parse("fn u: A & B => fst u").unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::And(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec![]).boxed()
+                )
+                .boxed(),
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+            ))
+        )
+    }
+
+    #[test]
+    fn test_implication_chain() {
+        let tokens = lexer()
+            .parse("fn u: (A -> A) -> B => u (fn u: A => u)")
+            .unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Impl(
+                    Prop::Impl(
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                        Prop::Atom("A".to_string(), vec![]).boxed()
+                    )
+                    .boxed(),
+                    Prop::Atom("B".to_string(), vec![]).boxed()
+                )
+                .boxed(),
+                Prop::Atom("B".to_string(), vec![]).boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_piano_number_2() {
+        let tokens = lexer().parse("fn z: A => fn s: A -> A => s(s(z))").unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::Impl(
+                    Prop::Impl(
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                        Prop::Atom("A".to_string(), vec![]).boxed()
+                    )
+                    .boxed(),
+                    Prop::Atom("A".to_string(), vec![]).boxed()
+                )
+                .boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_tripple_neagation_elimination() {
+        // ~~~A = ((A => False) => False) => False
+        let tokens = lexer()
+            .parse("fn u: (~~~A) => fn v: A => u (fn w: A -> \\bot => w v)")
+            .unwrap();
+        let ast = proof_term_parser().parse(tokens).unwrap();
+        let _type = typify(&ast, &vec![], &mut IdentifierContext::new());
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::Impl(
+                    Prop::Impl(
+                        Prop::Impl(
+                            Prop::Atom("A".to_string(), vec![]).boxed(),
+                            Prop::False.boxed()
+                        )
+                        .boxed(),
+                        Prop::False.boxed()
+                    )
+                    .boxed(),
+                    Prop::False.boxed()
+                )
+                .boxed(),
+                Prop::Impl(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::False.boxed()
+                )
+                .boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_allquant_distribution() {
+        let tokens = lexer()
+            .parse(
+                "
+                datatype t;
+                fn u: (\\forall x:t. A(x) & B(x)) => (
+                fn x: t => fst (u x),
+                fn x: t => snd (u x)
+            )",
+            )
+            .unwrap();
+        let mut proof = proof_parser().parse(tokens).unwrap();
+
+        proof = ProofPipeline::new()
+            .pipe(ResolveDatatypes::boxed())
+            .apply(proof);
+
+        let _type = typify(
+            &proof.proof_term,
+            &proof.datatypes,
+            &mut IdentifierContext::new(),
+        );
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::ForAll {
+                    object_ident: "x".to_string(),
+                    object_type_ident: "t".to_string(),
+                    body: Prop::And(
+                        Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+                        Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
+                    )
+                    .boxed()
+                }
+                .boxed(),
+                Prop::And(
+                    Prop::ForAll {
+                        object_ident: "x".to_string(),
+                        object_type_ident: "t".to_string(),
+                        body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed()
+                    }
+                    .boxed(),
+                    Prop::ForAll {
+                        object_ident: "x".to_string(),
+                        object_type_ident: "t".to_string(),
+                        body: Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
+                    }
+                    .boxed()
+                )
+                .boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_reusing_allquant_ident() {
+        let tokens = lexer()
+            .parse("datatype t; fn u: (∀x:t. C(x, x)) => fn a:t => fn a:t => u a")
+            .unwrap();
+
+        let mut proof = proof_parser().parse(tokens).unwrap();
+
+        proof = ProofPipeline::new()
+            .pipe(ResolveDatatypes::boxed())
+            .apply(proof);
+
+        let _type = typify(
+            &proof.proof_term,
+            &proof.datatypes,
+            &mut IdentifierContext::new(),
+        );
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::ForAll {
+                    object_ident: "x".to_string(),
+                    object_type_ident: "t".to_string(),
+                    body: Prop::Atom("C".to_string(), vec!["x".to_string(), "x".to_string()])
+                        .boxed()
+                }
+                .boxed(),
+                Prop::ForAll {
+                    object_ident: "a".to_string(),
+                    object_type_ident: "t".to_string(),
+                    body: Prop::ForAll {
+                        object_ident: "a".to_string(),
+                        object_type_ident: "t".to_string(),
+                        body: Prop::Atom("C".to_string(), vec!["a".to_string(), "a".to_string()])
+                            .boxed()
+                    }
+                    .boxed()
+                }
+                .boxed()
+            ))
+        )
+    }
+
+    #[test]
+    fn test_exsists_move_unquantified() {
+        let tokens = lexer().parse("datatype t; fn u: (\\forall x:t. A(x) -> C) => fn w: \\exists x:t. A(x) => let (a, proof) = w in u a proof").unwrap();
+
+        let mut proof = proof_parser().parse(tokens).unwrap();
+
+        proof = ProofPipeline::new()
+            .pipe(ResolveDatatypes::boxed())
+            .apply(proof);
+
+        let _type = typify(
+            &proof.proof_term,
+            &proof.datatypes,
+            &mut IdentifierContext::new(),
+        );
+
+        assert_eq!(
+            _type,
+            Type::Prop(Prop::Impl(
+                Prop::ForAll {
+                    object_ident: "x".to_string(),
+                    object_type_ident: "t".to_string(),
+                    body: Prop::Impl(
+                        Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+                        Prop::Atom("C".to_string(), vec![]).boxed()
+                    )
+                    .boxed(),
+                }
+                .boxed(),
+                Prop::Impl(
+                    Prop::Exists {
+                        object_ident: "x".to_string(),
+                        object_type_ident: "t".to_string(),
+                        body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+                    }
+                    .boxed(),
+                    Prop::Atom("C".to_string(), vec![]).boxed(),
+                )
+                .boxed(),
+            ))
+        )
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_do_not_allow_exists_quant_escape() {
+        let tokens = lexer()
+            .parse("datatype t; fn u: \\exists x:t. C(x) => let (a, proof) = u in proof")
+            .unwrap();
+
+        let mut proof = proof_parser().parse(tokens).unwrap();
+
+        proof = ProofPipeline::new()
+            .pipe(ResolveDatatypes::boxed())
+            .apply(proof);
+
+        let _type = typify(
+            &proof.proof_term,
+            &proof.datatypes,
+            &mut IdentifierContext::new(),
+        );
     }
 }
