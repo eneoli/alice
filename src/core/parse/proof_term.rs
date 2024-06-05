@@ -12,7 +12,7 @@ use super::{fol::fol_parser, Token};
 
     Expr            = Function | Case | Application | LetIn ;
     Unit            = "(", ")" ;
-    Pair            = "(", Expr, ",", Expr, ")" ;
+    Pair            = "(", Expr, ",", Expr, [ "," ], ")" ;
     Atom            = "(", Expr, ")" | Ident | Pair | Unit ;
     Function        = "fn", Ident, ":", Prop, "=>", Expr ;
     CaseExpr        = Case | Application | LetIn;
@@ -38,6 +38,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .ignore_then(proof_term.clone())
             .then_ignore(just(Token::COMMA))
             .then(proof_term.clone())
+            .then_ignore(just(Token::COMMA).or_not())
             .then_ignore(just(Token::RROUND))
             .map(|(fst, snd)| ProofTerm::Pair(Box::new(fst), Box::new(snd)))
             .boxed();
@@ -668,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    pub fn tet_root_let_in_with_funtion() {
+    pub fn test_root_let_in_with_funtion() {
         let tokens = lexer().parse("let (a, b) = M in fn x: (A) => a").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
 
