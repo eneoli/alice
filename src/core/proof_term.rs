@@ -6,6 +6,23 @@ pub enum Type {
     Datatype(String),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum ProofTermKind {
+    Ident,
+    Pair,
+    ExistsPair,
+    ProjectFst,
+    ProjectSnd,
+    Function,
+    Application,
+    LetIn,
+    OrLeft,
+    OrRight,
+    Case,
+    Abort,
+    Unit,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ProofTerm {
     Ident(String),

@@ -1,7 +1,7 @@
 use identifier_context::IdentifierContext;
 
 use super::{
-    proof_term::{ProofTerm, ProofTermVisitor, Type},
+    proof_term::{ProofTerm, ProofTermKind, ProofTermVisitor, Type},
     prop::Prop,
 };
 
@@ -12,10 +12,25 @@ pub mod identifier_context;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum TypeError {
-    UnexpectedType { expected: Type, received: Type },
-    ExpectedProp { received: Type },
-    UnknownIdent { ident: String },
+    UnexpectedType {
+        expected: Type,
+        received: Type,
+    },
+    UnexpectedKind {
+        expected: ProofTermKind,
+        received: Type,
+    },
+    ExpectedProp {
+        received: Type,
+    },
+    UnknownIdent {
+        ident: String,
+    },
     QuantifiedObjectEscapesScope,
+    CaseArmsDifferent {
+        fst_type: Type,
+        snd_type: Type,
+    },
 }
 
 struct TypifyVisitor {
@@ -76,7 +91,10 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
             return Ok(Type::Prop(*fst));
         }
 
-        panic!("Failed to type check: Body is not a Pair.");
+        Err(TypeError::UnexpectedKind {
+            expected: ProofTermKind::Pair,
+            received: body_type,
+        })
     }
 
     fn visit_project_snd(&mut self, body: &ProofTerm) -> Result<Type, TypeError> {
@@ -86,7 +104,10 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
             return Ok(Type::Prop(*snd));
         }
 
-        panic!("Failed to type check: Body is not a Pair.");
+        Err(TypeError::UnexpectedKind {
+            expected: ProofTermKind::Pair,
+            received: body_type,
+        })
     }
 
     fn visit_function(
@@ -162,8 +183,8 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
             });
         }
 
-        Err(TypeError::UnexpectedType {
-            expected: Type::Prop(Prop::False), // TODO Function/Allquant
+        Err(TypeError::UnexpectedKind {
+            expected: ProofTermKind::Function,
             received: function_type,
         })
     }
@@ -202,7 +223,10 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
 
             Ok(body_type)
         } else {
-            panic!("Failed to type check: Proof Term is not an Exists pair.")
+            Err(TypeError::UnexpectedKind {
+                expected: ProofTermKind::ExistsPair,
+                received: pair_proof_term_type,
+            })
         }
     }
 
@@ -212,7 +236,9 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         if let Type::Prop(body_prop) = body_type {
             Ok(Type::Prop(Prop::Or(body_prop.boxed(), other.boxed())))
         } else {
-            panic!("Failed to type check: Expected Prop")
+            Err(TypeError::ExpectedProp {
+                received: body_type,
+            })
         }
     }
 
@@ -222,7 +248,9 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         if let Type::Prop(body_prop) = body_type {
             Ok(Type::Prop(Prop::Or(other.boxed(), body_prop.boxed())))
         } else {
-            panic!("Failed to type check: Expected Prop")
+            Err(TypeError::ExpectedProp {
+                received: body_type,
+            })
         }
     }
 
@@ -251,12 +279,15 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
             println!("{:#?}", snd_type);
 
             if fst_type != snd_type {
-                panic!("Failed to type check: Both arms of Case expr need to have same type.");
+                return Err(TypeError::CaseArmsDifferent { fst_type, snd_type });
             }
 
             Ok(fst_type)
         } else {
-            panic!("Failed to type check: Case proof term is not a pair.");
+            Err(TypeError::UnexpectedKind {
+                expected: ProofTermKind::Pair,
+                received: proof_term_type,
+            })
         }
     }
 
