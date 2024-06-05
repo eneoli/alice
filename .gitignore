@@ -2,4 +2,5 @@
 .vscode
 
 target
+pkg
 *.proof
