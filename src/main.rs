@@ -4,6 +4,7 @@ use server::core::{
     parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
     proof::Proof,
+    proof_term::Type,
 };
 
 fn main() {
@@ -24,12 +25,7 @@ fn main() {
 
     println!("{:#?}", processed_proof);
 
-    let mut ctx = IdentifierContext::new();
-    let _type = typify(
-        &processed_proof.proof_term,
-        &processed_proof.datatypes,
-        &mut ctx,
-    );
+    let _type = typify(&processed_proof.proof_term);
 
     println!("{:#?}", _type);
 
@@ -39,4 +35,8 @@ fn main() {
     p.substitue_free_parameter(&"x".to_string(), &"y".to_string());
 
     println!("{:#?}", p);
+
+    let mut c = IdentifierContext::new();
+
+    c.insert("x".to_string(), Type::Datatype("t".to_string()));
 }
