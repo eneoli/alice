@@ -1,10 +1,9 @@
 use chumsky::Parser;
 use server::core::{
-    check::{identifier_context::IdentifierContext, typify},
-    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
+    check::typify,
+    parse::{lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
     proof::Proof,
-    proof_term::Type,
 };
 
 fn main() {
