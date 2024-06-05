@@ -236,11 +236,7 @@ mod tests {
     use chumsky::Parser;
 
     use crate::core::{
-        parse::{
-            lexer::{self, lexer},
-            proof::proof_parser,
-            proof_term::proof_term_parser,
-        },
+        parse::{lexer::lexer, proof::proof_parser, proof_term::proof_term_parser},
         process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
         proof_term::Type,
         prop::Prop,
