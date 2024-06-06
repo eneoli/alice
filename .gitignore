@@ -3,4 +3,9 @@
 
 target
 pkg
+
+dist
+frontend/dist
+frontend/node_modules
+
 *.proof
