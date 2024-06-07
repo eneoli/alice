@@ -2,6 +2,7 @@
     "compilerOptions": {
         "target": "esnext",
         "module": "NodeNext",
+        "moduleResolution": "nodenext",
         "lib": [
             "esnext",
             "dom"
@@ -16,18 +17,15 @@
         "strictPropertyInitialization": true,
         "noImplicitThis": true,
         "alwaysStrict": true,
-        "moduleResolution": "nodenext",
-        "typeRoots": [
-            "./src/@types/",
-            "node_modules/@types/"
-        ],
-        "types": [
-            "webpack-env"
-        ],
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
         "experimentalDecorators": true,
-        "emitDecoratorMetadata": true
+        "emitDecoratorMetadata": true,
+        "noEmit": true, // we are using babel
+        "typeRoots": [
+            "./src/@types/",
+            "node_modules/@types/"
+        ]
     },
     "exclude": [
         "node_modules"

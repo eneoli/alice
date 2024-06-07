@@ -42,7 +42,9 @@ const config = {
     },
     experiments: {
         asyncWebAssembly: true,
-        syncWebAssembly: true
+    },
+    performance: {
+        hints: false
     },
     stats: {
         assets: false,
