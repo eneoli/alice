@@ -1,0 +1,8 @@
+:root {
+    --text-color: white;
+    --border-color: transparent;
+    --field-background: #2d4767;
+    --focus-ring-color: #395e8a;
+    --button-background: #006af5;
+    --button-background-pressed: #217cf4;
+}
