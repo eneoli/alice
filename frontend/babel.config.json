@@ -1,0 +1,26 @@
+{
+    "presets": [
+        [
+            "@babel/preset-env",
+            {
+                "modules": "auto",
+                "useBuiltIns": "usage",
+                "targets": "> 0.25%, not dead",
+                "corejs": 3
+            }
+        ],
+        "@babel/preset-react",
+        [
+            "@babel/preset-typescript",
+            {
+                "isTSX": true,
+                "allowNamespaces": true,
+                "allowDeclareFields": true,
+                "allExtensions": true
+            }
+        ]
+    ],
+    "plugins": [
+        "@babel/plugin-transform-runtime"
+    ]
+}

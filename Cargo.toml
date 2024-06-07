@@ -3,7 +3,9 @@ name = "alice"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 chumsky = "0.9.3"
+wasm-bindgen = "0.2.92"
