@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Header } from './header';
 import { CodeEditor } from '../../code-editor/components/code-editor';
 import { verify } from 'alice';
+import { ProofTree } from '../../proof-tree/proof-tree';
 
 export function App() {
 
@@ -10,6 +11,7 @@ export function App() {
     return (
         <>
             <Header onVerify={(prop) => alert(verify(prop, proofTerm))}/>
+            <ProofTree/>
             <CodeEditor onChange={setProofTerm}/>
         </>
     );
