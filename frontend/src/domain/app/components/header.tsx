@@ -18,7 +18,7 @@ export function Header({ onVerify }: HeaderProps) {
 
         const replaceSymbol = (symbol: string, replacement: string) => {
 
-            let matches = (value.substring(0, currentPos + 1).match(new RegExp(symbol.replaceAll('\\', '\\\\'), 'g')) || []).length
+            const matches = (value.substring(0, currentPos + 1).match(new RegExp(symbol.replaceAll('\\', '\\\\'), 'g')) || []).length
 
             currentPos -= (symbol.length - replacement.length) * matches;
 
