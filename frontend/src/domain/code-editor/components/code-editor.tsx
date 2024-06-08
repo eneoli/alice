@@ -12,7 +12,7 @@ function handleEditorWillMount(monaco: Monaco) {
     // do something before editor is mounted
     monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
-    const keywords = ['fn', 'case', 'of', 'let', 'in', 'datatype', 'inl', 'inr'];
+    const keywords = ['fn', 'case', 'of', 'let', 'in', 'datatype', 'inl', 'inr', 'fst', 'snd'];
 
     monaco.languages.register({ id: 'alice' });
     monaco.languages.setMonarchTokensProvider('alice', {
@@ -122,7 +122,7 @@ export function CodeEditor({ onChange }: CodeEditorProps) {
 
     const [value, setValue] = useState('// Write your proof here!\n\n');
 
-    const onValueChange = (value: string | undefined, ev: unknown) => {
+    const onValueChange = (value: string | undefined) => {
         setValue(value || '');
         onChange(value || '')
     };
