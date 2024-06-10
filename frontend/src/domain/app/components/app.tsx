@@ -10,9 +10,11 @@ export function App() {
 
     return (
         <>
-            <Header onVerify={(prop) => alert(verify(prop, proofTerm))}/>
-            <ProofTree/>
-            <CodeEditor onChange={setProofTerm}/>
+            <Header onVerify={(prop) => alert(verify(prop, proofTerm))} />
+            <ProofTree />
+            <div style={{marginTop: 20}}>
+                <CodeEditor onChange={setProofTerm} />
+            </div>
         </>
     );
 }
