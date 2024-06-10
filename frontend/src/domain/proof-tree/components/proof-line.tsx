@@ -4,11 +4,12 @@ import Katex from 'katex';
 
 interface ProofLineProps {
     label: string;
+    onSizeChange: (size: number) => void;
 }
 
-export function ProofLine({label}: ProofLineProps) {
+export function ProofLine({ label, onSizeChange }: ProofLineProps) {
 
-    const labelRef = useRef(null);
+    const labelRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
 
@@ -18,8 +19,12 @@ export function ProofLine({label}: ProofLineProps) {
 
         Katex.render(label, labelRef.current, {
             throwOnError: false,
+
         });
-    });
+
+        setImmediate(() => onSizeChange(labelRef.current?.offsetWidth || 0));
+
+    }, [labelRef.current]);
 
     return (
         <span className={cssProofLineContainer}>
@@ -34,8 +39,6 @@ export function ProofLine({label}: ProofLineProps) {
 const cssProofLineContainer = css`
     display: flex;
     flex-direction: row;
-    padding-left: 10px;
-    padding-right: 10px;
 `;
 
 const cssLine = css`
