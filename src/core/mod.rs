@@ -5,6 +5,7 @@ pub mod parse;
 pub mod process;
 pub mod proof;
 pub mod proof_term;
+pub mod proof_tree;
 pub mod prop;
 pub mod prove;
 
