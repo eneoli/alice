@@ -1,5 +1,5 @@
-import { css, cx } from '@emotion/css';
-import React, { ReactNode, useState } from 'react';
+import { css } from '@emotion/css';
+import React, { ReactNode } from 'react';
 import { ProofLine } from './proof-line';
 
 interface ProofNodeProps {
@@ -10,36 +10,48 @@ interface ProofNodeProps {
 
 export function ProofNode({ children, content, label }: ProofNodeProps) {
 
-    const [padding, setPadding] = useState(0);
-
     return (
-        <div>
-            {children && (
-                <>
-                    <div style={{paddingRight: padding + 5}} className={cssProofNode}>{children}</div>
-                    <ProofLine label={label || ''} onSizeChange={(size) => {
-                        setPadding(size);
-                    }} />
-                </>
-            )}
-            <div style={{paddingRight: padding}} className={cx(cssProofNode, cssProofNodeContent)}>
-                {content}
+        <div className={cssProofNode}>
+            <div className={cssPremisse}>
+                {children}
+            </div>
+
+            <ProofLine label={label || ''} />
+
+            <div className={cssConclusion}>
+                <span className={cssProofNodeContent}>
+                    {content}
+                </span>
             </div>
         </div>
     );
 }
 
 const cssProofNode = css`
-    width: 100%;
     display: inline-flex;
-    flex-direction: row;
-    gap: 25px;
-    justify-content: space-evenly;
+    flex-direction: column;
+    font-size: 30px;
+    font-family: Computer Modern;
+    color: #002D62;
+`;
+
+const cssPremisse = css`
+    align-self: center;
+    display: flex;
     align-items: flex-end;
-    box-sizing: border-box;
+    gap: 60px;
+`;
+
+const cssConclusion = css`
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
 `;
 
 const cssProofNodeContent = css`
     min-width: max-content;
     box-sizing: border-box;
+    justify-content: center;
+    padding-left: 5px;
+    padding-right: 5px;
 `;

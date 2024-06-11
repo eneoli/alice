@@ -24,7 +24,7 @@ export function ProofLine({ label }: ProofLineProps) {
 
     return (
         <div className={cssLineContainer}>
-            <hr className={cssLine} />
+            <div className={cssLine} />
             <div className={cssLabelContainer}>
                 <div className={cssLabel}>
                     <div ref={labelRef} />
@@ -41,8 +41,8 @@ const cssLineContainer = css`
 
 const cssLine = css`
     width: 100%;
-    color: black;
-    background-color: black;
+    color: #002D62;
+    background-color: #002D62;
     height: 1px;
     margin: 0;
     border: 0;

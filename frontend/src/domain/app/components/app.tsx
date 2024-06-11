@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Header } from './header';
 import { CodeEditor } from '../../code-editor/components/code-editor';
-import { verify } from 'alice';
-import { ProofTree } from '../../proof-tree/proof-tree';
+import { verify, parse_proof_term } from 'alice';
+import { ProofTermVisualizer } from '../../proof-tree/components/proof-term-visualizer';
+import { ProofTreeView } from '../../proof-tree/proof-tree-view';
 
 export function App() {
 
@@ -10,9 +11,16 @@ export function App() {
 
     return (
         <>
-            <Header onVerify={(prop) => alert(verify(prop, proofTerm))} />
-            <ProofTree />
-            <div style={{marginTop: 20}}>
+            <Header onVerify={(prop) => {
+                alert(verify(prop, proofTerm));
+                console.log(parse_proof_term(proofTerm));
+            }} />
+
+            <ProofTreeView>
+                <ProofTermVisualizer proofTermString={proofTerm} />
+            </ProofTreeView>
+
+            <div style={{ marginTop: 20 }}>
                 <CodeEditor onChange={setProofTerm} />
             </div>
         </>
