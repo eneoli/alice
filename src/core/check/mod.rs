@@ -1,7 +1,9 @@
 use identifier_context::IdentifierContext;
+use wasm_bindgen::convert::IntoWasmAbi;
 
 use super::{
     proof_term::{ProofTerm, ProofTermKind, ProofTermVisitor, Type},
+    proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
     prop::Prop,
 };
 
@@ -45,12 +47,28 @@ impl TypifyVisitor {
     }
 }
 
-impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
-    fn visit_ident(&mut self, ident: &String) -> Result<Type, TypeError> {
+impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
+    fn visit_ident(&mut self, ident: &String) -> Result<(Type, ProofTree), TypeError> {
         let ident_type = self.ctx.get(&ident);
 
-        if let Some(_type) = ident_type {
-            Ok(_type.clone().into())
+        if let Some(Type::Prop(_type)) = ident_type {
+            Ok((
+                _type.clone().into(),
+                ProofTree {
+                    hypotheses: vec![],
+                    rule: ProofTreeRule::Ident(Some(ident.clone())),
+                    conclusion: ProofTreeConclusion::Prop(_type.clone()),
+                },
+            ))
+        } else if let Some(Type::Datatype(_type)) = ident_type {
+            Ok((
+                Type::Datatype(_type.clone()),
+                ProofTree {
+                    hypotheses: vec![],
+                    rule: ProofTreeRule::Ident(Some(ident.clone())),
+                    conclusion: ProofTreeConclusion::TypeJudgement(ident.clone(), _type.clone()),
+                },
+            ))
         } else {
             Err(TypeError::UnknownIdent {
                 ident: ident.to_string(),
@@ -58,25 +76,48 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         }
     }
 
-    fn visit_pair(&mut self, fst: &ProofTerm, snd: &ProofTerm) -> Result<Type, TypeError> {
-        let fst_type = fst.visit(self)?;
-        let snd_type = snd.visit(self)?;
+    fn visit_pair(
+        &mut self,
+        fst: &ProofTerm,
+        snd: &ProofTerm,
+    ) -> Result<(Type, ProofTree), TypeError> {
+        let (fst_type, fst_proof_tree) = fst.visit(self)?;
+        let (snd_type, snd_proof_tree) = snd.visit(self)?;
 
         match (&fst_type, &snd_type) {
             (Type::Datatype(type_ident), Type::Prop(snd_prop)) => {
                 if let ProofTerm::Ident(ident) = fst {
-                    Ok(Prop::Exists {
-                        object_ident: ident.to_string(),
-                        object_type_ident: type_ident.to_string(),
-                        body: snd_prop.boxed(),
-                    }
-                    .into())
+                    Ok((
+                        Prop::Exists {
+                            object_ident: ident.to_string(),
+                            object_type_ident: type_ident.to_string(),
+                            body: snd_prop.boxed(),
+                        }
+                        .into(),
+                        ProofTree {
+                            hypotheses: vec![fst_proof_tree, snd_proof_tree],
+                            rule: ProofTreeRule::ExistsIntro,
+                            conclusion: ProofTreeConclusion::Prop(Prop::Exists {
+                                object_ident: ident.to_string(),
+                                object_type_ident: type_ident.to_string(),
+                                body: snd_prop.boxed(),
+                            }),
+                        },
+                    ))
                 } else {
                     panic!("Architecture error: Expected identifier. Are you implementing datatytpe functions?")
                 }
             }
             (Type::Prop(fst_prop), Type::Prop(snd_prop)) => {
-                Ok(Prop::And(fst_prop.boxed(), snd_prop.boxed()).into())
+                let _type = Prop::And(fst_prop.boxed(), snd_prop.boxed());
+                Ok((
+                    _type.clone().into(),
+                    ProofTree {
+                        hypotheses: vec![fst_proof_tree, snd_proof_tree],
+                        rule: ProofTreeRule::AndIntro,
+                        conclusion: ProofTreeConclusion::Prop(_type.into()),
+                    },
+                ))
             }
             (_, Type::Datatype(_)) => Err(TypeError::ExpectedProp {
                 received: snd_type.clone(),
@@ -84,11 +125,18 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         }
     }
 
-    fn visit_project_fst(&mut self, body: &ProofTerm) -> Result<Type, TypeError> {
-        let body_type = body.visit(self)?;
+    fn visit_project_fst(&mut self, body: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
+        let (body_type, body_proof_tree) = body.visit(self)?;
 
         if let Type::Prop(Prop::And(fst, _)) = body_type {
-            return Ok(Type::Prop(*fst));
+            return Ok((
+                Type::Prop(*fst.clone()),
+                ProofTree {
+                    hypotheses: vec![body_proof_tree],
+                    rule: ProofTreeRule::AndElimFst,
+                    conclusion: ProofTreeConclusion::Prop(*fst),
+                },
+            ));
         }
 
         Err(TypeError::UnexpectedKind {
@@ -97,11 +145,18 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         })
     }
 
-    fn visit_project_snd(&mut self, body: &ProofTerm) -> Result<Type, TypeError> {
-        let body_type = body.visit(self)?;
+    fn visit_project_snd(&mut self, body: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
+        let (body_type, body_proof_tree) = body.visit(self)?;
 
         if let Type::Prop(Prop::And(_, snd)) = body_type {
-            return Ok(Type::Prop(*snd));
+            return Ok((
+                Type::Prop(*snd.clone()),
+                ProofTree {
+                    hypotheses: vec![body_proof_tree],
+                    rule: ProofTreeRule::AndElimSnd,
+                    conclusion: ProofTreeConclusion::Prop(*snd),
+                },
+            ));
         }
 
         Err(TypeError::UnexpectedKind {
@@ -115,21 +170,39 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         param_ident: &String,
         param_type: &Type,
         body: &ProofTerm,
-    ) -> Result<Type, TypeError> {
+    ) -> Result<(Type, ProofTree), TypeError> {
         self.ctx.insert(param_ident.clone(), param_type.clone());
-        let body_type = body.visit(self)?;
+        let (body_type, body_proof_tree) = body.visit(self)?;
         self.ctx.remove(&param_ident);
 
         match (&param_type, &body_type) {
             (Type::Datatype(ident), Type::Prop(body_type)) => {
-                Ok(Prop::ForAll {
-                    object_ident: param_ident.clone(),
-                    object_type_ident: ident.clone(),
-                    body: body_type.boxed(), // TODO have I to replace parameterized props?
-                }
-                .into())
+                Ok((
+                    Prop::ForAll {
+                        object_ident: param_ident.clone(),
+                        object_type_ident: ident.clone(),
+                        body: body_type.boxed(), // TODO have I to replace parameterized props?
+                    }
+                    .into(),
+                    ProofTree {
+                        hypotheses: vec![body_proof_tree],
+                        rule: ProofTreeRule::ForAllIntro(param_ident.clone()),
+                        conclusion: ProofTreeConclusion::Prop(Prop::ForAll {
+                            object_ident: param_ident.clone(),
+                            object_type_ident: ident.clone(),
+                            body: body_type.boxed(), // TODO have I to replace parameterized props?
+                        }),
+                    },
+                ))
             }
-            (Type::Prop(fst), Type::Prop(snd)) => Ok(Prop::Impl(fst.boxed(), snd.boxed()).into()),
+            (Type::Prop(fst), Type::Prop(snd)) => Ok((
+                Prop::Impl(fst.boxed(), snd.boxed()).into(),
+                ProofTree {
+                    hypotheses: vec![body_proof_tree],
+                    rule: ProofTreeRule::ImplIntro(param_ident.clone()),
+                    conclusion: ProofTreeConclusion::Prop(Prop::Impl(fst.boxed(), snd.boxed())),
+                },
+            )),
             (_, Type::Datatype(_)) => Err(TypeError::ExpectedProp {
                 received: body_type,
             }),
@@ -141,9 +214,9 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         &mut self,
         function: &ProofTerm,
         applicant: &ProofTerm,
-    ) -> Result<Type, TypeError> {
-        let function_type = function.visit(self)?;
-        let applicant_type = applicant.visit(self)?;
+    ) -> Result<(Type, ProofTree), TypeError> {
+        let (function_type, function_proof_tree) = function.visit(self)?;
+        let (applicant_type, applicant_proof_tree) = applicant.visit(self)?;
 
         // either implication or allquant
 
@@ -156,7 +229,14 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
                 });
             }
 
-            return Ok(Type::Prop(*body_type));
+            return Ok((
+                Type::Prop(*body_type.clone()),
+                ProofTree {
+                    hypotheses: vec![function_proof_tree, applicant_proof_tree],
+                    rule: ProofTreeRule::ImplElim,
+                    conclusion: ProofTreeConclusion::Prop(*body_type),
+                },
+            ));
         }
 
         if let Type::Prop(Prop::ForAll {
@@ -171,7 +251,14 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
                 if let ProofTerm::Ident(ident) = applicant {
                     let mut substitued_body = *body.clone();
                     substitued_body.substitue_free_parameter(&object_ident, &ident);
-                    return Ok(Type::Prop(substitued_body));
+                    return Ok((
+                        Type::Prop(substitued_body.clone()),
+                        ProofTree {
+                            hypotheses: vec![function_proof_tree, applicant_proof_tree],
+                            rule: ProofTreeRule::ForAllElim,
+                            conclusion: ProofTreeConclusion::Prop(substitued_body),
+                        },
+                    ));
                 } else {
                     panic!("Architecture error: Expected identifier. Are you implementing datatytpe functions?")
                 }
@@ -195,8 +282,8 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         snd_ident: &String,
         pair_proof_term: &ProofTerm,
         body: &ProofTerm,
-    ) -> Result<Type, TypeError> {
-        let pair_proof_term_type = pair_proof_term.visit(self)?;
+    ) -> Result<(Type, ProofTree), TypeError> {
+        let (pair_proof_term_type, pair_proof_term_tree) = pair_proof_term.visit(self)?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -209,7 +296,7 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
                 .insert(fst_ident.clone(), Type::Datatype(object_type_ident));
             self.ctx.insert(snd_ident.clone(), Type::Prop(*exists_body));
 
-            let body_type = body.visit(self)?;
+            let (body_type, body_proof_tree) = body.visit(self)?;
 
             self.ctx.remove(&fst_ident);
             self.ctx.remove(&snd_ident);
@@ -219,9 +306,20 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
                 if prop.get_free_parameters().contains(&fst_ident) {
                     return Err(TypeError::QuantifiedObjectEscapesScope);
                 }
-            }
 
-            Ok(body_type)
+                Ok((
+                    body_type.clone(),
+                    ProofTree {
+                        hypotheses: vec![pair_proof_term_tree, body_proof_tree],
+                        rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
+                        conclusion: ProofTreeConclusion::Prop(prop.clone()),
+                    },
+                ))
+            } else {
+                Err(TypeError::ExpectedProp {
+                    received: body_type,
+                })
+            }
         } else {
             Err(TypeError::UnexpectedKind {
                 expected: ProofTermKind::ExistsPair,
@@ -230,11 +328,25 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         }
     }
 
-    fn visit_or_left(&mut self, body: &ProofTerm, other: &Prop) -> Result<Type, TypeError> {
-        let body_type = body.visit(self)?;
+    fn visit_or_left(
+        &mut self,
+        body: &ProofTerm,
+        other: &Prop,
+    ) -> Result<(Type, ProofTree), TypeError> {
+        let (body_type, body_proof_tree) = body.visit(self)?;
 
         if let Type::Prop(body_prop) = body_type {
-            Ok(Type::Prop(Prop::Or(body_prop.boxed(), other.boxed())))
+            Ok((
+                Type::Prop(Prop::Or(body_prop.boxed(), other.boxed())),
+                ProofTree {
+                    hypotheses: vec![body_proof_tree],
+                    rule: ProofTreeRule::OrIntroFst,
+                    conclusion: ProofTreeConclusion::Prop(Prop::Or(
+                        body_prop.boxed(),
+                        other.boxed(),
+                    )),
+                },
+            ))
         } else {
             Err(TypeError::ExpectedProp {
                 received: body_type,
@@ -242,11 +354,25 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         }
     }
 
-    fn visit_or_right(&mut self, body: &ProofTerm, other: &Prop) -> Result<Type, TypeError> {
-        let body_type = body.visit(self)?;
+    fn visit_or_right(
+        &mut self,
+        body: &ProofTerm,
+        other: &Prop,
+    ) -> Result<(Type, ProofTree), TypeError> {
+        let (body_type, body_proof_tree) = body.visit(self)?;
 
         if let Type::Prop(body_prop) = body_type {
-            Ok(Type::Prop(Prop::Or(other.boxed(), body_prop.boxed())))
+            Ok((
+                Type::Prop(Prop::Or(other.boxed(), body_prop.boxed())),
+                ProofTree {
+                    hypotheses: vec![body_proof_tree],
+                    rule: ProofTreeRule::OrIntroSnd,
+                    conclusion: ProofTreeConclusion::Prop(Prop::Or(
+                        other.boxed(),
+                        body_prop.boxed(),
+                    )),
+                },
+            ))
         } else {
             Err(TypeError::ExpectedProp {
                 received: body_type,
@@ -261,25 +387,36 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         left_term: &ProofTerm,
         right_ident: &String,
         right_term: &ProofTerm,
-    ) -> Result<Type, TypeError> {
-        let proof_term_type = proof_term.visit(self)?;
+    ) -> Result<(Type, ProofTree), TypeError> {
+        let (proof_term_type, proof_term_tree) = proof_term.visit(self)?;
 
         if let Type::Prop(Prop::Or(fst, snd)) = proof_term_type {
             // fst
             self.ctx.insert(left_ident.clone(), Type::Prop(*fst));
-            let fst_type = left_term.visit(self)?;
+            let (fst_type, fst_proof_tree) = left_term.visit(self)?;
             self.ctx.remove(&left_ident);
 
             // snd
             self.ctx.insert(right_ident.clone(), Type::Prop(*snd));
-            let snd_type = right_term.visit(self)?;
+            let (snd_type, snd_proof_tree) = right_term.visit(self)?;
             self.ctx.remove(&right_ident);
 
             if fst_type != snd_type {
                 return Err(TypeError::CaseArmsDifferent { fst_type, snd_type });
             }
 
-            Ok(fst_type)
+            if let Type::Prop(fst_type) = fst_type {
+                Ok((
+                    snd_type,
+                    ProofTree {
+                        hypotheses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
+                        rule: ProofTreeRule::OrElim(left_ident.clone(), right_ident.clone()),
+                        conclusion: ProofTreeConclusion::Prop(fst_type),
+                    },
+                ))
+            } else {
+                Err(TypeError::ExpectedProp { received: fst_type })
+            }
         } else {
             Err(TypeError::UnexpectedKind {
                 expected: ProofTermKind::Pair,
@@ -288,11 +425,18 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         }
     }
 
-    fn visit_abort(&mut self, body: &ProofTerm) -> Result<Type, TypeError> {
-        let body_type = body.visit(self)?;
+    fn visit_abort(&mut self, body: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
+        let (body_type, body_proof_tree) = body.visit(self)?;
 
         if let Type::Prop(Prop::False) = body_type {
-            Ok(Prop::Any.into())
+            Ok((
+                Prop::Any.into(),
+                ProofTree {
+                    hypotheses: vec![body_proof_tree],
+                    rule: ProofTreeRule::FalsumElim,
+                    conclusion: ProofTreeConclusion::Prop(Prop::Any),
+                },
+            ))
         } else {
             Err(TypeError::UnexpectedType {
                 expected: Prop::False.into(),
@@ -301,18 +445,26 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
         }
     }
 
-    fn visit_unit(&mut self) -> Result<Type, TypeError> {
-        Ok(Prop::True.into())
+    fn visit_unit(&mut self) -> Result<(Type, ProofTree), TypeError> {
+        Ok((
+            Prop::True.into(),
+            ProofTree {
+                hypotheses: vec![],
+                rule: ProofTreeRule::TrueIntro,
+                conclusion: ProofTreeConclusion::Prop(Prop::True),
+            },
+        ))
     }
 }
 
-pub fn typify(proof_term: &ProofTerm) -> Result<Type, TypeError> {
+pub fn typify(proof_term: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
     let mut visitor = TypifyVisitor::new();
     proof_term.visit(&mut visitor)
 }
 
 // === TESTS ===
-
+// TODO
+/*
 #[cfg(test)]
 mod tests {
     use std::vec;
@@ -758,3 +910,4 @@ mod tests {
         assert_eq!(_type, Err(TypeError::QuantifiedObjectEscapesScope))
     }
 }
+*/

@@ -1,11 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use super::{
-    check::typify,
-    proof_term::{ProofTerm, Type},
-    prop::Prop,
-};
 use tsify::Tsify;
+
+use super::prop::Prop;
 
 #[derive(Serialize, Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -22,6 +19,18 @@ pub enum ProofTreeRule {
     OrIntroSnd,
     OrElim(String, String),
     FalsumElim,
+    ForAllIntro(String),
+    ForAllElim,
+    ExistsIntro,
+    ExistsElim(String, String),
+}
+
+#[derive(Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
+pub enum ProofTreeConclusion {
+    Prop(Prop),
+    TypeJudgement(String, String),
 }
 
 #[derive(Serialize, Deserialize, Tsify)]
@@ -29,5 +38,5 @@ pub enum ProofTreeRule {
 pub struct ProofTree {
     pub hypotheses: Vec<ProofTree>,
     pub rule: ProofTreeRule,
-    pub conclusion_type: Prop,
+    pub conclusion: ProofTreeConclusion,
 }
