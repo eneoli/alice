@@ -1,6 +1,8 @@
 use super::prop::Prop;
+use serde::{Serialize, Deserialize};
+use tsify::Tsify;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum Type {
     Prop(Prop),
     Datatype(String),
@@ -23,7 +25,8 @@ pub enum ProofTermKind {
     Unit,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
+#[serde(tag = "kind", content = "value")]
 pub enum ProofTerm {
     Ident(String),
     Pair(Box<ProofTerm>, Box<ProofTerm>),
