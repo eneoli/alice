@@ -1,9 +1,12 @@
 use std::fmt::{self, Debug};
 
+use serde::{Deserialize, Serialize};
+use tsify::Tsify;
 use super::proof_term::Type;
 
-#[derive(Clone, PartialEq, Eq)]
-pub enum Prop {
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]pub enum Prop {
     Any,
     Atom(String, Vec<String>),
     And(Box<Prop>, Box<Prop>),
