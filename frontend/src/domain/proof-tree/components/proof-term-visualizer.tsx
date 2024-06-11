@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useState } from 'react';
 import { ProofNode } from './proof-node';
 import { ProofTree, annotate_proof_term, ProofTreeRule, Prop } from 'alice';
 
@@ -35,11 +35,13 @@ function toProofTree(proofTree: ProofTree | null) {
         return null;
     }
 
+    const conclusion = proofTree.conclusion.kind === 'Prop' ? printProp(proofTree.conclusion.value) : proofTree.conclusion.value[0] + ':' + proofTree.conclusion.value[1];
+
     return (
         <div>
-            <ProofNode label={printProofRule(proofTree.rule)} content={printProp(proofTree?.conclusion_type)}>
+            <ProofNode label={printProofRule(proofTree.rule)} content={conclusion}>
                 {
-                    proofTree.hypotheses.map(toProofTree)
+                    proofTree.hypotheses.map((child: ProofTree, i: number) => <Fragment key={i}>{toProofTree(child)}</Fragment>)
                 }
             </ProofNode>
         </div>
@@ -60,29 +62,17 @@ function printProofRule(proofTreeRule: ProofTreeRule): string {
         case 'OrIntroSnd': return '\\lor I_2';
         case 'OrElim': return `\\lor E^{${proofTreeRule.value[0]}, ${proofTreeRule.value[1]}}`;
         case 'FalsumElim': return '\\bot E';
+        case 'ForAllIntro': return '\\forall I^' + proofTreeRule.value;
+        case 'ForAllElim': return '\\forall E';
+        case 'ExistsIntro': return '\\exists I';
+        case 'ExistsElim': return `\\exists E^{${proofTreeRule.value[0]}, ${proofTreeRule.value[1]}}`;
     }
-}
-
-function prettyJoin(arr: string[]): string {
-
-    if (arr.length == 0) {
-        return '';
-    }
-
-    const elems = [...arr];
-    elems.pop();
-
-    let str = elems.join(', ');
-
-    str += arr[arr.length - 1];
-
-    return str;
 }
 
 function printProp(prop: Prop): string {
     switch (prop.kind) {
         case 'Any': return '*';
-        case 'Atom': return prop.value[0] + (prop.value[1] ?? `(${prettyJoin(prop.value[1])})`);
+        case 'Atom': return prop.value[0] + (prop.value[1].length > 0 ? `(${prop.value[1].join(', ')})` : '');
         case 'And': return printProp(prop.value[0]) + ' ∧ ' + printProp(prop.value[1]);
         case 'Or': return printProp(prop.value[0]) + ' ∨ ' + printProp(prop.value[1]);
         case 'Impl': return printProp(prop.value[0]) + ' ⊃ ' + printProp(prop.value[1]);

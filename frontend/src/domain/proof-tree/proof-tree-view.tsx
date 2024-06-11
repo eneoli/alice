@@ -1,5 +1,5 @@
-import React, { MouseEvent, ReactNode, useEffect, useRef, useState } from 'react';
-import { css } from "@emotion/css";
+import React, { MouseEvent, ReactNode, useEffect, useRef } from 'react';
+import { css } from '@emotion/css';
 
 interface ProofTreeProps {
     children: ReactNode;
