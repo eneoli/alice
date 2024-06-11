@@ -4,10 +4,9 @@ import Katex from 'katex';
 
 interface ProofLineProps {
     label: string;
-    onSizeChange: (size: number) => void;
 }
 
-export function ProofLine({ label, onSizeChange }: ProofLineProps) {
+export function ProofLine({ label }: ProofLineProps) {
 
     const labelRef = useRef<HTMLDivElement>(null);
 
@@ -21,31 +20,44 @@ export function ProofLine({ label, onSizeChange }: ProofLineProps) {
             throwOnError: false,
 
         });
-
-        setImmediate(() => onSizeChange(labelRef.current?.offsetWidth || 0));
-
-    }, [labelRef.current]);
+    }, [labelRef.current, label]);
 
     return (
-        <span className={cssProofLineContainer}>
+        <div className={cssLineContainer}>
             <hr className={cssLine} />
-            <div>
-                <div ref={labelRef} />
+            <div className={cssLabelContainer}>
+                <div className={cssLabel}>
+                    <div ref={labelRef} />
+                </div>
             </div>
-        </span>
-    );
+        </div>);
 }
 
-const cssProofLineContainer = css`
+const cssLineContainer = css`
     display: flex;
-    flex-direction: row;
+    align-items: center;
+    gap: 2px;
 `;
 
 const cssLine = css`
-    flex: 1;
-    height: 2px;
-    background-color: #5b6e97;
-    border-color: #5b6e97;
-    color: #5b6e97;
-    box-sizing: border-box;
+    width: 100%;
+    color: black;
+    background-color: black;
+    height: 1px;
+    margin: 0;
+    border: 0;
+`;
+
+const cssLabelContainer = css`
+    width: 0;
+    height: 0;
+    position: relative;
+`;
+
+const cssLabel = css`
+    white-space: nowrap;
+    paddding-bottom: 25px;
+    position: absolute;
+    top: -18px;
+    font-size: 0.75em;
 `;
