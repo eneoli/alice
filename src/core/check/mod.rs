@@ -275,9 +275,6 @@ impl ProofTermVisitor<Result<Type, TypeError>> for TypifyVisitor {
             let snd_type = right_term.visit(self)?;
             self.ctx.remove(&right_ident);
 
-            println!("{:#?}", fst_type);
-            println!("{:#?}", snd_type);
-
             if fst_type != snd_type {
                 return Err(TypeError::CaseArmsDifferent { fst_type, snd_type });
             }

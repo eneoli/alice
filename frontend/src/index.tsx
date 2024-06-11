@@ -1,3 +1,4 @@
+import 'katex/dist/katex.css'
 import '../style/index.css'
 import React from 'react';
 import { createRoot } from 'react-dom/client';
