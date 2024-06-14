@@ -1,12 +1,13 @@
 use std::fmt::{self, Debug};
 
+use super::proof_term::Type;
 use serde::{Deserialize, Serialize};
 use tsify::Tsify;
-use super::proof_term::Type;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
-#[serde(tag = "kind", content = "value")]pub enum Prop {
+#[serde(tag = "kind", content = "value")]
+pub enum Prop {
     Any,
     Atom(String, Vec<String>),
     And(Box<Prop>, Box<Prop>),
@@ -31,6 +32,90 @@ use super::proof_term::Type;
 impl Prop {
     pub fn boxed(&self) -> Box<Self> {
         Box::new(self.clone())
+    }
+
+    pub fn alpha_eq(&self, other: &Prop) -> bool {
+        fn _alpha_eq<'a>(
+            fst: &'a Prop,
+            snd: &'a Prop,
+            mut env: Vec<(&'a String, &'a String)>,
+        ) -> bool {
+            match (fst, snd) {
+                (Prop::True, Prop::True) => true,
+                (Prop::False, Prop::False) => true,
+                (Prop::And(l1, l2), Prop::And(r1, r2)) => {
+                    _alpha_eq(l1, r1, env.clone()) && _alpha_eq(l2, r2, env)
+                }
+                (Prop::Or(l1, l2), Prop::Or(r1, r2)) => {
+                    _alpha_eq(l1, r1, env.clone()) && _alpha_eq(l2, r2, env)
+                }
+                (Prop::Impl(l1, l2), Prop::And(r1, r2)) => {
+                    _alpha_eq(l1, r1, env.clone()) && _alpha_eq(l2, r2, env)
+                }
+                (
+                    Prop::Exists {
+                        object_ident: l_object_ident,
+                        object_type_ident: l_object_type_ident,
+                        body: l_body,
+                    },
+                    Prop::Exists {
+                        object_ident: r_object_ident,
+                        object_type_ident: r_object_type_ident,
+                        body: r_body,
+                    },
+                ) => {
+                    env.push((l_object_ident, r_object_ident));
+
+                    l_object_type_ident == r_object_type_ident && _alpha_eq(l_body, r_body, env)
+                }
+
+                (
+                    Prop::ForAll {
+                        object_ident: l_object_ident,
+                        object_type_ident: l_object_type_ident,
+                        body: l_body,
+                    },
+                    Prop::ForAll {
+                        object_ident: r_object_ident,
+                        object_type_ident: r_object_type_ident,
+                        body: r_body,
+                    },
+                ) => {
+                    env.push((l_object_ident, r_object_ident));
+
+                    l_object_type_ident == r_object_type_ident && _alpha_eq(l_body, r_body, env)
+                }
+                (Prop::Atom(l_ident, l_params), Prop::Atom(r_ident, r_params)) => {
+                    if l_ident != r_ident {
+                        return false;
+                    }
+
+                    for (l_param, r_param) in Iterator::zip(l_params.iter(), r_params.iter()) {
+                        // search for identifiers
+                        let pair = env
+                            .iter()
+                            .rev()
+                            .find(|(x, y)| *x == l_param || *y == r_param);
+
+                        if let Some((x, y)) = pair {
+                            if *x != l_param || *y != r_param {
+                                return false;
+                            }
+                        } else if l_param != r_param {
+                            // free occurences, check for name equality
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+                _ => false,
+            }
+        }
+
+        let env = vec![];
+
+        _alpha_eq(self, other, env)
     }
 
     pub fn get_free_parameters(&self) -> Vec<String> {
@@ -211,6 +296,121 @@ mod tests {
 
     use super::Prop;
 
+    #[test]
+    fn test_alpha_eq_no_quantors_equivalent() {
+        let fst = Prop::And(
+            Prop::Atom("A".to_string(), vec![]).boxed(),
+            Prop::Or(
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+                Prop::Atom("C".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+        );
+
+        let snd = Prop::And(
+            Prop::Atom("A".to_string(), vec![]).boxed(),
+            Prop::Or(
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+                Prop::Atom("C".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+        );
+
+        assert!(Prop::alpha_eq(&fst, &snd))
+    }
+
+    #[test]
+    fn test_alpha_eq_no_quantors_not_equivalent() {
+        let fst = Prop::And(
+            Prop::Atom("A".to_string(), vec![]).boxed(),
+            Prop::Or(
+                Prop::Atom("C".to_string(), vec![]).boxed(),
+                Prop::Atom("C".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+        );
+
+        let snd = Prop::And(
+            Prop::Atom("A".to_string(), vec![]).boxed(),
+            Prop::Or(
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+                Prop::Atom("C".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+        );
+
+        assert!(!Prop::alpha_eq(&fst, &snd))
+    }
+
+    #[test]
+    fn test_alpha_eq_quantors_equivalent() {
+        let fst = Prop::ForAll {
+            object_ident: "x".to_string(),
+            object_type_ident: "t".to_string(),
+            body: Prop::ForAll {
+                object_ident: "y".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Prop::And(
+                    Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+                    Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+                )
+                .boxed(),
+            }
+            .boxed(),
+        };
+
+        let snd = Prop::ForAll {
+            object_ident: "y".to_string(),
+            object_type_ident: "t".to_string(),
+            body: Prop::ForAll {
+                object_ident: "x".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Prop::And(
+                    Prop::Atom("A".to_string(), vec!["y".to_string()]).boxed(),
+                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+                )
+                .boxed(),
+            }
+            .boxed(),
+        };
+
+        assert!(Prop::alpha_eq(&fst, &snd))
+    }
+
+    #[test]
+    fn test_alpha_eq_quantors_not_equivalent() {
+        let fst = Prop::ForAll {
+            object_ident: "x".to_string(),
+            object_type_ident: "t".to_string(),
+            body: Prop::ForAll {
+                object_ident: "y".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Prop::And(
+                    Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+                )
+                .boxed(),
+            }
+            .boxed(),
+        };
+
+        let snd = Prop::ForAll {
+            object_ident: "y".to_string(),
+            object_type_ident: "t".to_string(),
+            body: Prop::ForAll {
+                object_ident: "x".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Prop::And(
+                    Prop::Atom("A".to_string(), vec!["y".to_string()]).boxed(),
+                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+                )
+                .boxed(),
+            }
+            .boxed(),
+        };
+
+        assert!(!Prop::alpha_eq(&fst, &snd))
+    }
     #[test]
     fn test_free_parameters_none() {
         let free_params = Prop::Atom("A".to_string(), vec![]).get_free_parameters();
