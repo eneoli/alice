@@ -469,13 +469,8 @@ mod tests {
 
     use crate::core::{
         check::{typify, TypeError},
-        parse::{
-            lexer::lexer,
-            proof::{self, proof_parser},
-            proof_term::proof_term_parser,
-        },
+        parse::{lexer::lexer, proof::proof_parser, proof_term::proof_term_parser},
         process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
-        proof::Proof,
         proof_term::Type,
         proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
         prop::Prop,
