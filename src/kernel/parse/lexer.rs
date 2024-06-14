@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use chumsky::prelude::*;
 
 use super::Token;
@@ -6,7 +8,7 @@ use super::Token;
     == Lexer ==
     -----------
 */
-pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
+pub fn lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simple<char>> {
     let truth = choice((
         just("true"),
         just("True"),
@@ -123,6 +125,7 @@ pub fn lexer() -> impl Parser<char, Vec<Token>, Error = Simple<char>> {
         exists,
         equal,
     ))
+    .map_with_span(|token, span| (token, span))
     .padded_by(comment.repeated())
     .padded()
     .repeated()
