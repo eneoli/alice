@@ -24,7 +24,7 @@ use super::{fol::fol_parser, Token};
     LetIn           = "let", "(", Ident, ",", Ident, ")", "=", Expr, "in", Expr ;
 */
 pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token>> {
-    let ident_token = select! { Token::IDENT(ident) => ident };
+    let ident_token = select! { Token::IDENT(ident) => ident }.labelled("identifier");
 
     let proof_term = recursive(|proof_term| {
         let ident_term = ident_token.map(ProofTerm::Ident).boxed();
