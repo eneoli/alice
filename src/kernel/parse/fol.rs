@@ -2,7 +2,7 @@ use std::vec;
 
 use chumsky::prelude::*;
 
-use crate::core::prop::Prop;
+use crate::kernel::prop::Prop;
 
 use super::Token;
 
@@ -136,7 +136,7 @@ mod tests {
     use chumsky::Parser;
 
     use crate::{
-        core::{
+        kernel::{
             parse::{fol::fol_parser, lexer::lexer},
             prop::Prop,
         },

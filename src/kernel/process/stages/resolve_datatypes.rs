@@ -1,4 +1,4 @@
-use crate::core::{
+use crate::kernel::{
     process::ProofPipelineStage,
     proof::Proof,
     proof_term::{ProofTerm, Type},
@@ -142,7 +142,7 @@ impl ProofPipelineStage for ResolveDatatypes {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::{
+    use crate::kernel::{
         proof_term::{ProofTerm, Type},
         prop::Prop,
     };

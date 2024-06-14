@@ -1,4 +1,4 @@
-use crate::core::proof_term::Type;
+use crate::kernel::proof_term::Type;
 
 #[derive(Clone)]
 pub struct IdentifierContext {
@@ -45,7 +45,7 @@ impl IdentifierContext {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::proof_term::Type;
+    use crate::kernel::proof_term::Type;
 
     use super::IdentifierContext;
 

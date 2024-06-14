@@ -2,7 +2,7 @@ use std::fmt::{self, Debug};
 
 use super::proof_term::Type;
 use serde::{Deserialize, Serialize};
-use tsify::Tsify;
+use tsify_next::Tsify;
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]

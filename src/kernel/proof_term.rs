@@ -1,6 +1,6 @@
 use super::prop::Prop;
 use serde::{Serialize, Deserialize};
-use tsify::Tsify;
+use tsify_next::Tsify;
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum Type {

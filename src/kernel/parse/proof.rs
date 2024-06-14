@@ -1,6 +1,6 @@
 use chumsky::prelude::*;
 
-use crate::core::proof::Proof;
+use crate::kernel::proof::Proof;
 
 use super::{proof_term::proof_term_parser, Token};
 
@@ -33,7 +33,7 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
 mod tests {
     use chumsky::{primitive::end, Parser};
 
-    use crate::core::{
+    use crate::kernel::{
         parse::lexer::lexer,
         proof::Proof,
         proof_term::{ProofTerm, Type},

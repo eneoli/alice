@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use tsify::Tsify;
+use tsify_next::Tsify;
 
 use super::prop::Prop;
 

@@ -467,7 +467,7 @@ mod tests {
 
     use chumsky::Parser;
 
-    use crate::core::{
+    use crate::kernel::{
         check::{typify, TypeError},
         parse::{lexer::lexer, proof::proof_parser, proof_term::proof_term_parser},
         process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},

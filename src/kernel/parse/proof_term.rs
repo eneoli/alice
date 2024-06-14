@@ -1,6 +1,6 @@
 use chumsky::prelude::*;
 
-use crate::core::{
+use crate::kernel::{
     proof_term::{ProofTerm, Type},
     prop::Prop,
 };
@@ -240,7 +240,7 @@ mod tests {
 
     use chumsky::Parser;
 
-    use crate::core::{
+    use crate::kernel::{
         parse::lexer::lexer,
         proof_term::{ProofTerm, Type},
         prop::Prop,

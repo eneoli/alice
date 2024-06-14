@@ -1,5 +1,5 @@
 use chumsky::Parser;
-use alice::core::{
+use alice::kernel::{
     check::typify,
     parse::{lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
