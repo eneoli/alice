@@ -29,7 +29,7 @@ use super::Token;
     Existsquant = "∃", Ident, ":", Ident, ".", Prop ;
 */
 pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
-    let ident = select! { Token::IDENT(ident) => ident };
+    let ident = select! { Token::IDENT(ident) => ident }.labelled("identifier");
 
     let prop = recursive(|prop: Recursive<Token, Prop, Simple<Token>>| {
         let allquant = just(Token::FORALL)
