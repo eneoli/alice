@@ -2,7 +2,9 @@ use super::prop::Prop;
 use serde::{Serialize, Deserialize};
 use tsify_next::Tsify;
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum Type {
     Prop(Prop),
     Datatype(String),
