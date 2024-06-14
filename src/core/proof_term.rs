@@ -8,6 +8,16 @@ pub enum Type {
     Datatype(String),
 }
 
+impl Into<Prop> for Type {
+    fn into(self) -> Prop {
+        if let Type::Prop(_type) = self {
+            return _type;
+        }
+
+        panic!("Type is not a Prop.");
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProofTermKind {
     Ident,

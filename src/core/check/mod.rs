@@ -1,5 +1,4 @@
 use identifier_context::IdentifierContext;
-use wasm_bindgen::convert::IntoWasmAbi;
 
 use super::{
     proof_term::{ProofTerm, ProofTermKind, ProofTermVisitor, Type},
@@ -53,18 +52,18 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
 
         if let Some(Type::Prop(_type)) = ident_type {
             Ok((
-                _type.clone().into(),
+                Type::Prop(_type.clone()),
                 ProofTree {
-                    hypotheses: vec![],
+                    premisses: vec![],
                     rule: ProofTreeRule::Ident(Some(ident.clone())),
-                    conclusion: ProofTreeConclusion::Prop(_type.clone()),
+                    conclusion: ProofTreeConclusion::PropIsTrue(_type.clone()),
                 },
             ))
         } else if let Some(Type::Datatype(_type)) = ident_type {
             Ok((
                 Type::Datatype(_type.clone()),
                 ProofTree {
-                    hypotheses: vec![],
+                    premisses: vec![],
                     rule: ProofTreeRule::Ident(Some(ident.clone())),
                     conclusion: ProofTreeConclusion::TypeJudgement(ident.clone(), _type.clone()),
                 },
@@ -87,21 +86,18 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
         match (&fst_type, &snd_type) {
             (Type::Datatype(type_ident), Type::Prop(snd_prop)) => {
                 if let ProofTerm::Ident(ident) = fst {
+                    let _type = Prop::Exists {
+                        object_ident: ident.to_string(),
+                        object_type_ident: type_ident.to_string(),
+                        body: snd_prop.boxed(),
+                    };
+
                     Ok((
-                        Prop::Exists {
-                            object_ident: ident.to_string(),
-                            object_type_ident: type_ident.to_string(),
-                            body: snd_prop.boxed(),
-                        }
-                        .into(),
+                        _type.clone().into(),
                         ProofTree {
-                            hypotheses: vec![fst_proof_tree, snd_proof_tree],
+                            premisses: vec![fst_proof_tree, snd_proof_tree],
                             rule: ProofTreeRule::ExistsIntro,
-                            conclusion: ProofTreeConclusion::Prop(Prop::Exists {
-                                object_ident: ident.to_string(),
-                                object_type_ident: type_ident.to_string(),
-                                body: snd_prop.boxed(),
-                            }),
+                            conclusion: ProofTreeConclusion::PropIsTrue(_type),
                         },
                     ))
                 } else {
@@ -110,12 +106,13 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
             }
             (Type::Prop(fst_prop), Type::Prop(snd_prop)) => {
                 let _type = Prop::And(fst_prop.boxed(), snd_prop.boxed());
+
                 Ok((
                     _type.clone().into(),
                     ProofTree {
-                        hypotheses: vec![fst_proof_tree, snd_proof_tree],
+                        premisses: vec![fst_proof_tree, snd_proof_tree],
                         rule: ProofTreeRule::AndIntro,
-                        conclusion: ProofTreeConclusion::Prop(_type.into()),
+                        conclusion: ProofTreeConclusion::PropIsTrue(_type.into()),
                     },
                 ))
             }
@@ -132,9 +129,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
             return Ok((
                 Type::Prop(*fst.clone()),
                 ProofTree {
-                    hypotheses: vec![body_proof_tree],
+                    premisses: vec![body_proof_tree],
                     rule: ProofTreeRule::AndElimFst,
-                    conclusion: ProofTreeConclusion::Prop(*fst),
+                    conclusion: ProofTreeConclusion::PropIsTrue(*fst),
                 },
             ));
         }
@@ -152,9 +149,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
             return Ok((
                 Type::Prop(*snd.clone()),
                 ProofTree {
-                    hypotheses: vec![body_proof_tree],
+                    premisses: vec![body_proof_tree],
                     rule: ProofTreeRule::AndElimSnd,
-                    conclusion: ProofTreeConclusion::Prop(*snd),
+                    conclusion: ProofTreeConclusion::PropIsTrue(*snd),
                 },
             ));
         }
@@ -177,32 +174,33 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
 
         match (&param_type, &body_type) {
             (Type::Datatype(ident), Type::Prop(body_type)) => {
+                let _type = Prop::ForAll {
+                    object_ident: param_ident.clone(),
+                    object_type_ident: ident.clone(),
+                    body: body_type.boxed(), // TODO have I to replace parameterized props?
+                };
+
                 Ok((
-                    Prop::ForAll {
-                        object_ident: param_ident.clone(),
-                        object_type_ident: ident.clone(),
-                        body: body_type.boxed(), // TODO have I to replace parameterized props?
-                    }
-                    .into(),
+                    _type.clone().into(),
                     ProofTree {
-                        hypotheses: vec![body_proof_tree],
+                        premisses: vec![body_proof_tree],
                         rule: ProofTreeRule::ForAllIntro(param_ident.clone()),
-                        conclusion: ProofTreeConclusion::Prop(Prop::ForAll {
-                            object_ident: param_ident.clone(),
-                            object_type_ident: ident.clone(),
-                            body: body_type.boxed(), // TODO have I to replace parameterized props?
-                        }),
+                        conclusion: ProofTreeConclusion::PropIsTrue(_type),
                     },
                 ))
             }
-            (Type::Prop(fst), Type::Prop(snd)) => Ok((
-                Prop::Impl(fst.boxed(), snd.boxed()).into(),
-                ProofTree {
-                    hypotheses: vec![body_proof_tree],
-                    rule: ProofTreeRule::ImplIntro(param_ident.clone()),
-                    conclusion: ProofTreeConclusion::Prop(Prop::Impl(fst.boxed(), snd.boxed())),
-                },
-            )),
+            (Type::Prop(fst), Type::Prop(snd)) => {
+                let _type = Prop::Impl(fst.boxed(), snd.boxed());
+
+                Ok((
+                    _type.clone().into(),
+                    ProofTree {
+                        premisses: vec![body_proof_tree],
+                        rule: ProofTreeRule::ImplIntro(param_ident.clone()),
+                        conclusion: ProofTreeConclusion::PropIsTrue(_type),
+                    },
+                ))
+            }
             (_, Type::Datatype(_)) => Err(TypeError::ExpectedProp {
                 received: body_type,
             }),
@@ -232,9 +230,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
             return Ok((
                 Type::Prop(*body_type.clone()),
                 ProofTree {
-                    hypotheses: vec![function_proof_tree, applicant_proof_tree],
+                    premisses: vec![function_proof_tree, applicant_proof_tree],
                     rule: ProofTreeRule::ImplElim,
-                    conclusion: ProofTreeConclusion::Prop(*body_type),
+                    conclusion: ProofTreeConclusion::PropIsTrue(*body_type),
                 },
             ));
         }
@@ -251,12 +249,13 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
                 if let ProofTerm::Ident(ident) = applicant {
                     let mut substitued_body = *body.clone();
                     substitued_body.substitue_free_parameter(&object_ident, &ident);
+
                     return Ok((
                         Type::Prop(substitued_body.clone()),
                         ProofTree {
-                            hypotheses: vec![function_proof_tree, applicant_proof_tree],
+                            premisses: vec![function_proof_tree, applicant_proof_tree],
                             rule: ProofTreeRule::ForAllElim,
-                            conclusion: ProofTreeConclusion::Prop(substitued_body),
+                            conclusion: ProofTreeConclusion::PropIsTrue(substitued_body),
                         },
                     ));
                 } else {
@@ -310,9 +309,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
                 Ok((
                     body_type.clone(),
                     ProofTree {
-                        hypotheses: vec![pair_proof_term_tree, body_proof_tree],
+                        premisses: vec![pair_proof_term_tree, body_proof_tree],
                         rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
-                        conclusion: ProofTreeConclusion::Prop(prop.clone()),
+                        conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
                     },
                 ))
             } else {
@@ -336,15 +335,14 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
         let (body_type, body_proof_tree) = body.visit(self)?;
 
         if let Type::Prop(body_prop) = body_type {
+            let _type = Prop::Or(body_prop.boxed(), other.boxed());
+
             Ok((
-                Type::Prop(Prop::Or(body_prop.boxed(), other.boxed())),
+                _type.clone().into(),
                 ProofTree {
-                    hypotheses: vec![body_proof_tree],
+                    premisses: vec![body_proof_tree],
                     rule: ProofTreeRule::OrIntroFst,
-                    conclusion: ProofTreeConclusion::Prop(Prop::Or(
-                        body_prop.boxed(),
-                        other.boxed(),
-                    )),
+                    conclusion: ProofTreeConclusion::PropIsTrue(_type),
                 },
             ))
         } else {
@@ -362,15 +360,14 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
         let (body_type, body_proof_tree) = body.visit(self)?;
 
         if let Type::Prop(body_prop) = body_type {
+            let _type = Prop::Or(other.boxed(), body_prop.boxed());
+
             Ok((
-                Type::Prop(Prop::Or(other.boxed(), body_prop.boxed())),
+                Type::Prop(_type.clone()),
                 ProofTree {
-                    hypotheses: vec![body_proof_tree],
+                    premisses: vec![body_proof_tree],
                     rule: ProofTreeRule::OrIntroSnd,
-                    conclusion: ProofTreeConclusion::Prop(Prop::Or(
-                        other.boxed(),
-                        body_prop.boxed(),
-                    )),
+                    conclusion: ProofTreeConclusion::PropIsTrue(_type),
                 },
             ))
         } else {
@@ -409,9 +406,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
                 Ok((
                     snd_type,
                     ProofTree {
-                        hypotheses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
+                        premisses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
                         rule: ProofTreeRule::OrElim(left_ident.clone(), right_ident.clone()),
-                        conclusion: ProofTreeConclusion::Prop(fst_type),
+                        conclusion: ProofTreeConclusion::PropIsTrue(fst_type),
                     },
                 ))
             } else {
@@ -432,9 +429,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
             Ok((
                 Prop::Any.into(),
                 ProofTree {
-                    hypotheses: vec![body_proof_tree],
+                    premisses: vec![body_proof_tree],
                     rule: ProofTreeRule::FalsumElim,
-                    conclusion: ProofTreeConclusion::Prop(Prop::Any),
+                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::Any),
                 },
             ))
         } else {
@@ -449,9 +446,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
         Ok((
             Prop::True.into(),
             ProofTree {
-                hypotheses: vec![],
+                premisses: vec![],
                 rule: ProofTreeRule::TrueIntro,
-                conclusion: ProofTreeConclusion::Prop(Prop::True),
+                conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
             },
         ))
     }
@@ -463,8 +460,7 @@ pub fn typify(proof_term: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
 }
 
 // === TESTS ===
-// TODO
-/*
+
 #[cfg(test)]
 mod tests {
     use std::vec;
@@ -473,9 +469,15 @@ mod tests {
 
     use crate::core::{
         check::{typify, TypeError},
-        parse::{lexer::lexer, proof::proof_parser, proof_term::proof_term_parser},
+        parse::{
+            lexer::lexer,
+            proof::{self, proof_parser},
+            proof_term::proof_term_parser,
+        },
         process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
+        proof::Proof,
         proof_term::Type,
+        proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
         prop::Prop,
     };
 
@@ -483,45 +485,138 @@ mod tests {
     fn test_proof_implication_to_and() {
         let tokens = lexer().parse("fn u: A => fn w: B => (u, w)").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, proof_tree) = typify(&ast).unwrap();
 
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-                Prop::Impl(
+        let expected_type = Type::Prop(Prop::Impl(
+            Prop::Atom("A".to_string(), vec![]).boxed(),
+            Prop::Impl(
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+                Prop::And(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
                     Prop::Atom("B".to_string(), vec![]).boxed(),
-                    Prop::And(
-                        Prop::Atom("A".to_string(), vec![]).boxed(),
-                        Prop::Atom("B".to_string(), vec![]).boxed()
-                    )
-                    .boxed(),
                 )
                 .boxed(),
-            ))
-        );
+            )
+            .boxed(),
+        ));
+
+        // check type
+        assert_eq!(_type, expected_type);
+
+        // check proof tree
+        assert_eq!(
+            proof_tree,
+            ProofTree {
+                premisses: vec![ProofTree {
+                    premisses: vec![ProofTree {
+                        premisses: vec![
+                            ProofTree {
+                                premisses: vec![],
+                                rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                    "A".to_string(),
+                                    vec![]
+                                )),
+                            },
+                            ProofTree {
+                                premisses: vec![],
+                                rule: ProofTreeRule::Ident(Some("w".to_string())),
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                    "B".to_string(),
+                                    vec![]
+                                )),
+                            }
+                        ],
+                        rule: ProofTreeRule::AndIntro,
+                        conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
+                            Prop::Atom("A".to_string(), vec![]).boxed(),
+                            Prop::Atom("B".to_string(), vec![]).boxed(),
+                        ))
+                    }],
+                    rule: ProofTreeRule::ImplIntro("w".to_string()),
+                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
+                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                        Prop::And(
+                            Prop::Atom("A".to_string(), vec![]).boxed(),
+                            Prop::Atom("B".to_string(), vec![]).boxed(),
+                        )
+                        .boxed(),
+                    )),
+                }],
+                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                conclusion: ProofTreeConclusion::PropIsTrue(expected_type.into()),
+            }
+        )
     }
 
     #[test]
     fn test_commutativity_of_conjunction() {
         let tokens = lexer().parse("fn u: (A && B) => (snd u, fst u)").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, proof_tree) = typify(&ast).unwrap();
 
+        let expected_type = Prop::Impl(
+            Prop::And(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+            Prop::And(
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+        );
+
+        // test type
+        assert_eq!(_type, Type::Prop(expected_type.clone()),);
+
+        // test proof tree
         assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::And(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec![]).boxed()
-                )
-                .boxed(),
-                Prop::And(
-                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                    Prop::Atom("A".to_string(), vec![]).boxed()
-                )
-                .boxed()
-            ))
+            proof_tree,
+            ProofTree {
+                premisses: vec![ProofTree {
+                    premisses: vec![
+                        ProofTree {
+                            premisses: vec![ProofTree {
+                                premisses: vec![],
+                                rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
+                                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                                ))
+                            }],
+                            rule: ProofTreeRule::AndElimSnd,
+                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                "B".to_string(),
+                                vec![]
+                            )),
+                        },
+                        ProofTree {
+                            premisses: vec![ProofTree {
+                                premisses: vec![],
+                                rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
+                                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                                ))
+                            }],
+                            rule: ProofTreeRule::AndElimFst,
+                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                "A".to_string(),
+                                vec![]
+                            )),
+                        }
+                    ],
+                    rule: ProofTreeRule::AndIntro,
+                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
+                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                        Prop::Atom("A".to_string(), vec![]).boxed()
+                    )),
+                }],
+                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
+            }
         )
     }
 
@@ -532,34 +627,148 @@ mod tests {
             .unwrap();
 
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, proof_tree) = typify(&ast).unwrap();
 
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Impl(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::And(
-                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                        Prop::Atom("C".to_string(), vec![]).boxed(),
-                    )
-                    .boxed(),
+        let expected_type = Prop::Impl(
+            Prop::Impl(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::And(
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
+                    Prop::Atom("C".to_string(), vec![]).boxed(),
                 )
                 .boxed(),
-                Prop::And(
-                    Prop::Impl(
-                        Prop::Atom("A".to_string(), vec![]).boxed(),
-                        Prop::Atom("B".to_string(), vec![]).boxed()
-                    )
-                    .boxed(),
-                    Prop::Impl(
-                        Prop::Atom("A".to_string(), vec![]).boxed(),
-                        Prop::Atom("C".to_string(), vec![]).boxed()
-                    )
-                    .boxed()
+            )
+            .boxed(),
+            Prop::And(
+                Prop::Impl(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("B".to_string(), vec![]).boxed(),
                 )
-                .boxed()
-            )),
+                .boxed(),
+                Prop::Impl(
+                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                    Prop::Atom("C".to_string(), vec![]).boxed(),
+                )
+                .boxed(),
+            )
+            .boxed(),
+        );
+
+        // test type
+        assert_eq!(_type, Type::Prop(expected_type.clone()));
+
+        // test proof tree
+        assert_eq!(
+            proof_tree,
+            ProofTree {
+                premisses: vec![ProofTree {
+                    premisses: vec![
+                        ProofTree {
+                            premisses: vec![ProofTree {
+                                premisses: vec![ProofTree {
+                                    premisses: vec![
+                                        ProofTree {
+                                            premisses: vec![],
+                                            rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                            conclusion: ProofTreeConclusion::PropIsTrue(
+                                                Prop::Impl(
+                                                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                                                    Prop::And(
+                                                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                                                        Prop::Atom("C".to_string(), vec![]).boxed(),
+                                                    )
+                                                    .boxed(),
+                                                )
+                                            )
+                                        },
+                                        ProofTree {
+                                            premisses: vec![],
+                                            rule: ProofTreeRule::Ident(Some("w".to_string())),
+                                            conclusion: ProofTreeConclusion::PropIsTrue(
+                                                Prop::Atom("A".to_string(), vec![])
+                                            ),
+                                        }
+                                    ],
+                                    rule: ProofTreeRule::ImplElim,
+                                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
+                                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                                        Prop::Atom("C".to_string(), vec![]).boxed(),
+                                    )),
+                                }],
+                                rule: ProofTreeRule::AndElimFst,
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                    "B".to_string(),
+                                    vec![]
+                                )),
+                            }],
+                            rule: ProofTreeRule::ImplIntro("w".to_string()),
+                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
+                                Prop::Atom("A".to_string(), vec![]).boxed(),
+                                Prop::Atom("B".to_string(), vec![]).boxed(),
+                            ))
+                        },
+                        ProofTree {
+                            premisses: vec![ProofTree {
+                                premisses: vec![ProofTree {
+                                    premisses: vec![
+                                        ProofTree {
+                                            premisses: vec![],
+                                            rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                            conclusion: ProofTreeConclusion::PropIsTrue(
+                                                Prop::Impl(
+                                                    Prop::Atom("A".to_string(), vec![]).boxed(),
+                                                    Prop::And(
+                                                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                                                        Prop::Atom("C".to_string(), vec![]).boxed(),
+                                                    )
+                                                    .boxed(),
+                                                )
+                                            )
+                                        },
+                                        ProofTree {
+                                            premisses: vec![],
+                                            rule: ProofTreeRule::Ident(Some("w".to_string())),
+                                            conclusion: ProofTreeConclusion::PropIsTrue(
+                                                Prop::Atom("A".to_string(), vec![])
+                                            ),
+                                        }
+                                    ],
+                                    rule: ProofTreeRule::ImplElim,
+                                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
+                                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                                        Prop::Atom("C".to_string(), vec![]).boxed(),
+                                    )),
+                                }],
+                                rule: ProofTreeRule::AndElimSnd,
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                    "C".to_string(),
+                                    vec![]
+                                )),
+                            }],
+                            rule: ProofTreeRule::ImplIntro("w".to_string()),
+                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
+                                Prop::Atom("A".to_string(), vec![]).boxed(),
+                                Prop::Atom("C".to_string(), vec![]).boxed(),
+                            ))
+                        }
+                    ],
+                    rule: ProofTreeRule::AndIntro,
+                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
+                        Prop::Impl(
+                            Prop::Atom("A".to_string(), vec![]).boxed(),
+                            Prop::Atom("B".to_string(), vec![]).boxed(),
+                        )
+                        .boxed(),
+                        Prop::Impl(
+                            Prop::Atom("A".to_string(), vec![]).boxed(),
+                            Prop::Atom("C".to_string(), vec![]).boxed(),
+                        )
+                        .boxed(),
+                    ))
+                }],
+                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
+            }
         )
     }
 
@@ -570,22 +779,78 @@ mod tests {
             .unwrap();
 
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, proof_tree) = typify(&ast).unwrap();
 
+        let expected_type = Prop::Impl(
+            Prop::Or(
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+            Prop::Or(
+                Prop::Atom("B".to_string(), vec![]).boxed(),
+                Prop::Atom("A".to_string(), vec![]).boxed(),
+            )
+            .boxed(),
+        );
+
+        // check type
+        assert_eq!(_type, Type::Prop(expected_type.clone()),);
+
+        // check proof tree
         assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Or(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                )
-                .boxed(),
-                Prop::Or(
-                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                )
-                .boxed()
-            ))
+            proof_tree,
+            ProofTree {
+                premisses: vec![ProofTree {
+                    premisses: vec![
+                        ProofTree {
+                            premisses: vec![],
+                            rule: ProofTreeRule::Ident(Some("u".to_string())),
+                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
+                                Prop::Atom("A".to_string(), vec![]).boxed(),
+                                Prop::Atom("B".to_string(), vec![]).boxed(),
+                            )),
+                        },
+                        ProofTree {
+                            premisses: vec![ProofTree {
+                                premisses: vec![],
+                                rule: ProofTreeRule::Ident(Some("a".to_string())),
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                    "A".to_string(),
+                                    vec![]
+                                )),
+                            }],
+                            rule: ProofTreeRule::OrIntroSnd,
+                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
+                                Prop::Atom("B".to_string(), vec![]).boxed(),
+                                Prop::Atom("A".to_string(), vec![]).boxed(),
+                            ))
+                        },
+                        ProofTree {
+                            premisses: vec![ProofTree {
+                                premisses: vec![],
+                                rule: ProofTreeRule::Ident(Some("b".to_string())),
+                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
+                                    "B".to_string(),
+                                    vec![]
+                                )),
+                            }],
+                            rule: ProofTreeRule::OrIntroFst,
+                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
+                                Prop::Atom("B".to_string(), vec![]).boxed(),
+                                Prop::Atom("A".to_string(), vec![]).boxed(),
+                            ))
+                        }
+                    ],
+                    rule: ProofTreeRule::OrElim("a".to_string(), "b".to_string()),
+                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
+                        Prop::Atom("B".to_string(), vec![]).boxed(),
+                        Prop::Atom("A".to_string(), vec![]).boxed(),
+                    )),
+                }],
+                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
+            }
         )
     }
 
@@ -593,9 +858,18 @@ mod tests {
     fn test_true() {
         let tokens = lexer().parse("()").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, proof_tree) = typify(&ast).unwrap();
 
-        assert_eq!(_type, Type::Prop(Prop::True))
+        assert_eq!(_type, Type::Prop(Prop::True));
+
+        assert_eq!(
+            proof_tree,
+            ProofTree {
+                premisses: vec![],
+                rule: ProofTreeRule::TrueIntro,
+                conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
+            }
+        );
     }
 
     #[test]
@@ -604,7 +878,7 @@ mod tests {
             .parse("fn u: ((A -> B) && (B -> C)) => fn w: A => (snd u) ((fst u) w)")
             .unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
             _type,
@@ -628,14 +902,14 @@ mod tests {
                 )
                 .boxed()
             ))
-        )
+        );
     }
 
     #[test]
     fn test_composition_of_identities() {
         let tokens = lexer().parse("(fn u: ((A -> A) && (A -> A)) => fn w: A => (snd u) ((fst u) w)) ((fn x: A => x), (fn y: A => y))").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
             _type,
@@ -650,7 +924,7 @@ mod tests {
     fn test_non_minimal_identity_proof() {
         let tokens = lexer().parse("fn u: A => (fn w: A => w) u").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
             _type,
@@ -665,7 +939,7 @@ mod tests {
     fn test_projection_function() {
         let tokens = lexer().parse("fn u: A & B => fst u").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
             _type,
@@ -686,7 +960,7 @@ mod tests {
             .parse("fn u: (A -> A) -> B => u (fn u: A => u)")
             .unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
             _type,
@@ -709,7 +983,7 @@ mod tests {
     fn test_piano_number_2() {
         let tokens = lexer().parse("fn z: A => fn s: A -> A => s(s(z))").unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
             _type,
@@ -735,7 +1009,7 @@ mod tests {
             .parse("fn u: (~~~A) => fn v: A => u (fn w: A -> \\bot => w v)")
             .unwrap();
         let ast = proof_term_parser().parse(tokens).unwrap();
-        let _type = typify(&ast).unwrap();
+        let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
             _type,
@@ -767,11 +1041,11 @@ mod tests {
         let tokens = lexer()
             .parse(
                 "
-                datatype t;
-                fn u: (\\forall x:t. A(x) & B(x)) => (
-                fn x: t => fst (u x),
-                fn x: t => snd (u x)
-            )",
+                    datatype t;
+                    fn u: (\\forall x:t. A(x) & B(x)) => (
+                    fn x: t => fst (u x),
+                    fn x: t => snd (u x)
+                )",
             )
             .unwrap();
         let mut proof = proof_parser().parse(tokens).unwrap();
@@ -780,7 +1054,7 @@ mod tests {
             .pipe(ResolveDatatypes::boxed())
             .apply(proof);
 
-        let _type = typify(&proof.proof_term).unwrap();
+        let (_type, _) = typify(&proof.proof_term).unwrap();
 
         assert_eq!(
             _type,
@@ -826,7 +1100,7 @@ mod tests {
             .pipe(ResolveDatatypes::boxed())
             .apply(proof);
 
-        let _type = typify(&proof.proof_term).unwrap();
+        let (_type, _) = typify(&proof.proof_term).unwrap();
 
         assert_eq!(
             _type,
@@ -864,7 +1138,7 @@ mod tests {
             .pipe(ResolveDatatypes::boxed())
             .apply(proof);
 
-        let _type = typify(&proof.proof_term).unwrap();
+        let (_type, _) = typify(&proof.proof_term).unwrap();
 
         assert_eq!(
             _type,
@@ -910,4 +1184,3 @@ mod tests {
         assert_eq!(_type, Err(TypeError::QuantifiedObjectEscapesScope))
     }
 }
-*/
