@@ -20,7 +20,9 @@ impl Into<Prop> for Type {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Tsify, Serialize, Deserialize, Debug)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum ProofTermKind {
     Ident,
     Pair,

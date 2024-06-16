@@ -1,4 +1,6 @@
 use identifier_context::IdentifierContext;
+use serde::{Deserialize, Serialize};
+use tsify_next::Tsify;
 
 use super::{
     proof_term::{ProofTerm, ProofTermKind, ProofTermVisitor, Type},
@@ -11,7 +13,9 @@ pub mod identifier_context;
 // TODO: Schon erledigt? checken das der Typ einer quantifizierten Variable auch ein Datentyp und kein Prop ist.
 // TODO: Schon erledigt? checken das paramitriserte Atomns A(...) nur identifier haben die auch eingeführt wurden. (besonders (aber nicht nur) bei Exists)
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Tsify, Serialize, Deserialize, Debug)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum TypeError {
     UnexpectedType {
         expected: Type,
