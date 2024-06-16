@@ -469,7 +469,7 @@ pub fn typify(proof_term: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
 mod tests {
     use std::vec;
 
-    use chumsky::Parser;
+    use chumsky::{Parser, Stream};
 
     use crate::kernel::{
         check::{typify, TypeError},
@@ -482,8 +482,13 @@ mod tests {
 
     #[test]
     fn test_proof_implication_to_and() {
-        let tokens = lexer().parse("fn u: A => fn w: B => (u, w)").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn u: A => fn w: B => (u, w)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, proof_tree) = typify(&ast).unwrap();
 
         let expected_type = Type::Prop(Prop::Impl(
@@ -550,8 +555,13 @@ mod tests {
 
     #[test]
     fn test_commutativity_of_conjunction() {
-        let tokens = lexer().parse("fn u: (A && B) => (snd u, fst u)").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn u: (A && B) => (snd u, fst u)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, proof_tree) = typify(&ast).unwrap();
 
         let expected_type = Prop::Impl(
@@ -621,11 +631,14 @@ mod tests {
 
     #[test]
     fn test_interaction_law_of_distributivity() {
-        let tokens = lexer()
-            .parse("fn u: (A -> (B & C)) => (fn w: A => fst (u w), fn w: A => snd (u w))")
-            .unwrap();
+        let proof_term = "fn u: (A -> (B & C)) => (fn w: A => fst (u w), fn w: A => snd (u w))";
+        let len = proof_term.chars().count();
 
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let tokens = lexer().parse(proof_term).unwrap();
+
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, proof_tree) = typify(&ast).unwrap();
 
         let expected_type = Prop::Impl(
@@ -773,11 +786,14 @@ mod tests {
 
     #[test]
     fn test_commutativity_of_disjunction() {
-        let tokens = lexer()
-            .parse("fn u: A || B => case u of inl a => inr<B> a, inr b => inl<A> b")
-            .unwrap();
+        let proof_term = "fn u: A || B => case u of inl a => inr<B> a, inr b => inl<A> b";
+        let len = proof_term.chars().count();
 
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let tokens = lexer().parse(proof_term).unwrap();
+
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, proof_tree) = typify(&ast).unwrap();
 
         let expected_type = Prop::Impl(
@@ -855,8 +871,13 @@ mod tests {
 
     #[test]
     fn test_true() {
-        let tokens = lexer().parse("()").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "()";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, proof_tree) = typify(&ast).unwrap();
 
         assert_eq!(_type, Type::Prop(Prop::True));
@@ -873,10 +894,13 @@ mod tests {
 
     #[test]
     fn test_composition() {
-        let tokens = lexer()
-            .parse("fn u: ((A -> B) && (B -> C)) => fn w: A => (snd u) ((fst u) w)")
+        let proof_term = "fn u: ((A -> B) && (B -> C)) => fn w: A => (snd u) ((fst u) w)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
         let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
@@ -906,8 +930,13 @@ mod tests {
 
     #[test]
     fn test_composition_of_identities() {
-        let tokens = lexer().parse("(fn u: ((A -> A) && (A -> A)) => fn w: A => (snd u) ((fst u) w)) ((fn x: A => x), (fn y: A => y))").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "(fn u: ((A -> A) && (A -> A)) => fn w: A => (snd u) ((fst u) w)) ((fn x: A => x), (fn y: A => y))";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
@@ -921,8 +950,13 @@ mod tests {
 
     #[test]
     fn test_non_minimal_identity_proof() {
-        let tokens = lexer().parse("fn u: A => (fn w: A => w) u").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn u: A => (fn w: A => w) u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
@@ -936,8 +970,13 @@ mod tests {
 
     #[test]
     fn test_projection_function() {
-        let tokens = lexer().parse("fn u: A & B => fst u").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn u: A & B => fst u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
@@ -955,10 +994,13 @@ mod tests {
 
     #[test]
     fn test_implication_chain() {
-        let tokens = lexer()
-            .parse("fn u: (A -> A) -> B => u (fn u: A => u)")
+        let proof_term = "fn u: (A -> A) -> B => u (fn u: A => u)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
         let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
@@ -980,8 +1022,13 @@ mod tests {
 
     #[test]
     fn test_piano_number_2() {
-        let tokens = lexer().parse("fn z: A => fn s: A -> A => s(s(z))").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn z: A => fn s: A -> A => s(s(z))";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
         let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
@@ -1004,10 +1051,13 @@ mod tests {
     #[test]
     fn test_tripple_neagation_elimination() {
         // ~~~A = ((A => False) => False) => False
-        let tokens = lexer()
-            .parse("fn u: (~~~A) => fn v: A => u (fn w: A -> \\bot => w v)")
+        let proof_term = "fn u: (~~~A) => fn v: A => u (fn w: A -> \\bot => w v)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
         let (_type, _) = typify(&ast).unwrap();
 
         assert_eq!(
@@ -1037,17 +1087,18 @@ mod tests {
 
     #[test]
     fn test_allquant_distribution() {
-        let tokens = lexer()
-            .parse(
-                "
-                    datatype t;
-                    fn u: (\\forall x:t. A(x) & B(x)) => (
-                    fn x: t => fst (u x),
-                    fn x: t => snd (u x)
-                )",
-            )
+        let proof_term = "
+        datatype t;
+        fn u: (\\forall x:t. A(x) & B(x)) => (
+        fn x: t => fst (u x),
+        fn x: t => snd (u x)
+    )";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let mut proof = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let mut proof = proof_parser().parse(tokens).unwrap();
 
         proof = ProofPipeline::new()
             .pipe(ResolveDatatypes::boxed())
@@ -1089,11 +1140,14 @@ mod tests {
 
     #[test]
     fn test_reusing_allquant_ident() {
-        let tokens = lexer()
-            .parse("datatype t; fn u: (∀x:t. C(x, x)) => fn a:t => fn a:t => u a")
-            .unwrap();
+        let proof_term = "datatype t; fn u: (∀x:t. C(x, x)) => fn a:t => fn a:t => u a";
+        let len = proof_term.chars().count();
 
-        let mut proof = proof_parser().parse(tokens).unwrap();
+        let tokens = lexer().parse(proof_term).unwrap();
+
+        let mut proof = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         proof = ProofPipeline::new()
             .pipe(ResolveDatatypes::boxed())
@@ -1129,9 +1183,14 @@ mod tests {
 
     #[test]
     fn test_exsists_move_unquantified() {
-        let tokens = lexer().parse("datatype t; fn u: (\\forall x:t. A(x) -> C) => fn w: \\exists x:t. A(x) => let (a, proof) = w in u a proof").unwrap();
+        let proof_term = "datatype t; fn u: (\\forall x:t. A(x) -> C) => fn w: \\exists x:t. A(x) => let (a, proof) = w in u a proof";
+        let len = proof_term.chars().count();
 
-        let mut proof = proof_parser().parse(tokens).unwrap();
+        let tokens = lexer().parse(proof_term).unwrap();
+
+        let mut proof = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         proof = ProofPipeline::new()
             .pipe(ResolveDatatypes::boxed())
@@ -1168,11 +1227,14 @@ mod tests {
 
     #[test]
     fn test_do_not_allow_exists_quant_escape() {
-        let tokens = lexer()
-            .parse("datatype t; fn u: \\exists x:t. C(x) => let (a, proof) = u in proof")
-            .unwrap();
+        let proof_term = "datatype t; fn u: \\exists x:t. C(x) => let (a, proof) = u in proof";
+        let len = proof_term.chars().count();
 
-        let mut proof = proof_parser().parse(tokens).unwrap();
+        let tokens = lexer().parse(proof_term).unwrap();
+
+        let mut proof = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         proof = ProofPipeline::new()
             .pipe(ResolveDatatypes::boxed())

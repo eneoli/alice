@@ -238,7 +238,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 mod tests {
     use std::vec;
 
-    use chumsky::Parser;
+    use chumsky::{Parser, Stream};
 
     use crate::kernel::{
         parse::lexer::lexer,
@@ -250,8 +250,13 @@ mod tests {
 
     #[test]
     pub fn test_id_function() {
-        let tokens = lexer().parse("fn x: (A) => x").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn x: (A) => x";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -265,8 +270,13 @@ mod tests {
 
     #[test]
     pub fn test_swap_function() {
-        let tokens = lexer().parse("fn x: (A & B) => (snd x, fst x)").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn x: (A & B) => (snd x, fst x)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -287,11 +297,13 @@ mod tests {
 
     #[test]
     pub fn test_y_combinator() {
-        let tokens = lexer()
-            .parse("fn f: (A) => (fn x: (B) => f (x x)) (fn x: (B) => f (x x))")
-            .unwrap();
+        let proof_term = "fn f: (A) => (fn x: (B) => f (x x)) (fn x: (B) => f (x x))";
+        let len = proof_term.chars().count();
 
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -335,8 +347,13 @@ mod tests {
 
     #[test]
     pub fn test_root_pair() {
-        let tokens = lexer().parse("(a, b)").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "(a, b)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -349,24 +366,39 @@ mod tests {
 
     #[test]
     pub fn test_root_ident() {
-        let tokens = lexer().parse("hiThere").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "hiThere";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(ast, ProofTerm::Ident("hiThere".to_string()))
     }
 
     #[test]
     pub fn test_root_unit() {
-        let tokens = lexer().parse("()").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "()";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(ast, ProofTerm::Unit)
     }
 
     #[test]
     pub fn test_simple_application() {
-        let tokens = lexer().parse("f a").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "f a";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -379,10 +411,13 @@ mod tests {
 
     #[test]
     pub fn test_higher_order_function_application() {
-        let tokens = lexer()
-            .parse("(fn u: (T) => u) fn x: (\\bot) => x")
+        let proof_term = "(fn u: (T) => u) fn x: (\\bot) => x";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
 
         assert_eq!(
             ast,
@@ -405,8 +440,13 @@ mod tests {
 
     #[test]
     pub fn test_higher_order_function_return() {
-        let tokens = lexer().parse("fn u: (T) => fn x: (\\bot) => x").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fn u: (T) => fn x: (\\bot) => x";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -425,8 +465,13 @@ mod tests {
 
     #[test]
     pub fn test_fst_projection() {
-        let tokens = lexer().parse("fst (a, b)").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "fst (a, b)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -442,8 +487,13 @@ mod tests {
 
     #[test]
     pub fn test_inl() {
-        let tokens = lexer().parse("inl<A -> B(x)> a").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "inl<A -> B(x)> a";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -459,8 +509,13 @@ mod tests {
 
     #[test]
     pub fn test_inr() {
-        let tokens = lexer().parse("inr<A -> B(x)> a").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "inr<A -> B(x)> a";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -476,10 +531,13 @@ mod tests {
 
     #[test]
     pub fn test_inl_inr_case() {
-        let tokens = lexer()
-            .parse("fn u: A ∨ B => case u of inl a => inr<B> a, inr b => inl<A> b")
+        let proof_term = "fn u: A ∨ B => case u of inl a => inr<B> a, inr b => inl<A> b";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
 
         assert_eq!(
             ast,
@@ -511,96 +569,134 @@ mod tests {
 
     #[test]
     pub fn test_inr_no_applicant() {
-        let tokens = lexer().parse("inr<A>").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "inr<A>";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_inl_no_applicant() {
-        let tokens = lexer().parse("inl<A>").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "inl<A>";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_no_nested_inl() {
-        let tokens = lexer().parse("fst inl<A> u").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "fst inl<A> u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_no_nested_inr() {
-        let tokens = lexer().parse("fst inr<A> u").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "fst inr<A> u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_abort_no_angle_brackets() {
-        let tokens = lexer().parse("abort<A> u").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "abort<A> u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_fst_no_angle_brackets() {
-        let tokens = lexer().parse("fst<A> u").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "fst<A> u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_snd_no_angle_brackets() {
-        let tokens = lexer().parse("snd<A> u").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "snd<A> u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_application_no_angle_brackets() {
-        let tokens = lexer().parse("test<A> u").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "test<A> u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_pair_no_angle_brackets() {
-        let tokens = lexer().parse("(a, b)<A>").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "(a, b)<A>";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_unit_no_angle_brackets() {
-        let tokens = lexer().parse("()<A>").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "()<A>";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_nested_expr_no_angle_brackets() {
-        let tokens = lexer().parse("(fn u: A => u)<A>").unwrap();
-        let ast = proof_term_parser().parse(tokens);
+        let proof_term = "(fn u: A => u)<A>";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
 
     #[test]
     pub fn test_snd_projection() {
-        let tokens = lexer().parse("snd (a, b)").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "snd (a, b)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -616,8 +712,13 @@ mod tests {
 
     #[test]
     pub fn test_abort() {
-        let tokens = lexer().parse("abort a").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "abort a";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -627,10 +728,13 @@ mod tests {
 
     #[test]
     pub fn test_simple_case() {
-        let tokens = lexer()
-            .parse("case (a,b) of inl u => u, inr u => u,")
+        let proof_term = "case (a,b) of inl u => u, inr u => u,";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
 
         assert_eq!(
             ast,
@@ -650,8 +754,13 @@ mod tests {
 
     #[test]
     pub fn test_root_let_in() {
-        let tokens = lexer().parse("let (a, b) = M in (b, a)").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "let (a, b) = M in (b, a)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -670,8 +779,13 @@ mod tests {
 
     #[test]
     pub fn test_root_let_in_with_funtion() {
-        let tokens = lexer().parse("let (a, b) = M in fn x: (A) => a").unwrap();
-        let ast = proof_term_parser().parse(tokens).unwrap();
+        let proof_term = "let (a, b) = M in fn x: (A) => a";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,

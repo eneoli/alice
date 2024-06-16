@@ -133,7 +133,7 @@ pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
 
 #[cfg(test)]
 mod tests {
-    use chumsky::Parser;
+    use chumsky::{Parser, Stream};
 
     use crate::{
         kernel::{
@@ -145,54 +145,84 @@ mod tests {
 
     #[test]
     fn test_simple_prop() {
-        let token = lexer().parse("A").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(ast, Prop::Atom(String::from("A"), vec![]));
     }
 
     #[test]
     fn test_parameterized_prop_one() {
-        let token = lexer().parse("A(x)").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A(x)";
+        let len = fol.chars().count();
 
-        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]))
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]));
     }
 
     #[test]
     fn test_parameterized_prop_one_trailling_comma() {
-        let token = lexer().parse("A(x,)").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A(x,)";
+        let len = fol.chars().count();
 
-        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]))
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]));
     }
 
     #[test]
     fn test_parameterized_prop_two() {
-        let token = lexer().parse("A(x, y)").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A(x, y)";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
             Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()])
-        )
+        );
     }
 
     #[test]
     fn test_parameterized_prop_two_trailling_comma() {
-        let token = lexer().parse("A(x, y, )").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A(x, y, )";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
             Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()])
-        )
+        );
     }
 
     #[test]
     fn test_parameterized_prop_three() {
-        let token = lexer().parse("A(x, y, z)").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A(x, y, z)";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -200,13 +230,18 @@ mod tests {
                 "A".to_string(),
                 vec!["x".to_string(), "y".to_string(), "z".to_string()]
             )
-        )
+        );
     }
 
     #[test]
     fn test_parameterized_prop_three_trailling_comma() {
-        let token = lexer().parse("A(x, y, z,)").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A(x, y, z,)";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -214,15 +249,18 @@ mod tests {
                 "A".to_string(),
                 vec!["x".to_string(), "y".to_string(), "z".to_string()]
             )
-        )
+        );
     }
 
     #[test]
     pub fn test_parameterized_prop_nested() {
-        let token = lexer()
-            .parse("A & B(x, y) || C(x) -> \\forall z:t. Z(z, x)")
+        let fol = "A & B(x, y) || C(x) -> \\forall z:t. Z(z, x)";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = fol_parser().parse(token).unwrap();
 
         assert_eq!(
             ast,
@@ -244,13 +282,18 @@ mod tests {
                 }
                 .boxed()
             ),
-        )
+        );
     }
 
     #[test]
     fn test_simple_not() {
-        let token = lexer().parse("~A").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "~A";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -263,8 +306,13 @@ mod tests {
 
     #[test]
     fn test_chained_not() {
-        let token = lexer().parse("~!¬A").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "~!¬A";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -285,8 +333,13 @@ mod tests {
 
     #[test]
     fn test_simple_and() {
-        let token = lexer().parse("A & B").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A & B";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -299,8 +352,13 @@ mod tests {
 
     #[test]
     fn test_and_implicit_left_associative() {
-        let token = lexer().parse("A & B & C").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A & B & C";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -316,8 +374,13 @@ mod tests {
 
     #[test]
     fn test_and_explicit_left_associative() {
-        let token = lexer().parse("A & (B & C)").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A & (B & C)";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -333,8 +396,13 @@ mod tests {
 
     #[test]
     fn test_precedence_propositional_logic() {
-        let token = lexer().parse("A || B && ~C -> D").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A || B && ~C -> D";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -351,13 +419,18 @@ mod tests {
                 .boxed(),
                 Prop::Atom(s!("D"), vec![]).boxed()
             )
-        )
+        );
     }
 
     #[test]
     fn test_global_forall() {
-        let token = lexer().parse("\\forall x:t. A -> B").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "\\forall x:t. A -> B";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -375,8 +448,13 @@ mod tests {
 
     #[test]
     fn test_global_exists() {
-        let token = lexer().parse("\\exists x:t. A -> B").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "\\exists x:t. A -> B";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -394,8 +472,13 @@ mod tests {
 
     #[test]
     fn test_left_forall() {
-        let token = lexer().parse("A && \\forall x:t. A -> B").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A && \\forall x:t. A -> B";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -412,13 +495,18 @@ mod tests {
                 }
                 .boxed()
             )
-        )
+        );
     }
 
     #[test]
     fn test_left_exists() {
-        let token = lexer().parse("A && \\exists x:t. A -> B").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A && \\exists x:t. A -> B";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -435,13 +523,18 @@ mod tests {
                 }
                 .boxed()
             )
-        )
+        );
     }
 
     #[test]
     fn test_nested_forall() {
-        let token = lexer().parse("A && (\\forall x:t. x) && C").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A && (\\forall x:t. x) && C";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -463,8 +556,13 @@ mod tests {
 
     #[test]
     fn test_nested_exists() {
-        let token = lexer().parse("A && (\\exists x:t. x) && C").unwrap();
-        let ast = fol_parser().parse(token).unwrap();
+        let fol = "A && (\\exists x:t. x) && C";
+        let len = fol.chars().count();
+
+        let tokens = lexer().parse(fol).unwrap();
+        let ast = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,

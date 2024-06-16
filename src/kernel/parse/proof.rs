@@ -31,10 +31,10 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
 
 #[cfg(test)]
 mod tests {
-    use chumsky::{primitive::end, Parser};
+    use chumsky::{primitive::end, Parser, Stream};
 
     use crate::kernel::{
-        parse::lexer::lexer,
+        parse::{lexer::lexer, proof},
         proof::Proof,
         proof_term::{ProofTerm, Type},
         prop::Prop,
@@ -44,8 +44,12 @@ mod tests {
 
     #[test]
     fn test_no_datatypes_function() {
-        let tokens = lexer().parse("fn u: A => u").unwrap();
-        let ast = proof_parser().parse(tokens).unwrap();
+
+        let proof_term = "fn u: A => u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -62,8 +66,11 @@ mod tests {
 
     #[test]
     fn test_no_datatypes_unit() {
-        let tokens = lexer().parse("()").unwrap();
-        let ast = proof_parser().parse(tokens).unwrap();
+        let proof_term = "()";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -76,8 +83,11 @@ mod tests {
 
     #[test]
     fn test_one_datatype_function() {
-        let tokens = lexer().parse("datatype nat; fn u: A => u").unwrap();
-        let ast = proof_parser().parse(tokens).unwrap();
+        let proof_term = "datatype nat; fn u: A => u";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -94,8 +104,11 @@ mod tests {
 
     #[test]
     fn test_one_datatype_unit() {
-        let tokens = lexer().parse("datatype nat; ()").unwrap();
-        let ast = proof_parser().parse(tokens).unwrap();
+        let proof_term = "datatype nat; ()";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -108,10 +121,13 @@ mod tests {
 
     #[test]
     fn test_some_datatypes_function() {
+        let proof_term = "datatype nat; datatype t; datatype list; fn u: A => u";
+        let len = proof_term.chars().count();
+
         let tokens = lexer()
-            .parse("datatype nat; datatype t; datatype list; fn u: A => u")
+            .parse(proof_term)
             .unwrap();
-        let ast = proof_parser().parse(tokens).unwrap();
+        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -128,10 +144,13 @@ mod tests {
 
     #[test]
     fn test_some_datatypes_unit() {
+        let proof_term = "datatype nat; datatype t; datatype list; ()";
+        let len = proof_term.chars().count();
+
         let tokens = lexer()
-            .parse("datatype nat; datatype t; datatype list; ()")
+            .parse(proof_term)
             .unwrap();
-        let ast = proof_parser().parse(tokens).unwrap();
+        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -144,11 +163,14 @@ mod tests {
 
     #[test]
     fn test_datatypes_after_proof_term() {
+        let proof_term = "datatype nat; (fn u: A => u) datatype uff;";
+        let len = proof_term.chars().count();
+
         let tokens = lexer()
-            .parse("datatype nat; (fn u: A => u) datatype uff;")
+            .parse(proof_term)
             .unwrap();
 
-        let ast = proof_parser().then_ignore(end()).parse(tokens);
+        let ast = proof_parser().then_ignore(end()).parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
