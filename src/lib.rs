@@ -1,110 +1,163 @@
-use core::{
-    check::typify,
-    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser, proof_term},
+use ariadne::{Color, Label, Report, ReportKind, Source};
+use chumsky::{error::Simple, Parser, Stream};
+use kernel::{
+    check::{typify, TypeError},
+    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
-    proof_term::Type, proof_tree::ProofTree,
+    proof::Proof,
+    proof_term::Type,
+    proof_tree::ProofTree,
 };
 
-use chumsky::Parser;
 use wasm_bindgen::prelude::*;
 
-pub mod core;
+pub mod kernel;
 pub mod util;
 
-#[wasm_bindgen]
-pub fn infer_type(proofTerm: &str) -> String {
-    let src = proofTerm;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
+use tsify_next::Tsify;
 
-    // Step 1: Parse tokens
-    let tokens = core::parse::lexer::lexer().parse(src.clone());
-    println!("{:#?}", tokens);
+#[derive(Clone, PartialEq, Eq, Tsify, Serialize, Deserialize, Error, Debug)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
+pub enum BackendError {
+    #[error("A lexer error occured.")]
+    LexerError(String),
 
-    // Step 2: Parse Proof
-    let proof = proof_parser().parse(tokens.unwrap());
+    #[error("A parser errror occured.")]
+    ParserError(String),
 
-    if let Err(err) = proof {
-        return format!("{:#?}", err);
-    }
+    #[error("Failed to infer type.")]
+    TypeInferenceFailed(TypeError),
+}
 
-    // Step 3: Preprocess ProofTerm
+pub fn format_errors<T: std::hash::Hash + Eq + std::fmt::Display>(
+    errors: Vec<Simple<T>>,
+    src: &str,
+) -> String {
+    let mut error_output = Vec::new();
 
-    let processed_proof = ProofPipeline::new()
-        .pipe(ResolveDatatypes::boxed())
-        .apply(proof.unwrap());
+    errors.into_iter().for_each(|e| {
+        Report::build(ReportKind::Error, (), e.span().start)
+            .with_message(e.to_string())
+            .with_label(Label::new(e.span()).with_color(Color::Red))
+            .finish()
+            .write(Source::from(src), &mut error_output)
+            .unwrap();
+    });
 
-    println!("{:#?}", processed_proof);
-
-    let _type = typify(&processed_proof.proof_term).unwrap();
-
-    return format!("{:#?}", _type.0);
+    return String::from_utf8_lossy(&error_output).to_string();
 }
 
 #[wasm_bindgen]
-pub fn verify(prop: &str, proof_term: &str) -> bool {
-    let src = proof_term;
+pub fn infer_type(proof_term: &str) -> Result<Type, BackendError> {
+    let len = proof_term.chars().count();
 
     // Step 1: Parse tokens
-    let tokens = core::parse::lexer::lexer().parse(src.clone());
-    println!("{:#?}", tokens);
+    let tokens = lexer().parse(proof_term);
+
+    if let Err(err) = tokens {
+        return Err(BackendError::LexerError(format_errors(err, proof_term)));
+    }
 
     // Step 2: Parse Proof
-    let proof = proof_parser().parse(tokens.unwrap());
+    let proof = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.unwrap().into_iter()));
 
     if let Err(err) = proof {
-        return false;
+        return Err(BackendError::ParserError(format_errors(err, proof_term)));
     }
 
     // Step 3: Preprocess ProofTerm
-
     let processed_proof = ProofPipeline::new()
         .pipe(ResolveDatatypes::boxed())
         .apply(proof.unwrap());
 
-    println!("{:#?}", processed_proof);
+    let (_type, _) = typify(&processed_proof.proof_term).unwrap();
 
-    let _type = typify(&processed_proof.proof_term);
+    return Ok(_type);
+}
+
+#[wasm_bindgen]
+pub fn verify(prop: &str, proof_term: &str) -> Result<bool, BackendError> {
+    let proof_term_len = proof_term.chars().count();
+
+    // Step 1: Parse tokens
+    let tokens = lexer()
+        .parse(proof_term)
+        .map_err(|err| BackendError::LexerError(format_errors(err, proof_term)))?;
+
+    // Step 2: Parse Proof
+    let proof = proof_parser()
+        .parse(Stream::from_iter(
+            proof_term_len..proof_term_len + 1,
+            tokens.into_iter(),
+        ))
+        .map_err(|err| BackendError::ParserError(format_errors(err, proof_term)))?;
+
+    // Step 3: Preprocess ProofTerm
+    let processed_proof = ProofPipeline::new()
+        .pipe(ResolveDatatypes::boxed())
+        .apply(proof);
+
+    let (_type, _) =
+        typify(&processed_proof.proof_term).map_err(|err| BackendError::TypeInferenceFailed(err))?;
 
     // Parse prop
-    let prop_tokens = lexer().parse(prop).unwrap();
-    let parsed_prop = fol_parser().parse(prop_tokens);
+    let prop_len = prop.chars().count();
+    let prop_tokens = lexer()
+        .parse(prop)
+        .map_err(|err| BackendError::LexerError(format_errors(err, prop)))?;
 
-    return Type::Prop(parsed_prop.unwrap()) == _type.unwrap().0;
+    let parsed_prop = fol_parser()
+        .parse(Stream::from_iter(
+            prop_len..prop_len + 1,
+            prop_tokens.into_iter(),
+        ))
+        .map_err(|err| BackendError::ParserError(format_errors(err, prop)))?;
+
+    return Ok(Type::Prop(parsed_prop) == _type);
 }
 
 #[wasm_bindgen]
-pub fn parse_proof_term(proof_term: &str) -> String {
-    let tokens = lexer().parse(proof_term).unwrap();
+pub fn parse_proof_term(proof_term: &str) -> Result<Proof, BackendError> {
+    let len = proof_term.chars().count();
+
+    // Step 1: Parse tokens
+    let tokens = lexer()
+        .parse(proof_term)
+        .map_err(|err| BackendError::LexerError(format_errors(err, proof_term)))?;
 
     // Step 2: Parse Proof
-    let proof = proof_parser().parse(tokens);
+    let proof = proof_parser()
+        .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+        .map_err(|err| BackendError::ParserError(format_errors(err, proof_term)))?;
 
-    if let Err(err) = proof {
-        return "".to_string();
-    }
+    // Step 3: Preprocess ProofTerm
+    Ok(ProofPipeline::new()
+        .pipe(ResolveDatatypes::boxed())
+        .apply(proof))
+}
+
+#[wasm_bindgen]
+pub fn annotate_proof_term(proof_term: &str) -> Result<ProofTree, BackendError> {
+    let len = proof_term.chars().count();
+
+    let tokens = lexer()
+        .parse(proof_term)
+        .map_err(|err| BackendError::LexerError(format_errors(err, proof_term)))?;
+
+    // Step 2: Parse Proof
+    let proof = proof_parser()
+        .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+        .map_err(|err| BackendError::ParserError(format_errors(err, proof_term)))?;
 
     // Step 3: Preprocess ProofTerm
     let processed_proof = ProofPipeline::new()
         .pipe(ResolveDatatypes::boxed())
-        .apply(proof.unwrap());
+        .apply(proof);
 
-    serde_json::json!(processed_proof).to_string()
-}
-
-#[wasm_bindgen]
-pub fn annotate_proof_term(proof_term: &str) -> ProofTree {
-    let tokens = lexer().parse(proof_term).unwrap();
-
-    // Step 2: Parse Proof
-    let proof = proof_parser().parse(tokens);
-
-    if let Err(err) = proof {
-        return panic!();
-    }
-
-    // Step 3: Preprocess ProofTerm
-    let processed_proof = ProofPipeline::new()
-        .pipe(ResolveDatatypes::boxed())
-        .apply(proof.unwrap());
-
-    typify(&processed_proof.proof_term).unwrap().1
+    typify(&processed_proof.proof_term)
+        .map(|result| result.1)
+        .map_err(|err| BackendError::TypeInferenceFailed(err))
 }
