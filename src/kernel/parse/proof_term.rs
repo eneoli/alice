@@ -1,9 +1,6 @@
 use chumsky::prelude::*;
 
-use crate::kernel::{
-    proof_term::{ProofTerm, Type},
-    prop::Prop,
-};
+use crate::kernel::proof_term::{ProofTerm, Type};
 
 use super::{fol::fol_parser, Token};
 
@@ -14,13 +11,10 @@ use super::{fol::fol_parser, Token};
     Unit            = "(", ")" ;
     Pair            = "(", Expr, ",", Expr, [ "," ], ")" ;
     Atom            = "(", Expr, ")" | Ident | Pair | Unit ;
-    Function        = "fn", Ident, ":", Prop, "=>", Expr ;
+    Function        = "fn", Ident, [ ":", Prop ], "=>", Expr ;
     CaseExpr        = Case | Application | LetIn;
     Case            = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
-    BracketAtom     = "(", Expr, ")" | Pair | Unit ;
-    IdentAtom       = Ident, [ "<", Prop, ">" ] ;
-    ApplicationAtom = BracketAtom | IdentAtom ;
-    Application     = ApplicationAtom, { Atom | Function | Case | LetIn } ;
+    Application     = Atom, { Atom | Function | Case | LetIn } ;
     LetIn           = "let", "(", Ident, ",", Ident, ")", "=", Expr, "in", Expr ;
 */
 pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token>> {
@@ -55,13 +49,12 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
         let function = just(Token::FN)
             .ignore_then(ident_token)
-            .then_ignore(just(Token::COLON))
-            .then(fol_parser())
+            .then(just(Token::COLON).ignore_then(fol_parser()).or_not())
             .then_ignore(just(Token::ARROW))
             .then(proof_term.clone())
-            .map(|((param_ident, param_type), body)| ProofTerm::Function {
+            .map(|((param_ident, param_prop), body)| ProofTerm::Function {
                 param_ident,
-                param_type: Type::Prop(param_type),
+                param_type: param_prop.map(|prop| Type::Prop(prop)),
                 body: Box::new(body),
             })
             .boxed();
@@ -119,36 +112,8 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             })
         };
 
-        enum ApplicantAtom {
-            BracketAtom(ProofTerm),
-            IdentAtom(ProofTerm, Option<Prop>),
-        }
-
-        let bracket_atom = choice((
-            just(Token::LROUND)
-                .ignore_then(proof_term.clone())
-                .then_ignore(just(Token::RROUND)),
-            pair,
-            unit,
-        ))
-        .map(|proof_term| ApplicantAtom::BracketAtom(proof_term))
-        .boxed();
-
-        let ident_atom = ident_term
-            .then(
-                just(Token::LANGLE)
-                    .ignore_then(fol_parser())
-                    .then_ignore(just(Token::RANGLE))
-                    .or_not(),
-            )
-            .map(|(proof_term, prop)| ApplicantAtom::IdentAtom(proof_term, prop))
-            .boxed();
-
-        let application_atom = choice((bracket_atom, ident_atom));
-
         let application = recursive(|application| {
-            application_atom
-                .clone()
+            atom.clone()
                 .then(
                     choice((
                         atom.clone(),
@@ -158,70 +123,51 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     ))
                     .repeated(),
                 )
-                .try_map(|(applicant_atom, mut rhs), span| {
-                    let init = match applicant_atom {
-                        ApplicantAtom::BracketAtom(proof_term) if rhs.len() > 0 => proof_term,
-                        ApplicantAtom::BracketAtom(proof_term) if rhs.len() == 0 => {
-                            return Ok(proof_term);
-                        }
-
-                        ApplicantAtom::IdentAtom(proof_term, None) if rhs.len() > 0 => proof_term,
-                        ApplicantAtom::IdentAtom(proof_term, None) if rhs.len() == 0 => {
-                            return Ok(proof_term);
-                        }
-
-                        ApplicantAtom::IdentAtom(_, Some(_)) if rhs.len() == 0 => {
+                .try_map(|(lhs, rhs), span| {
+                    //  check that if lhs is constructor/destructor, we got a rhs
+                    let identifiers = ["inl", "inr", "abort", "fst", "snd"];
+                    if let ProofTerm::Ident(ref ident) = lhs {
+                        if identifiers.contains(&ident.as_str()) && rhs.len() == 0 {
                             return Err(Simple::custom(span, "Missing applicant"));
                         }
-                        ApplicantAtom::IdentAtom(ProofTerm::Ident(ident), Some(other))
-                            if rhs.len() > 0 =>
-                        {
-                            let fst = rhs.remove(0);
+                    }
 
-                            match ident.as_str() {
-                                "inl" => ProofTerm::OrLeft {
-                                    body: fst.boxed(),
-                                    other,
-                                },
-                                "inr" => ProofTerm::OrRight {
-                                    body: fst.boxed(),
-                                    other,
-                                },
-                                _ => {
-                                    return Err(Simple::custom(span, "Unexpected angle brackets."));
-                                }
+                    // check rhs does not include constructor/destructor
+                    for element in rhs.iter() {
+                        if let ProofTerm::Ident(ident) = element {
+                            if identifiers.contains(&ident.as_str()) {
+                                return Err(Simple::custom(
+                                    span.clone(),
+                                    format!(
+                                        "Right-hand side of an applicant cannot contain {}",
+                                        ident
+                                    ),
+                                ));
                             }
                         }
-                        ApplicantAtom::IdentAtom(_, Some(_)) => {
-                            return Err(Simple::custom(span, "Unexpected angle brackets."));
-                        }
-                        _ => unreachable!(),
-                    };
+                    }
 
-                    rhs.into_iter().try_fold(init, |acc, x| {
-                        Ok(if let ProofTerm::Ident(ref ident) = acc {
-                            match ident.as_str() {
-                                "abort" => ProofTerm::Abort(Box::new(x)),
-                                "fst" => ProofTerm::ProjectFst(Box::new(x)),
-                                "snd" => ProofTerm::ProjectSnd(Box::new(x)),
-                                "inl" | "inr" => {
-                                    return Err(Simple::custom(
-                                        span.clone(),
-                                        "Missing other Prop specifier.",
-                                    ))
-                                }
-                                _ => ProofTerm::Application {
-                                    function: Box::new(acc),
-                                    applicant: Box::new(x),
-                                },
-                            }
-                        } else {
-                            ProofTerm::Application {
-                                function: Box::new(acc),
-                                applicant: Box::new(x),
-                            }
-                        })
-                    })
+                    Ok((lhs, rhs))
+                })
+                .foldl(|lhs, rhs| {
+                    if let ProofTerm::Ident(ident) = lhs.clone() {
+                        match ident.as_str() {
+                            "inl" => ProofTerm::OrLeft(Box::new(rhs)),
+                            "inr" => ProofTerm::OrRight(Box::new(rhs)),
+                            "abort" => ProofTerm::Abort(Box::new(rhs)),
+                            "fst" => ProofTerm::ProjectFst(Box::new(rhs)),
+                            "snd" => ProofTerm::ProjectSnd(Box::new(rhs)),
+                            _ => ProofTerm::Application {
+                                function: Box::new(lhs),
+                                applicant: Box::new(rhs),
+                            },
+                        }
+                    } else {
+                        ProofTerm::Application {
+                            function: Box::new(lhs),
+                            applicant: Box::new(rhs),
+                        }
+                    }
                 })
                 .boxed()
         });
@@ -236,8 +182,6 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
-
     use chumsky::{Parser, Stream};
 
     use crate::kernel::{
@@ -250,7 +194,7 @@ mod tests {
 
     #[test]
     pub fn test_id_function() {
-        let proof_term = "fn x: (A) => x";
+        let proof_term = "fn x => x";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -262,7 +206,27 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "x".to_string(),
-                param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                param_type: None,
+                body: ProofTerm::Ident("x".to_string()).boxed()
+            }
+        )
+    }
+
+    #[test]
+    pub fn test_id_function_annotated() {
+        let proof_term = "fn x: A => x";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(
+            ast,
+            ProofTerm::Function {
+                param_ident: "x".to_string(),
+                param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
                 body: ProofTerm::Ident("x".to_string()).boxed()
             }
         )
@@ -270,7 +234,7 @@ mod tests {
 
     #[test]
     pub fn test_swap_function() {
-        let proof_term = "fn x: (A & B) => (snd x, fst x)";
+        let proof_term = "fn x => (snd x, fst x)";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -282,10 +246,34 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "x".to_string(),
-                param_type: Type::Prop(Prop::And(
+                param_type: None,
+                body: ProofTerm::Pair(
+                    ProofTerm::ProjectSnd(ProofTerm::Ident("x".to_string()).boxed()).boxed(),
+                    ProofTerm::ProjectFst(ProofTerm::Ident("x".to_string()).boxed()).boxed(),
+                )
+                .boxed()
+            }
+        )
+    }
+
+    #[test]
+    pub fn test_swap_function_annotated() {
+        let proof_term = "fn x: A & B => (snd x, fst x)";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(
+            ast,
+            ProofTerm::Function {
+                param_ident: "x".to_string(),
+                param_type: Some(Type::Prop(Prop::And(
                     Prop::Atom("A".to_string(), vec![]).boxed(),
                     Prop::Atom("B".to_string(), vec![]).boxed(),
-                )),
+                ))),
                 body: ProofTerm::Pair(
                     ProofTerm::ProjectSnd(ProofTerm::Ident("x".to_string()).boxed()).boxed(),
                     ProofTerm::ProjectFst(ProofTerm::Ident("x".to_string()).boxed()).boxed(),
@@ -297,7 +285,7 @@ mod tests {
 
     #[test]
     pub fn test_y_combinator() {
-        let proof_term = "fn f: (A) => (fn x: (B) => f (x x)) (fn x: (B) => f (x x))";
+        let proof_term = "fn f => (fn x => f (x x)) (fn x => f (x x))";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -309,11 +297,11 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "f".to_string(),
-                param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                param_type: None,
                 body: ProofTerm::Application {
                     function: ProofTerm::Function {
                         param_ident: "x".to_string(),
-                        param_type: Type::Prop(Prop::Atom("B".to_string(), vec![])),
+                        param_type: None,
                         body: ProofTerm::Application {
                             function: ProofTerm::Ident("f".to_string()).boxed(),
                             applicant: ProofTerm::Application {
@@ -327,7 +315,57 @@ mod tests {
                     .boxed(),
                     applicant: ProofTerm::Function {
                         param_ident: "x".to_string(),
-                        param_type: Type::Prop(Prop::Atom("B".to_string(), vec![])),
+                        param_type: None,
+                        body: ProofTerm::Application {
+                            function: ProofTerm::Ident("f".to_string()).boxed(),
+                            applicant: ProofTerm::Application {
+                                function: ProofTerm::Ident("x".to_string()).boxed(),
+                                applicant: ProofTerm::Ident("x".to_string()).boxed()
+                            }
+                            .boxed()
+                        }
+                        .boxed()
+                    }
+                    .boxed()
+                }
+                .boxed(),
+            }
+        )
+    }
+
+    #[test]
+    pub fn test_y_combinator_annotated() {
+        let proof_term = "fn f: (A) => (fn x: (B) => f (x x)) (fn x: (B) => f (x x))";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(
+            ast,
+            ProofTerm::Function {
+                param_ident: "f".to_string(),
+                param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
+                body: ProofTerm::Application {
+                    function: ProofTerm::Function {
+                        param_ident: "x".to_string(),
+                        param_type: Some(Type::Prop(Prop::Atom("B".to_string(), vec![]))),
+                        body: ProofTerm::Application {
+                            function: ProofTerm::Ident("f".to_string()).boxed(),
+                            applicant: ProofTerm::Application {
+                                function: ProofTerm::Ident("x".to_string()).boxed(),
+                                applicant: ProofTerm::Ident("x".to_string()).boxed()
+                            }
+                            .boxed()
+                        }
+                        .boxed()
+                    }
+                    .boxed(),
+                    applicant: ProofTerm::Function {
+                        param_ident: "x".to_string(),
+                        param_type: Some(Type::Prop(Prop::Atom("B".to_string(), vec![]))),
                         body: ProofTerm::Application {
                             function: ProofTerm::Ident("f".to_string()).boxed(),
                             applicant: ProofTerm::Application {
@@ -411,7 +449,7 @@ mod tests {
 
     #[test]
     pub fn test_higher_order_function_application() {
-        let proof_term = "(fn u: (T) => u) fn x: (\\bot) => x";
+        let proof_term = "(fn u => u) fn x => x";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -424,13 +462,42 @@ mod tests {
             ProofTerm::Application {
                 function: ProofTerm::Function {
                     param_ident: "u".to_string(),
-                    param_type: Type::Prop(Prop::True),
+                    param_type: None,
                     body: ProofTerm::Ident("u".to_string()).boxed(),
                 }
                 .boxed(),
                 applicant: ProofTerm::Function {
                     param_ident: "x".to_string(),
-                    param_type: Type::Prop(Prop::False),
+                    param_type: None,
+                    body: ProofTerm::Ident("x".to_string()).boxed(),
+                }
+                .boxed()
+            }
+        )
+    }
+
+    #[test]
+    pub fn test_higher_order_function_application_annotated() {
+        let proof_term = "(fn u: \\top => u) fn x: \\bot => x";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(
+            ast,
+            ProofTerm::Application {
+                function: ProofTerm::Function {
+                    param_ident: "u".to_string(),
+                    param_type: Some(Type::Prop(Prop::True)),
+                    body: ProofTerm::Ident("u".to_string()).boxed(),
+                }
+                .boxed(),
+                applicant: ProofTerm::Function {
+                    param_ident: "x".to_string(),
+                    param_type: Some(Type::Prop(Prop::False)),
                     body: ProofTerm::Ident("x".to_string()).boxed(),
                 }
                 .boxed()
@@ -440,7 +507,7 @@ mod tests {
 
     #[test]
     pub fn test_higher_order_function_return() {
-        let proof_term = "fn u: (T) => fn x: (\\bot) => x";
+        let proof_term = "fn u => fn x => x";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -452,10 +519,35 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "u".to_string(),
-                param_type: Type::Prop(Prop::True),
+                param_type: None,
                 body: ProofTerm::Function {
                     param_ident: "x".to_string(),
-                    param_type: Type::Prop(Prop::False),
+                    param_type: None,
+                    body: ProofTerm::Ident("x".to_string()).boxed(),
+                }
+                .boxed()
+            }
+        )
+    }
+
+    #[test]
+    pub fn test_higher_order_function_return_annotated() {
+        let proof_term = "fn u: \\top => fn x: \\bot => x";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(
+            ast,
+            ProofTerm::Function {
+                param_ident: "u".to_string(),
+                param_type: Some(Type::Prop(Prop::True)),
+                body: ProofTerm::Function {
+                    param_ident: "x".to_string(),
+                    param_type: Some(Type::Prop(Prop::False)),
                     body: ProofTerm::Ident("x".to_string()).boxed(),
                 }
                 .boxed()
@@ -487,7 +579,7 @@ mod tests {
 
     #[test]
     pub fn test_inl() {
-        let proof_term = "inl<A -> B(x)> a";
+        let proof_term = "inl a";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -497,19 +589,13 @@ mod tests {
 
         assert_eq!(
             ast,
-            ProofTerm::OrLeft {
-                body: ProofTerm::Ident("a".to_string()).boxed(),
-                other: Prop::Impl(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
-                )
-            }
+            ProofTerm::OrLeft(ProofTerm::Ident("a".to_string()).boxed())
         )
     }
 
     #[test]
     pub fn test_inr() {
-        let proof_term = "inr<A -> B(x)> a";
+        let proof_term = "inr a";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -519,19 +605,13 @@ mod tests {
 
         assert_eq!(
             ast,
-            ProofTerm::OrRight {
-                body: ProofTerm::Ident("a".to_string()).boxed(),
-                other: Prop::Impl(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
-                )
-            }
+            ProofTerm::OrRight(ProofTerm::Ident("a".to_string()).boxed())
         )
     }
 
     #[test]
     pub fn test_inl_inr_case() {
-        let proof_term = "fn u: A ∨ B => case u of inl a => inr<B> a, inr b => inl<A> b";
+        let proof_term = "fn u => case u of inl a => inr a, inr b => inl b";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -543,24 +623,15 @@ mod tests {
             ast,
             ProofTerm::Function {
                 param_ident: "u".to_string(),
-                param_type: Type::Prop(Prop::Or(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                )),
+                param_type: None,
                 body: ProofTerm::Case {
                     proof_term: ProofTerm::Ident("u".to_string()).boxed(),
                     left_ident: "a".to_string(),
-                    left_term: ProofTerm::OrRight {
-                        body: ProofTerm::Ident("a".to_string()).boxed(),
-                        other: Prop::Atom("B".to_string(), vec![])
-                    }
-                    .boxed(),
+                    left_term: ProofTerm::OrRight(ProofTerm::Ident("a".to_string()).boxed())
+                        .boxed(),
                     right_ident: "b".to_string(),
-                    right_term: ProofTerm::OrLeft {
-                        body: ProofTerm::Ident("b".to_string()).boxed(),
-                        other: Prop::Atom("A".to_string(), vec![])
-                    }
-                    .boxed()
+                    right_term: ProofTerm::OrLeft(ProofTerm::Ident("b".to_string()).boxed())
+                        .boxed()
                 }
                 .boxed()
             }
@@ -569,7 +640,7 @@ mod tests {
 
     #[test]
     pub fn test_inr_no_applicant() {
-        let proof_term = "inr<A>";
+        let proof_term = "inr";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -580,7 +651,7 @@ mod tests {
 
     #[test]
     pub fn test_inl_no_applicant() {
-        let proof_term = "inl<A>";
+        let proof_term = "inl";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -591,7 +662,7 @@ mod tests {
 
     #[test]
     pub fn test_no_nested_inl() {
-        let proof_term = "fst inl<A> u";
+        let proof_term = "fst inl u";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -602,84 +673,7 @@ mod tests {
 
     #[test]
     pub fn test_no_nested_inr() {
-        let proof_term = "fst inr<A> u";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    pub fn test_abort_no_angle_brackets() {
-        let proof_term = "abort<A> u";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    pub fn test_fst_no_angle_brackets() {
-        let proof_term = "fst<A> u";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    pub fn test_snd_no_angle_brackets() {
-        let proof_term = "snd<A> u";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    pub fn test_application_no_angle_brackets() {
-        let proof_term = "test<A> u";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    pub fn test_pair_no_angle_brackets() {
-        let proof_term = "(a, b)<A>";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    pub fn test_unit_no_angle_brackets() {
-        let proof_term = "()<A>";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    pub fn test_nested_expr_no_angle_brackets() {
-        let proof_term = "(fn u: A => u)<A>";
+        let proof_term = "fst inr u";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -779,7 +773,7 @@ mod tests {
 
     #[test]
     pub fn test_root_let_in_with_funtion() {
-        let proof_term = "let (a, b) = M in fn x: (A) => a";
+        let proof_term = "let (a, b) = M in fn x => a";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -794,8 +788,34 @@ mod tests {
                 snd_ident: "b".to_string(),
                 pair_proof_term: ProofTerm::Ident("M".to_string()).boxed(),
                 body: ProofTerm::Function {
+                    param_type: None,
                     param_ident: "x".to_string(),
-                    param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                    body: ProofTerm::Ident("a".to_string()).boxed(),
+                }
+                .boxed()
+            }
+        )
+    }
+
+    #[test]
+    pub fn test_root_let_in_with_funtion_annotated() {
+        let proof_term = "let (a, b) = M in fn x: A => a";
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        assert_eq!(
+            ast,
+            ProofTerm::LetIn {
+                fst_ident: "a".to_string(),
+                snd_ident: "b".to_string(),
+                pair_proof_term: ProofTerm::Ident("M".to_string()).boxed(),
+                body: ProofTerm::Function {
+                    param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
+                    param_ident: "x".to_string(),
                     body: ProofTerm::Ident("a".to_string()).boxed(),
                 }
                 .boxed()
