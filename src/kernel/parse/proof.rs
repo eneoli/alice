@@ -33,31 +33,27 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
 mod tests {
     use chumsky::{primitive::end, Parser, Stream};
 
-    use crate::kernel::{
-        parse::{lexer::lexer, proof},
-        proof::Proof,
-        proof_term::{ProofTerm, Type},
-        prop::Prop,
-    };
+    use crate::kernel::{parse::lexer::lexer, proof::Proof, proof_term::ProofTerm};
 
     use super::proof_parser;
 
     #[test]
     fn test_no_datatypes_function() {
-
-        let proof_term = "fn u: A => u";
+        let proof_term = "fn u => u";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
+        let ast = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
             Proof {
                 datatypes: vec![],
                 proof_term: ProofTerm::Function {
+                    param_type: None,
                     param_ident: "u".to_string(),
-                    param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
                     body: ProofTerm::Ident("u".to_string()).boxed()
                 }
             }
@@ -70,7 +66,9 @@ mod tests {
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
+        let ast = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -83,11 +81,13 @@ mod tests {
 
     #[test]
     fn test_one_datatype_function() {
-        let proof_term = "datatype nat; fn u: A => u";
+        let proof_term = "datatype nat; fn u => u";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
+        let ast = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -95,7 +95,7 @@ mod tests {
                 datatypes: vec!["nat".to_string()],
                 proof_term: ProofTerm::Function {
                     param_ident: "u".to_string(),
-                    param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                    param_type: None,
                     body: ProofTerm::Ident("u".to_string()).boxed()
                 }
             }
@@ -108,7 +108,9 @@ mod tests {
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
+        let ast = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
 
         assert_eq!(
             ast,
@@ -121,13 +123,13 @@ mod tests {
 
     #[test]
     fn test_some_datatypes_function() {
-        let proof_term = "datatype nat; datatype t; datatype list; fn u: A => u";
+        let proof_term = "datatype nat; datatype t; datatype list; fn u => u";
         let len = proof_term.chars().count();
 
-        let tokens = lexer()
-            .parse(proof_term)
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -135,7 +137,7 @@ mod tests {
                 datatypes: vec!["nat".to_string(), "t".to_string(), "list".to_string()],
                 proof_term: ProofTerm::Function {
                     param_ident: "u".to_string(),
-                    param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                    param_type: None,
                     body: ProofTerm::Ident("u".to_string()).boxed()
                 }
             }
@@ -147,10 +149,10 @@ mod tests {
         let proof_term = "datatype nat; datatype t; datatype list; ()";
         let len = proof_term.chars().count();
 
-        let tokens = lexer()
-            .parse(proof_term)
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
-        let ast = proof_parser().parse(Stream::from_iter(len..len + 1, tokens.into_iter())).unwrap();
 
         assert_eq!(
             ast,
@@ -163,14 +165,14 @@ mod tests {
 
     #[test]
     fn test_datatypes_after_proof_term() {
-        let proof_term = "datatype nat; (fn u: A => u) datatype uff;";
+        let proof_term = "datatype nat; (fn u => u) datatype uff;";
         let len = proof_term.chars().count();
 
-        let tokens = lexer()
-            .parse(proof_term)
-            .unwrap();
+        let tokens = lexer().parse(proof_term).unwrap();
 
-        let ast = proof_parser().then_ignore(end()).parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
+        let ast = proof_parser()
+            .then_ignore(end())
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
 
         assert!(ast.is_err())
     }
