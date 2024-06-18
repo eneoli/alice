@@ -72,7 +72,16 @@ impl ResolveDatatypes {
             },
             ProofTerm::Function {
                 param_ident,
-                param_type,
+                param_type: None,
+                body,
+            } => ProofTerm::Function {
+                param_ident,
+                param_type: None,
+                body: self.resolve_datatypes(*body, datatypes).boxed(),
+            },
+            ProofTerm::Function {
+                param_ident,
+                param_type: Some(param_type),
                 body,
             } => {
                 let real_param_type = match param_type {
@@ -89,7 +98,7 @@ impl ResolveDatatypes {
 
                 ProofTerm::Function {
                     param_ident,
-                    param_type: real_param_type,
+                    param_type: Some(real_param_type),
                     body: self.resolve_datatypes(*body, datatypes).boxed(),
                 }
             }
@@ -106,14 +115,12 @@ impl ResolveDatatypes {
                 body: self.resolve_datatypes(*body, datatypes).boxed(),
             },
 
-            ProofTerm::OrLeft { body, other } => ProofTerm::OrLeft {
-                body: self.resolve_datatypes(*body, datatypes).boxed(),
-                other,
-            },
-            ProofTerm::OrRight { body, other } => ProofTerm::OrRight {
-                body: self.resolve_datatypes(*body, datatypes).boxed(),
-                other,
-            },
+            ProofTerm::OrLeft(body) => {
+                ProofTerm::OrLeft(self.resolve_datatypes(*body, datatypes).boxed())
+            }
+            ProofTerm::OrRight(body) => {
+                ProofTerm::OrRight(self.resolve_datatypes(*body, datatypes).boxed())
+            }
             ProofTerm::ProjectFst(body) => {
                 ProofTerm::ProjectFst(self.resolve_datatypes(*body, datatypes).boxed())
             }
@@ -155,7 +162,7 @@ mod tests {
 
         let mut proof_term = ProofTerm::Function {
             param_ident: "u".to_string(),
-            param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+            param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
             body: ProofTerm::Unit.boxed(),
         };
 
@@ -165,7 +172,7 @@ mod tests {
             proof_term,
             ProofTerm::Function {
                 param_ident: "u".to_string(),
-                param_type: Type::Datatype("nat".to_string()),
+                param_type: Some(Type::Datatype("nat".to_string())),
                 body: ProofTerm::Unit.boxed(),
             }
         )
@@ -177,7 +184,7 @@ mod tests {
 
         let mut proof_term = ProofTerm::Function {
             param_ident: "u".to_string(),
-            param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+            param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
             body: ProofTerm::Unit.boxed(),
         };
 
@@ -187,7 +194,7 @@ mod tests {
             proof_term,
             ProofTerm::Function {
                 param_ident: "u".to_string(),
-                param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+                param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
                 body: ProofTerm::Unit.boxed(),
             }
         )
@@ -199,20 +206,20 @@ mod tests {
 
         let mut proof_term = ProofTerm::Function {
             param_ident: "u".to_string(),
-            param_type: Type::Prop(Prop::Atom("nat".to_string(), vec![])),
+            param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
             body: ProofTerm::Function {
                 param_ident: "v".to_string(),
-                param_type: Type::Prop(Prop::Atom("list".to_string(), vec![])),
+                param_type: Some(Type::Prop(Prop::Atom("list".to_string(), vec![]))),
                 body: ProofTerm::Pair(
                     ProofTerm::Function {
                         param_ident: "w".to_string(),
-                        param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                        param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
                         body: ProofTerm::Unit.boxed(),
                     }
                     .boxed(),
                     ProofTerm::Function {
                         param_ident: "x".to_string(),
-                        param_type: Type::Prop(Prop::Atom("t".to_string(), vec![])),
+                        param_type: Some(Type::Prop(Prop::Atom("t".to_string(), vec![]))),
                         body: ProofTerm::Unit.boxed(),
                     }
                     .boxed(),
@@ -231,20 +238,20 @@ mod tests {
             proof_term,
             ProofTerm::Function {
                 param_ident: "u".to_string(),
-                param_type: Type::Datatype("nat".to_string()),
+                param_type: Some(Type::Datatype("nat".to_string())),
                 body: ProofTerm::Function {
                     param_ident: "v".to_string(),
-                    param_type: Type::Datatype("list".to_string()),
+                    param_type: Some(Type::Datatype("list".to_string())),
                     body: ProofTerm::Pair(
                         ProofTerm::Function {
                             param_ident: "w".to_string(),
-                            param_type: Type::Prop(Prop::Atom("A".to_string(), vec![])),
+                            param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
                             body: ProofTerm::Unit.boxed(),
                         }
                         .boxed(),
                         ProofTerm::Function {
                             param_ident: "x".to_string(),
-                            param_type: Type::Datatype("t".to_string()),
+                            param_type: Some(Type::Datatype("t".to_string())),
                             body: ProofTerm::Unit.boxed(),
                         }
                         .boxed(),
@@ -263,10 +270,10 @@ mod tests {
 
         let proof_term = ProofTerm::Function {
             param_ident: "u".to_string(),
-            param_type: Type::Prop(Prop::And(
+            param_type: Some(Type::Prop(Prop::And(
                 Prop::Atom("A".to_string(), vec![]).boxed(),
                 Prop::Atom("nat".to_string(), vec![]).boxed(),
-            )),
+            ))),
             body: ProofTerm::Unit.boxed(),
         };
 
@@ -280,10 +287,10 @@ mod tests {
 
         let proof_term = ProofTerm::Function {
             param_ident: "u".to_string(),
-            param_type: Type::Prop(Prop::Atom(
+            param_type: Some(Type::Prop(Prop::Atom(
                 "nat".to_string(),
                 vec!["x".to_string(), "y".to_string()],
-            )),
+            ))),
             body: ProofTerm::Unit.boxed(),
         };
 
