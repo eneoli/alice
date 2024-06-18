@@ -1,5 +1,6 @@
 use identifier_context::IdentifierContext;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use tsify_next::Tsify;
 
 use super::{
@@ -8,7 +9,15 @@ use super::{
     prop::Prop,
 };
 
+#[cfg(test)]
+mod tests;
 pub mod identifier_context;
+
+// Checkable terms:     M, N ::= (M, N) | (fn u => M) | inl M | inr N | (case R of inl u => M, inr v => N) | abort R | () | R // We can check for a GIVEN Prop A if the term has this type
+// Synthesizing terms:  R    ::= fst R | snd R | u | R M    // We either can infer exactly one Prop A (not given before) that the term has as type or there is no such A.
+// Questions:
+// 1. Why is () not a synthesizing term? It clearly always has type True
+// 2. (R, R) would also be a synthesizing term. Why is it not in the list?
 
 // TODO: Schon erledigt? checken das der Typ einer quantifizierten Variable auch ein Datentyp und kein Prop ist.
 // TODO: Schon erledigt? checken das paramitriserte Atomns A(...) nur identifier haben die auch eingeführt wurden. (besonders (aber nicht nur) bei Exists)
@@ -38,245 +47,260 @@ pub enum TypeError {
     },
 }
 
-struct TypifyVisitor {
+#[derive(Debug, Error)]
+pub enum CheckError {
+    #[error("An error happened while synthesizing")]
+    SynthesizeError(#[from] SynthesizeError),
+
+    #[error("Pair has unexpected components")]
+    UnexpectedPairComponents,
+
+    #[error("Expected Proposition")]
+    ExpectedProp,
+
+    #[error("Expected different type kind")]
+    UnexpectedKind {
+        expected: Vec<ProofTermKind>,
+        received: Type,
+    },
+
+    #[error("Expected different type")]
+    UnexpectedType { expected: Type, received: Type },
+
+    #[error("Quantified object would escape it's scope")]
+    QuantifiedObjectEscapesScope,
+}
+
+pub fn check(
+    proof_term: &ProofTerm,
+    expected_type: &Type,
+    ctx: IdentifierContext,
+) -> Result<ProofTree, CheckError> {
+    let mut visitor = CheckVisitor::new(expected_type.clone(), ctx);
+    proof_term.visit(&mut visitor)
+}
+
+#[derive(Debug, Error)]
+pub enum SynthesizeError {
+    #[error("Checking type failed")]
+    CheckError(#[from] Box<CheckError>),
+
+    #[error("Unknown identifier")]
+    UnknownIdentifier(String),
+
+    #[error("The given proof term is not synthesizing")]
+    NotSynthesizing(ProofTermKind),
+
+    #[error("Expected different type kind")]
+    UnexpectedKind {
+        expected: ProofTermKind,
+        received: Type,
+    },
+
+    #[error("Expected Proposition")]
+    ExpectedProp,
+}
+
+pub fn synthesize(
+    proof_term: &ProofTerm,
+    ctx: IdentifierContext,
+) -> Result<(Type, ProofTree), SynthesizeError> {
+    let mut visitor = SynthesizeVisitor::new(ctx);
+
+    proof_term.visit(&mut visitor)
+}
+
+struct CheckVisitor {
+    expected_type: Type,
     ctx: IdentifierContext,
 }
 
-impl TypifyVisitor {
-    pub fn new() -> Self {
-        Self {
-            ctx: IdentifierContext::new(),
-        }
+impl CheckVisitor {
+    pub fn new(expected_type: Type, ctx: IdentifierContext) -> Self {
+        Self { expected_type, ctx }
     }
 }
 
-impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
-    fn visit_ident(&mut self, ident: &String) -> Result<(Type, ProofTree), TypeError> {
-        let ident_type = self.ctx.get(&ident);
+impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
+    fn visit_ident(&mut self, ident: &String) -> Result<ProofTree, CheckError> {
+        let (_, proof_tree) = synthesize(&ProofTerm::Ident(ident.clone()), self.ctx.clone())?;
 
-        if let Some(Type::Prop(_type)) = ident_type {
-            Ok((
-                Type::Prop(_type.clone()),
-                ProofTree {
-                    premisses: vec![],
-                    rule: ProofTreeRule::Ident(Some(ident.clone())),
-                    conclusion: ProofTreeConclusion::PropIsTrue(_type.clone()),
-                },
-            ))
-        } else if let Some(Type::Datatype(_type)) = ident_type {
-            Ok((
-                Type::Datatype(_type.clone()),
-                ProofTree {
-                    premisses: vec![],
-                    rule: ProofTreeRule::Ident(Some(ident.clone())),
-                    conclusion: ProofTreeConclusion::TypeJudgement(ident.clone(), _type.clone()),
-                },
-            ))
-        } else {
-            Err(TypeError::UnknownIdent {
-                ident: ident.to_string(),
-            })
-        }
+        Ok(proof_tree)
     }
 
     fn visit_pair(
         &mut self,
-        fst: &ProofTerm,
-        snd: &ProofTerm,
-    ) -> Result<(Type, ProofTree), TypeError> {
-        let (fst_type, fst_proof_tree) = fst.visit(self)?;
-        let (snd_type, snd_proof_tree) = snd.visit(self)?;
-
-        match (&fst_type, &snd_type) {
-            (Type::Datatype(type_ident), Type::Prop(snd_prop)) => {
-                if let ProofTerm::Ident(ident) = fst {
-                    let _type = Prop::Exists {
-                        object_ident: ident.to_string(),
-                        object_type_ident: type_ident.to_string(),
-                        body: snd_prop.boxed(),
-                    };
-
-                    Ok((
-                        _type.clone().into(),
-                        ProofTree {
-                            premisses: vec![fst_proof_tree, snd_proof_tree],
-                            rule: ProofTreeRule::ExistsIntro,
-                            conclusion: ProofTreeConclusion::PropIsTrue(_type),
-                        },
-                    ))
-                } else {
-                    panic!("Architecture error: Expected identifier. Are you implementing datatytpe functions?")
-                }
+        fst_term: &ProofTerm,
+        snd_term: &ProofTerm,
+    ) -> Result<ProofTree, CheckError> {
+        let (fst, snd) = match self.expected_type {
+            Type::Prop(Prop::And(ref fst, ref snd)) => {
+                (Type::Prop(*fst.clone()), Type::Prop(*snd.clone()))
             }
-            (Type::Prop(fst_prop), Type::Prop(snd_prop)) => {
-                let _type = Prop::And(fst_prop.boxed(), snd_prop.boxed());
+            Type::Prop(Prop::Exists {
+                ref object_type_ident,
+                ref body,
+                ..
+            }) => (
+                Type::Datatype(object_type_ident.clone()),
+                Type::Prop(*body.clone()),
+            ),
+            _ => return Err(CheckError::UnexpectedPairComponents),
+        };
 
-                Ok((
-                    _type.clone().into(),
-                    ProofTree {
-                        premisses: vec![fst_proof_tree, snd_proof_tree],
-                        rule: ProofTreeRule::AndIntro,
-                        conclusion: ProofTreeConclusion::PropIsTrue(_type.into()),
-                    },
-                ))
-            }
-            (_, Type::Datatype(_)) => Err(TypeError::ExpectedProp {
-                received: snd_type.clone(),
-            }),
-        }
-    }
+        let fst_proof_tree = check(fst_term, &fst, self.ctx.clone())?;
+        let snd_proof_tree = check(snd_term, &snd, self.ctx.clone())?;
 
-    fn visit_project_fst(&mut self, body: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
-        let (body_type, body_proof_tree) = body.visit(self)?;
+        let rule = if fst.is_datatype() {
+            ProofTreeRule::ExistsIntro
+        } else {
+            ProofTreeRule::AndIntro
+        };
 
-        if let Type::Prop(Prop::And(fst, _)) = body_type {
-            return Ok((
-                Type::Prop(*fst.clone()),
-                ProofTree {
-                    premisses: vec![body_proof_tree],
-                    rule: ProofTreeRule::AndElimFst,
-                    conclusion: ProofTreeConclusion::PropIsTrue(*fst),
-                },
-            ));
-        }
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            Type::Datatype(_) => return Err(CheckError::ExpectedProp),
+        };
 
-        Err(TypeError::UnexpectedKind {
-            expected: ProofTermKind::Pair,
-            received: body_type,
+        Ok(ProofTree {
+            premisses: vec![fst_proof_tree, snd_proof_tree],
+            rule,
+            conclusion,
         })
     }
 
-    fn visit_project_snd(&mut self, body: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
-        let (body_type, body_proof_tree) = body.visit(self)?;
+    fn visit_project_fst(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
+        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
 
-        if let Type::Prop(Prop::And(_, snd)) = body_type {
-            return Ok((
-                Type::Prop(*snd.clone()),
-                ProofTree {
-                    premisses: vec![body_proof_tree],
-                    rule: ProofTreeRule::AndElimSnd,
-                    conclusion: ProofTreeConclusion::PropIsTrue(*snd),
-                },
-            ));
+        let fst = match body_type {
+            Type::Prop(Prop::And(ref fst, _)) => Type::Prop(*fst.clone()),
+            _ => {
+                return Err(CheckError::UnexpectedKind {
+                    expected: vec![ProofTermKind::Pair],
+                    received: body_type,
+                })
+            }
+        };
+
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
+
+        if self.expected_type == fst {
+            Ok(ProofTree {
+                premisses: vec![body_proof_tree],
+                rule: ProofTreeRule::AndElimFst,
+                conclusion,
+            })
+        } else {
+            Err(CheckError::UnexpectedType {
+                expected: self.expected_type.clone(),
+                received: fst,
+            })
         }
+    }
 
-        Err(TypeError::UnexpectedKind {
-            expected: ProofTermKind::Pair,
-            received: body_type,
-        })
+    fn visit_project_snd(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
+        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
+
+        let snd = match body_type {
+            Type::Prop(Prop::And(_, snd)) => Type::Prop(*snd.clone()),
+            _ => {
+                return Err(CheckError::UnexpectedKind {
+                    expected: vec![ProofTermKind::Pair],
+                    received: body_type,
+                })
+            }
+        };
+
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
+
+        if self.expected_type == snd {
+            Ok(ProofTree {
+                premisses: vec![body_proof_tree],
+                rule: ProofTreeRule::AndElimSnd,
+                conclusion,
+            })
+        } else {
+            Err(CheckError::UnexpectedType {
+                expected: self.expected_type.clone(),
+                received: snd,
+            })
+        }
     }
 
     fn visit_function(
         &mut self,
         param_ident: &String,
-        param_type: &Type,
         body: &ProofTerm,
-    ) -> Result<(Type, ProofTree), TypeError> {
-        self.ctx.insert(param_ident.clone(), param_type.clone());
-        let (body_type, body_proof_tree) = body.visit(self)?;
-        self.ctx.remove(&param_ident);
-
-        match (&param_type, &body_type) {
-            (Type::Datatype(ident), Type::Prop(body_type)) => {
-                let _type = Prop::ForAll {
-                    object_ident: param_ident.clone(),
-                    object_type_ident: ident.clone(),
-                    body: body_type.boxed(), // TODO have I to replace parameterized props?
-                };
-
-                Ok((
-                    _type.clone().into(),
-                    ProofTree {
-                        premisses: vec![body_proof_tree],
-                        rule: ProofTreeRule::ForAllIntro(param_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(_type),
-                    },
-                ))
+    ) -> Result<ProofTree, CheckError> {
+        let (assumption, body_goal) = match self.expected_type {
+            Type::Prop(Prop::Impl(ref fst, ref snd)) => {
+                (Type::Prop(*fst.clone()), Type::Prop(*snd.clone()))
             }
-            (Type::Prop(fst), Type::Prop(snd)) => {
-                let _type = Prop::Impl(fst.boxed(), snd.boxed());
-
-                Ok((
-                    _type.clone().into(),
-                    ProofTree {
-                        premisses: vec![body_proof_tree],
-                        rule: ProofTreeRule::ImplIntro(param_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(_type),
-                    },
-                ))
+            Type::Prop(Prop::ForAll {
+                ref object_type_ident,
+                ref body,
+                ..
+            }) => (
+                Type::Datatype(object_type_ident.clone()),
+                Type::Prop(*body.clone()),
+            ),
+            _ => {
+                return Err(CheckError::UnexpectedKind {
+                    expected: vec![ProofTermKind::Function],
+                    received: self.expected_type.clone(),
+                })
             }
-            (_, Type::Datatype(_)) => Err(TypeError::ExpectedProp {
-                received: body_type,
-            }),
-        }
-        .into()
+        };
+
+        let mut body_ctx = self.ctx.clone();
+        body_ctx.insert(param_ident.clone(), assumption.clone());
+        let body_proof_tree = check(body, &body_goal, body_ctx)?;
+
+        let rule = if assumption.is_datatype() {
+            ProofTreeRule::ForAllIntro(param_ident.clone())
+        } else {
+            ProofTreeRule::ImplIntro(param_ident.clone())
+        };
+
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
+
+        Ok(ProofTree {
+            premisses: vec![body_proof_tree],
+            rule,
+            conclusion,
+        })
     }
 
     fn visit_application(
         &mut self,
         function: &ProofTerm,
         applicant: &ProofTerm,
-    ) -> Result<(Type, ProofTree), TypeError> {
-        let (function_type, function_proof_tree) = function.visit(self)?;
-        let (applicant_type, applicant_proof_tree) = applicant.visit(self)?;
+    ) -> Result<ProofTree, CheckError> {
+        let (_type, proof_tree) = synthesize(
+            &ProofTerm::Application {
+                function: function.boxed(),
+                applicant: applicant.boxed(),
+            },
+            self.ctx.clone(),
+        )?;
 
-        // either implication or allquant
-
-        if let Type::Prop(Prop::Impl(param_prop, body_type)) = function_type {
-            let param_type = Type::Prop(*param_prop);
-            if param_type != applicant_type {
-                return Err(TypeError::UnexpectedType {
-                    expected: param_type,
-                    received: applicant_type,
-                });
-            }
-
-            return Ok((
-                Type::Prop(*body_type.clone()),
-                ProofTree {
-                    premisses: vec![function_proof_tree, applicant_proof_tree],
-                    rule: ProofTreeRule::ImplElim,
-                    conclusion: ProofTreeConclusion::PropIsTrue(*body_type),
-                },
-            ));
+        if _type == self.expected_type {
+            Ok(proof_tree)
+        } else {
+            Err(CheckError::UnexpectedType {
+                expected: self.expected_type.clone(),
+                received: _type,
+            })
         }
-
-        if let Type::Prop(Prop::ForAll {
-            object_ident,
-            object_type_ident,
-            body,
-        }) = function_type
-        {
-            // check if applicant is datatype
-            let object_type = Type::Datatype(object_type_ident);
-            if applicant_type == object_type {
-                if let ProofTerm::Ident(ident) = applicant {
-                    let mut substitued_body = *body.clone();
-                    substitued_body.substitue_free_parameter(&object_ident, &ident);
-
-                    return Ok((
-                        Type::Prop(substitued_body.clone()),
-                        ProofTree {
-                            premisses: vec![function_proof_tree, applicant_proof_tree],
-                            rule: ProofTreeRule::ForAllElim,
-                            conclusion: ProofTreeConclusion::PropIsTrue(substitued_body),
-                        },
-                    ));
-                } else {
-                    panic!("Architecture error: Expected identifier. Are you implementing datatytpe functions?")
-                }
-            }
-
-            return Err(TypeError::UnexpectedType {
-                expected: object_type,
-                received: applicant_type,
-            });
-        }
-
-        Err(TypeError::UnexpectedKind {
-            expected: ProofTermKind::Function,
-            received: function_type,
-        })
     }
 
     fn visit_let_in(
@@ -285,8 +309,9 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
         snd_ident: &String,
         pair_proof_term: &ProofTerm,
         body: &ProofTerm,
-    ) -> Result<(Type, ProofTree), TypeError> {
-        let (pair_proof_term_type, pair_proof_term_tree) = pair_proof_term.visit(self)?;
+    ) -> Result<ProofTree, CheckError> {
+        let (pair_proof_term_type, pair_proof_term_tree) =
+            synthesize(pair_proof_term, self.ctx.clone())?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -295,90 +320,77 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
         }) = pair_proof_term_type
         {
             exists_body.substitue_free_parameter(&object_ident, &fst_ident);
-            self.ctx
-                .insert(fst_ident.clone(), Type::Datatype(object_type_ident));
-            self.ctx.insert(snd_ident.clone(), Type::Prop(*exists_body));
 
-            let (body_type, body_proof_tree) = body.visit(self)?;
-
-            self.ctx.remove(&fst_ident);
-            self.ctx.remove(&snd_ident);
+            let mut body_ctx = self.ctx.clone();
+            body_ctx.insert(fst_ident.clone(), Type::Datatype(object_type_ident));
+            body_ctx.insert(snd_ident.clone(), Type::Prop(*exists_body));
+            let body_proof_tree = check(body, &self.expected_type, body_ctx)?;
 
             // check that quantified object does not escape it's scope
-            if let Type::Prop(prop) = &body_type {
+            if let Type::Prop(prop) = &self.expected_type {
                 if prop.get_free_parameters().contains(&fst_ident) {
-                    return Err(TypeError::QuantifiedObjectEscapesScope);
+                    return Err(CheckError::QuantifiedObjectEscapesScope);
                 }
 
-                Ok((
-                    body_type.clone(),
-                    ProofTree {
-                        premisses: vec![pair_proof_term_tree, body_proof_tree],
-                        rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
-                    },
-                ))
-            } else {
-                Err(TypeError::ExpectedProp {
-                    received: body_type,
+                let conclusion = match self.expected_type {
+                    Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+                    _ => return Err(CheckError::ExpectedProp),
+                };
+
+                Ok(ProofTree {
+                    premisses: vec![pair_proof_term_tree, body_proof_tree],
+                    rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
+                    conclusion,
                 })
+            } else {
+                Err(CheckError::ExpectedProp)
             }
         } else {
-            Err(TypeError::UnexpectedKind {
-                expected: ProofTermKind::ExistsPair,
+            Err(CheckError::UnexpectedKind {
+                expected: vec![ProofTermKind::ExistsPair],
                 received: pair_proof_term_type,
             })
         }
     }
 
-    fn visit_or_left(
-        &mut self,
-        body: &ProofTerm,
-        other: &Prop,
-    ) -> Result<(Type, ProofTree), TypeError> {
-        let (body_type, body_proof_tree) = body.visit(self)?;
+    fn visit_or_left(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
+        let expected = match self.expected_type {
+            Type::Prop(Prop::Or(ref fst, _)) => Type::Prop(*fst.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
 
-        if let Type::Prop(body_prop) = body_type {
-            let _type = Prop::Or(body_prop.boxed(), other.boxed());
+        let body_proof_tree = check(body, &expected, self.ctx.clone())?;
 
-            Ok((
-                _type.clone().into(),
-                ProofTree {
-                    premisses: vec![body_proof_tree],
-                    rule: ProofTreeRule::OrIntroFst,
-                    conclusion: ProofTreeConclusion::PropIsTrue(_type),
-                },
-            ))
-        } else {
-            Err(TypeError::ExpectedProp {
-                received: body_type,
-            })
-        }
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
+
+        Ok(ProofTree {
+            premisses: vec![body_proof_tree],
+            rule: ProofTreeRule::OrIntroFst,
+            conclusion,
+        })
     }
 
-    fn visit_or_right(
-        &mut self,
-        body: &ProofTerm,
-        other: &Prop,
-    ) -> Result<(Type, ProofTree), TypeError> {
-        let (body_type, body_proof_tree) = body.visit(self)?;
+    fn visit_or_right(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
+        let expected = match self.expected_type {
+            Type::Prop(Prop::Or(_, ref snd)) => Type::Prop(*snd.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
 
-        if let Type::Prop(body_prop) = body_type {
-            let _type = Prop::Or(other.boxed(), body_prop.boxed());
+        let body_proof_tree = check(body, &expected, self.ctx.clone())?;
 
-            Ok((
-                Type::Prop(_type.clone()),
-                ProofTree {
-                    premisses: vec![body_proof_tree],
-                    rule: ProofTreeRule::OrIntroSnd,
-                    conclusion: ProofTreeConclusion::PropIsTrue(_type),
-                },
-            ))
-        } else {
-            Err(TypeError::ExpectedProp {
-                received: body_type,
-            })
-        }
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
+
+        Ok(ProofTree {
+            premisses: vec![body_proof_tree],
+            rule: ProofTreeRule::OrIntroSnd,
+            conclusion,
+        })
     }
 
     fn visit_case(
@@ -388,860 +400,247 @@ impl ProofTermVisitor<Result<(Type, ProofTree), TypeError>> for TypifyVisitor {
         left_term: &ProofTerm,
         right_ident: &String,
         right_term: &ProofTerm,
-    ) -> Result<(Type, ProofTree), TypeError> {
-        let (proof_term_type, proof_term_tree) = proof_term.visit(self)?;
+    ) -> Result<ProofTree, CheckError> {
+        let (proof_term_type, proof_term_tree) = synthesize(proof_term, self.ctx.clone())?;
 
-        if let Type::Prop(Prop::Or(fst, snd)) = proof_term_type {
-            // fst
-            self.ctx.insert(left_ident.clone(), Type::Prop(*fst));
-            let (fst_type, fst_proof_tree) = left_term.visit(self)?;
-            self.ctx.remove(&left_ident);
+        let (fst, snd) = match proof_term_type {
+            Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
+            _ => return Err(CheckError::ExpectedProp),
+        };
 
-            // snd
-            self.ctx.insert(right_ident.clone(), Type::Prop(*snd));
-            let (snd_type, snd_proof_tree) = right_term.visit(self)?;
-            self.ctx.remove(&right_ident);
+        let mut fst_ctx = self.ctx.clone();
+        fst_ctx.insert(left_ident.clone(), Type::Prop(*fst.clone()));
+        let fst_proof_tree = check(left_term, &self.expected_type, fst_ctx)?;
 
-            if fst_type != snd_type {
-                return Err(TypeError::CaseArmsDifferent { fst_type, snd_type });
-            }
+        let mut snd_ctx = self.ctx.clone();
+        snd_ctx.insert(right_ident.clone(), Type::Prop(*snd.clone()));
+        let snd_proof_tree = check(right_term, &self.expected_type, snd_ctx)?;
 
-            if let Type::Prop(fst_type) = fst_type {
-                Ok((
-                    snd_type,
-                    ProofTree {
-                        premisses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
-                        rule: ProofTreeRule::OrElim(left_ident.clone(), right_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(fst_type),
-                    },
-                ))
-            } else {
-                Err(TypeError::ExpectedProp { received: fst_type })
-            }
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
+
+        Ok(ProofTree {
+            premisses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
+            rule: ProofTreeRule::OrElim(left_ident.clone(), right_ident.clone()),
+            conclusion,
+        })
+    }
+
+    fn visit_abort(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
+        let body_proof_tree = check(body, &Type::Prop(Prop::False), self.ctx.clone())?;
+
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(CheckError::ExpectedProp),
+        };
+
+        Ok(ProofTree {
+            premisses: vec![body_proof_tree],
+            rule: ProofTreeRule::FalsumElim,
+            conclusion,
+        })
+    }
+
+    fn visit_unit(&mut self) -> Result<ProofTree, CheckError> {
+        if self.expected_type == Type::Prop(Prop::True) {
+            Ok(ProofTree {
+                premisses: vec![],
+                rule: ProofTreeRule::TrueIntro,
+                conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
+            })
         } else {
-            Err(TypeError::UnexpectedKind {
-                expected: ProofTermKind::Pair,
-                received: proof_term_type,
+            Err(CheckError::UnexpectedType {
+                expected: self.expected_type.clone(),
+                received: Type::Prop(Prop::True),
             })
         }
     }
+}
 
-    fn visit_abort(&mut self, body: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
-        let (body_type, body_proof_tree) = body.visit(self)?;
+struct SynthesizeVisitor {
+    ctx: IdentifierContext,
+}
 
-        if let Type::Prop(Prop::False) = body_type {
+impl SynthesizeVisitor {
+    pub fn new(ctx: IdentifierContext) -> Self {
+        Self { ctx }
+    }
+}
+
+impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for SynthesizeVisitor {
+    fn visit_ident(&mut self, ident: &String) -> Result<(Type, ProofTree), SynthesizeError> {
+        let ident_type = self.ctx.get(ident);
+
+        if let Some(ident_type) = ident_type {
+            let conclusion = match ident_type {
+                Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+                Type::Datatype(datatype) => {
+                    ProofTreeConclusion::TypeJudgement(ident.clone(), datatype.clone())
+                }
+            };
+
             Ok((
-                Prop::Any.into(),
+                ident_type.clone(),
                 ProofTree {
-                    premisses: vec![body_proof_tree],
-                    rule: ProofTreeRule::FalsumElim,
-                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::Any),
+                    premisses: vec![],
+                    rule: ProofTreeRule::Ident(Some(ident.clone())),
+                    conclusion,
                 },
             ))
         } else {
-            Err(TypeError::UnexpectedType {
-                expected: Prop::False.into(),
-                received: body_type,
-            })
+            Err(SynthesizeError::UnknownIdentifier(ident.clone()))
         }
     }
 
-    fn visit_unit(&mut self) -> Result<(Type, ProofTree), TypeError> {
+    fn visit_pair(
+        &mut self,
+        fst: &ProofTerm,
+        snd: &ProofTerm,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::Pair))
+    }
+
+    fn visit_project_fst(
+        &mut self,
+        body: &ProofTerm,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
+
+        let fst = match body_type {
+            Type::Prop(Prop::And(fst, _)) => fst,
+            _ => {
+                return Err(SynthesizeError::UnexpectedKind {
+                    expected: ProofTermKind::Pair,
+                    received: body_type,
+                })
+            }
+        };
+
         Ok((
-            Prop::True.into(),
+            Type::Prop(*fst.clone()),
             ProofTree {
-                premisses: vec![],
-                rule: ProofTreeRule::TrueIntro,
-                conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
+                premisses: vec![body_proof_tree],
+                rule: ProofTreeRule::AndElimFst,
+                conclusion: ProofTreeConclusion::PropIsTrue(*fst.clone()),
             },
         ))
     }
-}
 
-pub fn typify(proof_term: &ProofTerm) -> Result<(Type, ProofTree), TypeError> {
-    let mut visitor = TypifyVisitor::new();
-    proof_term.visit(&mut visitor)
-}
+    fn visit_project_snd(
+        &mut self,
+        body: &ProofTerm,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
 
-// === TESTS ===
-
-#[cfg(test)]
-mod tests {
-    use std::vec;
-
-    use chumsky::{Parser, Stream};
-
-    use crate::kernel::{
-        check::{typify, TypeError},
-        parse::{lexer::lexer, proof::proof_parser, proof_term::proof_term_parser},
-        process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
-        proof_term::Type,
-        proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
-        prop::Prop,
-    };
-
-    #[test]
-    fn test_proof_implication_to_and() {
-        let proof_term = "fn u: A => fn w: B => (u, w)";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, proof_tree) = typify(&ast).unwrap();
-
-        let expected_type = Type::Prop(Prop::Impl(
-            Prop::Atom("A".to_string(), vec![]).boxed(),
-            Prop::Impl(
-                Prop::Atom("B".to_string(), vec![]).boxed(),
-                Prop::And(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                )
-                .boxed(),
-            )
-            .boxed(),
-        ));
-
-        // check type
-        assert_eq!(_type, expected_type);
-
-        // check proof tree
-        assert_eq!(
-            proof_tree,
-            ProofTree {
-                premisses: vec![ProofTree {
-                    premisses: vec![ProofTree {
-                        premisses: vec![
-                            ProofTree {
-                                premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("u".to_string())),
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                    "A".to_string(),
-                                    vec![]
-                                )),
-                            },
-                            ProofTree {
-                                premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("w".to_string())),
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                    "B".to_string(),
-                                    vec![]
-                                )),
-                            }
-                        ],
-                        rule: ProofTreeRule::AndIntro,
-                        conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
-                            Prop::Atom("A".to_string(), vec![]).boxed(),
-                            Prop::Atom("B".to_string(), vec![]).boxed(),
-                        ))
-                    }],
-                    rule: ProofTreeRule::ImplIntro("w".to_string()),
-                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
-                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                        Prop::And(
-                            Prop::Atom("A".to_string(), vec![]).boxed(),
-                            Prop::Atom("B".to_string(), vec![]).boxed(),
-                        )
-                        .boxed(),
-                    )),
-                }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
-                conclusion: ProofTreeConclusion::PropIsTrue(expected_type.into()),
+        let snd = match body_type {
+            Type::Prop(Prop::And(_, snd)) => snd,
+            _ => {
+                return Err(SynthesizeError::UnexpectedKind {
+                    expected: ProofTermKind::Pair,
+                    received: body_type,
+                })
             }
-        )
-    }
+        };
 
-    #[test]
-    fn test_commutativity_of_conjunction() {
-        let proof_term = "fn u: (A && B) => (snd u, fst u)";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, proof_tree) = typify(&ast).unwrap();
-
-        let expected_type = Prop::Impl(
-            Prop::And(
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-                Prop::Atom("B".to_string(), vec![]).boxed(),
-            )
-            .boxed(),
-            Prop::And(
-                Prop::Atom("B".to_string(), vec![]).boxed(),
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-            )
-            .boxed(),
-        );
-
-        // test type
-        assert_eq!(_type, Type::Prop(expected_type.clone()),);
-
-        // test proof tree
-        assert_eq!(
-            proof_tree,
+        Ok((
+            Type::Prop(*snd.clone()),
             ProofTree {
-                premisses: vec![ProofTree {
-                    premisses: vec![
-                        ProofTree {
-                            premisses: vec![ProofTree {
-                                premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("u".to_string())),
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
-                                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                                ))
-                            }],
-                            rule: ProofTreeRule::AndElimSnd,
-                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                "B".to_string(),
-                                vec![]
-                            )),
-                        },
-                        ProofTree {
-                            premisses: vec![ProofTree {
-                                premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("u".to_string())),
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
-                                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                                ))
-                            }],
-                            rule: ProofTreeRule::AndElimFst,
-                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                "A".to_string(),
-                                vec![]
-                            )),
-                        }
-                    ],
-                    rule: ProofTreeRule::AndIntro,
-                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
-                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                        Prop::Atom("A".to_string(), vec![]).boxed()
-                    )),
-                }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
-                conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
-            }
-        )
+                premisses: vec![body_proof_tree],
+                rule: ProofTreeRule::AndElimFst,
+                conclusion: ProofTreeConclusion::PropIsTrue(*snd.clone()),
+            },
+        ))
     }
 
-    #[test]
-    fn test_interaction_law_of_distributivity() {
-        let proof_term = "fn u: (A -> (B & C)) => (fn w: A => fst (u w), fn w: A => snd (u w))";
-        let len = proof_term.chars().count();
+    fn visit_function(
+        &mut self,
+        _param_ident: &String,
+        _body: &ProofTerm,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::Function))
+    }
 
-        let tokens = lexer().parse(proof_term).unwrap();
+    fn visit_application(
+        &mut self,
+        function: &ProofTerm,
+        applicant: &ProofTerm,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        let (function_type, function_proof_tree) = synthesize(function, self.ctx.clone())?;
 
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, proof_tree) = typify(&ast).unwrap();
+        let (requested_applicant_type, return_type) = match function_type {
+            Type::Prop(Prop::Impl(fst, snd)) => {
+                (Type::Prop(*fst.clone()), Type::Prop(*snd.clone()))
+            }
+            Type::Prop(Prop::ForAll {
+                object_type_ident,
+                body,
+                ..
+            }) => (
+                Type::Datatype(object_type_ident.clone()),
+                Type::Prop(*body.clone()),
+            ),
+            _ => {
+                return Err(SynthesizeError::UnexpectedKind {
+                    expected: ProofTermKind::Function,
+                    received: function_type,
+                })
+            }
+        };
 
-        let expected_type = Prop::Impl(
-            Prop::Impl(
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-                Prop::And(
-                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                    Prop::Atom("C".to_string(), vec![]).boxed(),
-                )
-                .boxed(),
-            )
-            .boxed(),
-            Prop::And(
-                Prop::Impl(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec![]).boxed(),
-                )
-                .boxed(),
-                Prop::Impl(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("C".to_string(), vec![]).boxed(),
-                )
-                .boxed(),
-            )
-            .boxed(),
-        );
+        let applicant_proof_tree = check(applicant, &requested_applicant_type, self.ctx.clone())
+            .map_err(|err| Box::new(err))?;
 
-        // test type
-        assert_eq!(_type, Type::Prop(expected_type.clone()));
+        let conclusion = match return_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(SynthesizeError::ExpectedProp),
+        };
 
-        // test proof tree
-        assert_eq!(
-            proof_tree,
+        Ok((
+            return_type.clone(),
             ProofTree {
-                premisses: vec![ProofTree {
-                    premisses: vec![
-                        ProofTree {
-                            premisses: vec![ProofTree {
-                                premisses: vec![ProofTree {
-                                    premisses: vec![
-                                        ProofTree {
-                                            premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("u".to_string())),
-                                            conclusion: ProofTreeConclusion::PropIsTrue(
-                                                Prop::Impl(
-                                                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                                                    Prop::And(
-                                                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                                                        Prop::Atom("C".to_string(), vec![]).boxed(),
-                                                    )
-                                                    .boxed(),
-                                                )
-                                            )
-                                        },
-                                        ProofTree {
-                                            premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("w".to_string())),
-                                            conclusion: ProofTreeConclusion::PropIsTrue(
-                                                Prop::Atom("A".to_string(), vec![])
-                                            ),
-                                        }
-                                    ],
-                                    rule: ProofTreeRule::ImplElim,
-                                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
-                                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                                        Prop::Atom("C".to_string(), vec![]).boxed(),
-                                    )),
-                                }],
-                                rule: ProofTreeRule::AndElimFst,
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                    "B".to_string(),
-                                    vec![]
-                                )),
-                            }],
-                            rule: ProofTreeRule::ImplIntro("w".to_string()),
-                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
-                                Prop::Atom("A".to_string(), vec![]).boxed(),
-                                Prop::Atom("B".to_string(), vec![]).boxed(),
-                            ))
-                        },
-                        ProofTree {
-                            premisses: vec![ProofTree {
-                                premisses: vec![ProofTree {
-                                    premisses: vec![
-                                        ProofTree {
-                                            premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("u".to_string())),
-                                            conclusion: ProofTreeConclusion::PropIsTrue(
-                                                Prop::Impl(
-                                                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                                                    Prop::And(
-                                                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                                                        Prop::Atom("C".to_string(), vec![]).boxed(),
-                                                    )
-                                                    .boxed(),
-                                                )
-                                            )
-                                        },
-                                        ProofTree {
-                                            premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("w".to_string())),
-                                            conclusion: ProofTreeConclusion::PropIsTrue(
-                                                Prop::Atom("A".to_string(), vec![])
-                                            ),
-                                        }
-                                    ],
-                                    rule: ProofTreeRule::ImplElim,
-                                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
-                                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                                        Prop::Atom("C".to_string(), vec![]).boxed(),
-                                    )),
-                                }],
-                                rule: ProofTreeRule::AndElimSnd,
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                    "C".to_string(),
-                                    vec![]
-                                )),
-                            }],
-                            rule: ProofTreeRule::ImplIntro("w".to_string()),
-                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
-                                Prop::Atom("A".to_string(), vec![]).boxed(),
-                                Prop::Atom("C".to_string(), vec![]).boxed(),
-                            ))
-                        }
-                    ],
-                    rule: ProofTreeRule::AndIntro,
-                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
-                        Prop::Impl(
-                            Prop::Atom("A".to_string(), vec![]).boxed(),
-                            Prop::Atom("B".to_string(), vec![]).boxed(),
-                        )
-                        .boxed(),
-                        Prop::Impl(
-                            Prop::Atom("A".to_string(), vec![]).boxed(),
-                            Prop::Atom("C".to_string(), vec![]).boxed(),
-                        )
-                        .boxed(),
-                    ))
-                }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
-                conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
-            }
-        )
+                premisses: vec![function_proof_tree, applicant_proof_tree],
+                rule: ProofTreeRule::ImplElim,
+                conclusion,
+            },
+        ))
     }
 
-    #[test]
-    fn test_commutativity_of_disjunction() {
-        let proof_term = "fn u: A || B => case u of inl a => inr<B> a, inr b => inl<A> b";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, proof_tree) = typify(&ast).unwrap();
-
-        let expected_type = Prop::Impl(
-            Prop::Or(
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-                Prop::Atom("B".to_string(), vec![]).boxed(),
-            )
-            .boxed(),
-            Prop::Or(
-                Prop::Atom("B".to_string(), vec![]).boxed(),
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-            )
-            .boxed(),
-        );
-
-        // check type
-        assert_eq!(_type, Type::Prop(expected_type.clone()),);
-
-        // check proof tree
-        assert_eq!(
-            proof_tree,
-            ProofTree {
-                premisses: vec![ProofTree {
-                    premisses: vec![
-                        ProofTree {
-                            premisses: vec![],
-                            rule: ProofTreeRule::Ident(Some("u".to_string())),
-                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
-                                Prop::Atom("A".to_string(), vec![]).boxed(),
-                                Prop::Atom("B".to_string(), vec![]).boxed(),
-                            )),
-                        },
-                        ProofTree {
-                            premisses: vec![ProofTree {
-                                premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("a".to_string())),
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                    "A".to_string(),
-                                    vec![]
-                                )),
-                            }],
-                            rule: ProofTreeRule::OrIntroSnd,
-                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
-                                Prop::Atom("B".to_string(), vec![]).boxed(),
-                                Prop::Atom("A".to_string(), vec![]).boxed(),
-                            ))
-                        },
-                        ProofTree {
-                            premisses: vec![ProofTree {
-                                premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("b".to_string())),
-                                conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
-                                    "B".to_string(),
-                                    vec![]
-                                )),
-                            }],
-                            rule: ProofTreeRule::OrIntroFst,
-                            conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
-                                Prop::Atom("B".to_string(), vec![]).boxed(),
-                                Prop::Atom("A".to_string(), vec![]).boxed(),
-                            ))
-                        }
-                    ],
-                    rule: ProofTreeRule::OrElim("a".to_string(), "b".to_string()),
-                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
-                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                        Prop::Atom("A".to_string(), vec![]).boxed(),
-                    )),
-                }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
-                conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
-            }
-        )
+    fn visit_let_in(
+        &mut self,
+        _fst_ident: &String,
+        _snd_ident: &String,
+        _pair_proof_term: &ProofTerm,
+        _body: &ProofTerm,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::LetIn))
     }
 
-    #[test]
-    fn test_true() {
-        let proof_term = "()";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, proof_tree) = typify(&ast).unwrap();
-
-        assert_eq!(_type, Type::Prop(Prop::True));
-
-        assert_eq!(
-            proof_tree,
-            ProofTree {
-                premisses: vec![],
-                rule: ProofTreeRule::TrueIntro,
-                conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
-            }
-        );
+    fn visit_or_left(&mut self, _body: &ProofTerm) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::OrLeft))
     }
 
-    #[test]
-    fn test_composition() {
-        let proof_term = "fn u: ((A -> B) && (B -> C)) => fn w: A => (snd u) ((fst u) w)";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, _) = typify(&ast).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::And(
-                    Prop::Impl(
-                        Prop::Atom("A".to_string(), vec![]).boxed(),
-                        Prop::Atom("B".to_string(), vec![]).boxed()
-                    )
-                    .boxed(),
-                    Prop::Impl(
-                        Prop::Atom("B".to_string(), vec![]).boxed(),
-                        Prop::Atom("C".to_string(), vec![]).boxed()
-                    )
-                    .boxed()
-                )
-                .boxed(),
-                Prop::Impl(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("C".to_string(), vec![]).boxed()
-                )
-                .boxed()
-            ))
-        );
+    fn visit_or_right(&mut self, _body: &ProofTerm) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::OrRight))
     }
 
-    #[test]
-    fn test_composition_of_identities() {
-        let proof_term = "(fn u: ((A -> A) && (A -> A)) => fn w: A => (snd u) ((fst u) w)) ((fn x: A => x), (fn y: A => y))";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, _) = typify(&ast).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-                Prop::Atom("A".to_string(), vec![]).boxed()
-            ))
-        )
+    fn visit_case(
+        &mut self,
+        _proof_term: &ProofTerm,
+        _left_ident: &String,
+        _left_term: &ProofTerm,
+        _right_ident: &String,
+        _right_term: &ProofTerm,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::Case))
     }
 
-    #[test]
-    fn test_non_minimal_identity_proof() {
-        let proof_term = "fn u: A => (fn w: A => w) u";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, _) = typify(&ast).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-                Prop::Atom("A".to_string(), vec![]).boxed()
-            ))
-        )
+    fn visit_abort(&mut self, _body: &ProofTerm) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::Abort))
     }
 
-    #[test]
-    fn test_projection_function() {
-        let proof_term = "fn u: A & B => fst u";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, _) = typify(&ast).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::And(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::Atom("B".to_string(), vec![]).boxed()
-                )
-                .boxed(),
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-            ))
-        )
-    }
-
-    #[test]
-    fn test_implication_chain() {
-        let proof_term = "fn u: (A -> A) -> B => u (fn u: A => u)";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, _) = typify(&ast).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Impl(
-                    Prop::Impl(
-                        Prop::Atom("A".to_string(), vec![]).boxed(),
-                        Prop::Atom("A".to_string(), vec![]).boxed()
-                    )
-                    .boxed(),
-                    Prop::Atom("B".to_string(), vec![]).boxed()
-                )
-                .boxed(),
-                Prop::Atom("B".to_string(), vec![]).boxed()
-            ))
-        )
-    }
-
-    #[test]
-    fn test_piano_number_2() {
-        let proof_term = "fn z: A => fn s: A -> A => s(s(z))";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, _) = typify(&ast).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Atom("A".to_string(), vec![]).boxed(),
-                Prop::Impl(
-                    Prop::Impl(
-                        Prop::Atom("A".to_string(), vec![]).boxed(),
-                        Prop::Atom("A".to_string(), vec![]).boxed()
-                    )
-                    .boxed(),
-                    Prop::Atom("A".to_string(), vec![]).boxed()
-                )
-                .boxed()
-            ))
-        )
-    }
-
-    #[test]
-    fn test_tripple_neagation_elimination() {
-        // ~~~A = ((A => False) => False) => False
-        let proof_term = "fn u: (~~~A) => fn v: A => u (fn w: A -> \\bot => w v)";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let ast = proof_term_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-        let (_type, _) = typify(&ast).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::Impl(
-                    Prop::Impl(
-                        Prop::Impl(
-                            Prop::Atom("A".to_string(), vec![]).boxed(),
-                            Prop::False.boxed()
-                        )
-                        .boxed(),
-                        Prop::False.boxed()
-                    )
-                    .boxed(),
-                    Prop::False.boxed()
-                )
-                .boxed(),
-                Prop::Impl(
-                    Prop::Atom("A".to_string(), vec![]).boxed(),
-                    Prop::False.boxed()
-                )
-                .boxed()
-            ))
-        )
-    }
-
-    #[test]
-    fn test_allquant_distribution() {
-        let proof_term = "
-        datatype t;
-        fn u: (\\forall x:t. A(x) & B(x)) => (
-        fn x: t => fst (u x),
-        fn x: t => snd (u x)
-    )";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-        let mut proof = proof_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-
-        proof = ProofPipeline::new()
-            .pipe(ResolveDatatypes::boxed())
-            .apply(proof);
-
-        let (_type, _) = typify(&proof.proof_term).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::ForAll {
-                    object_ident: "x".to_string(),
-                    object_type_ident: "t".to_string(),
-                    body: Prop::And(
-                        Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-                        Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
-                    )
-                    .boxed()
-                }
-                .boxed(),
-                Prop::And(
-                    Prop::ForAll {
-                        object_ident: "x".to_string(),
-                        object_type_ident: "t".to_string(),
-                        body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed()
-                    }
-                    .boxed(),
-                    Prop::ForAll {
-                        object_ident: "x".to_string(),
-                        object_type_ident: "t".to_string(),
-                        body: Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed()
-                    }
-                    .boxed()
-                )
-                .boxed()
-            ))
-        )
-    }
-
-    #[test]
-    fn test_reusing_allquant_ident() {
-        let proof_term = "datatype t; fn u: (∀x:t. C(x, x)) => fn a:t => fn a:t => u a";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-
-        let mut proof = proof_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-
-        proof = ProofPipeline::new()
-            .pipe(ResolveDatatypes::boxed())
-            .apply(proof);
-
-        let (_type, _) = typify(&proof.proof_term).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::ForAll {
-                    object_ident: "x".to_string(),
-                    object_type_ident: "t".to_string(),
-                    body: Prop::Atom("C".to_string(), vec!["x".to_string(), "x".to_string()])
-                        .boxed()
-                }
-                .boxed(),
-                Prop::ForAll {
-                    object_ident: "a".to_string(),
-                    object_type_ident: "t".to_string(),
-                    body: Prop::ForAll {
-                        object_ident: "a".to_string(),
-                        object_type_ident: "t".to_string(),
-                        body: Prop::Atom("C".to_string(), vec!["a".to_string(), "a".to_string()])
-                            .boxed()
-                    }
-                    .boxed()
-                }
-                .boxed()
-            ))
-        )
-    }
-
-    #[test]
-    fn test_exsists_move_unquantified() {
-        let proof_term = "datatype t; fn u: (\\forall x:t. A(x) -> C) => fn w: \\exists x:t. A(x) => let (a, proof) = w in u a proof";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-
-        let mut proof = proof_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-
-        proof = ProofPipeline::new()
-            .pipe(ResolveDatatypes::boxed())
-            .apply(proof);
-
-        let (_type, _) = typify(&proof.proof_term).unwrap();
-
-        assert_eq!(
-            _type,
-            Type::Prop(Prop::Impl(
-                Prop::ForAll {
-                    object_ident: "x".to_string(),
-                    object_type_ident: "t".to_string(),
-                    body: Prop::Impl(
-                        Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-                        Prop::Atom("C".to_string(), vec![]).boxed()
-                    )
-                    .boxed(),
-                }
-                .boxed(),
-                Prop::Impl(
-                    Prop::Exists {
-                        object_ident: "x".to_string(),
-                        object_type_ident: "t".to_string(),
-                        body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-                    }
-                    .boxed(),
-                    Prop::Atom("C".to_string(), vec![]).boxed(),
-                )
-                .boxed(),
-            ))
-        )
-    }
-
-    #[test]
-    fn test_do_not_allow_exists_quant_escape() {
-        let proof_term = "datatype t; fn u: \\exists x:t. C(x) => let (a, proof) = u in proof";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-
-        let mut proof = proof_parser()
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
-            .unwrap();
-
-        proof = ProofPipeline::new()
-            .pipe(ResolveDatatypes::boxed())
-            .apply(proof);
-
-        let _type = typify(&proof.proof_term);
-
-        assert_eq!(_type, Err(TypeError::QuantifiedObjectEscapesScope))
+    fn visit_unit(&mut self) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::Unit))
     }
 }
