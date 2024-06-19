@@ -4,6 +4,20 @@ use super::proof_term::Type;
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 
+#[derive(Clone, Debug, Serialize, Deserialize, Tsify, PartialEq, Eq)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
+pub enum PropKind {
+    Atom,
+    And,
+    Or,
+    Impl,
+    ForAll,
+    Exists,
+    True,
+    Fakse,
+}
+
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(tag = "kind", content = "value")]
@@ -34,88 +48,8 @@ impl Prop {
         Box::new(self.clone())
     }
 
-    pub fn alpha_eq(&self, other: &Prop) -> bool {
-        fn _alpha_eq<'a>(
-            fst: &'a Prop,
-            snd: &'a Prop,
-            mut env: Vec<(&'a String, &'a String)>,
-        ) -> bool {
-            match (fst, snd) {
-                (Prop::True, Prop::True) => true,
-                (Prop::False, Prop::False) => true,
-                (Prop::And(l1, l2), Prop::And(r1, r2)) => {
-                    _alpha_eq(l1, r1, env.clone()) && _alpha_eq(l2, r2, env)
-                }
-                (Prop::Or(l1, l2), Prop::Or(r1, r2)) => {
-                    _alpha_eq(l1, r1, env.clone()) && _alpha_eq(l2, r2, env)
-                }
-                (Prop::Impl(l1, l2), Prop::And(r1, r2)) => {
-                    _alpha_eq(l1, r1, env.clone()) && _alpha_eq(l2, r2, env)
-                }
-                (
-                    Prop::Exists {
-                        object_ident: l_object_ident,
-                        object_type_ident: l_object_type_ident,
-                        body: l_body,
-                    },
-                    Prop::Exists {
-                        object_ident: r_object_ident,
-                        object_type_ident: r_object_type_ident,
-                        body: r_body,
-                    },
-                ) => {
-                    env.push((l_object_ident, r_object_ident));
-
-                    l_object_type_ident == r_object_type_ident && _alpha_eq(l_body, r_body, env)
-                }
-
-                (
-                    Prop::ForAll {
-                        object_ident: l_object_ident,
-                        object_type_ident: l_object_type_ident,
-                        body: l_body,
-                    },
-                    Prop::ForAll {
-                        object_ident: r_object_ident,
-                        object_type_ident: r_object_type_ident,
-                        body: r_body,
-                    },
-                ) => {
-                    env.push((l_object_ident, r_object_ident));
-
-                    l_object_type_ident == r_object_type_ident && _alpha_eq(l_body, r_body, env)
-                }
-                (Prop::Atom(l_ident, l_params), Prop::Atom(r_ident, r_params)) => {
-                    if l_ident != r_ident {
-                        return false;
-                    }
-
-                    for (l_param, r_param) in Iterator::zip(l_params.iter(), r_params.iter()) {
-                        // search for identifiers
-                        let pair = env
-                            .iter()
-                            .rev()
-                            .find(|(x, y)| *x == l_param || *y == r_param);
-
-                        if let Some((x, y)) = pair {
-                            if *x != l_param || *y != r_param {
-                                return false;
-                            }
-                        } else if l_param != r_param {
-                            // free occurences, check for name equality
-                            return false;
-                        }
-                    }
-
-                    return true;
-                }
-                _ => false,
-            }
-        }
-
-        let env = vec![];
-
-        _alpha_eq(self, other, env)
+    pub fn has_free_parameters(&self) -> bool {
+        self.get_free_parameters().len() > 0
     }
 
     pub fn get_free_parameters(&self) -> Vec<String> {
@@ -125,24 +59,24 @@ impl Prop {
                 Prop::False => vec![],
                 Prop::Any => vec![],
                 Prop::And(fst, snd) => {
-                    let mut fst_idents = fst.get_free_parameters();
-                    let mut snd_idents = snd.get_free_parameters();
+                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
 
                     fst_idents.append(&mut snd_idents);
 
                     fst_idents
                 }
                 Prop::Or(fst, snd) => {
-                    let mut fst_idents = fst.get_free_parameters();
-                    let mut snd_idents = snd.get_free_parameters();
+                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
 
                     fst_idents.append(&mut snd_idents);
 
                     fst_idents
                 }
                 Prop::Impl(fst, snd) => {
-                    let mut fst_idents = fst.get_free_parameters();
-                    let mut snd_idents = snd.get_free_parameters();
+                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
 
                     fst_idents.append(&mut snd_idents);
 
@@ -221,6 +155,123 @@ impl Prop {
             }
         }
     }
+
+    pub fn alpha_eq(&self, other: &Prop) -> bool {
+        let env = vec![];
+
+        Self::_alpha_eq(self, other, false, env)
+    }
+
+    pub fn alpha_eq_compare_free_occurences_by_structure(&self, other: &Prop) -> bool {
+        let env = vec![];
+
+        Self::_alpha_eq(self, other, true, env)
+    }
+
+    fn _alpha_eq<'a>(
+        fst: &'a Prop,
+        snd: &'a Prop,
+        compare_free_occurences_by_structure: bool,
+        mut env: Vec<(&'a String, &'a String)>,
+    ) -> bool {
+        match (fst, snd) {
+            (Prop::True, Prop::True) => true,
+            (Prop::False, Prop::False) => true,
+            (Prop::And(l1, l2), Prop::And(r1, r2)) => {
+                Self::_alpha_eq(l1, r1, compare_free_occurences_by_structure, env.clone())
+                    && Self::_alpha_eq(l2, r2, compare_free_occurences_by_structure, env)
+            }
+            (Prop::Or(l1, l2), Prop::Or(r1, r2)) => {
+                Self::_alpha_eq(l1, r1, compare_free_occurences_by_structure, env.clone())
+                    && Self::_alpha_eq(l2, r2, compare_free_occurences_by_structure, env)
+            }
+            (Prop::Impl(l1, l2), Prop::Impl(r1, r2)) => {
+                Self::_alpha_eq(l1, r1, compare_free_occurences_by_structure, env.clone())
+                    && Self::_alpha_eq(l2, r2, compare_free_occurences_by_structure, env)
+            }
+            (
+                Prop::Exists {
+                    object_ident: l_object_ident,
+                    object_type_ident: l_object_type_ident,
+                    body: l_body,
+                },
+                Prop::Exists {
+                    object_ident: r_object_ident,
+                    object_type_ident: r_object_type_ident,
+                    body: r_body,
+                },
+            ) => {
+                env.push((l_object_ident, r_object_ident));
+
+                l_object_type_ident == r_object_type_ident
+                    && Self::_alpha_eq(l_body, r_body, compare_free_occurences_by_structure, env)
+            }
+
+            (
+                Prop::ForAll {
+                    object_ident: l_object_ident,
+                    object_type_ident: l_object_type_ident,
+                    body: l_body,
+                },
+                Prop::ForAll {
+                    object_ident: r_object_ident,
+                    object_type_ident: r_object_type_ident,
+                    body: r_body,
+                },
+            ) => {
+                env.push((l_object_ident, r_object_ident));
+
+                l_object_type_ident == r_object_type_ident
+                    && Self::_alpha_eq(l_body, r_body, compare_free_occurences_by_structure, env)
+            }
+            (Prop::Atom(l_ident, l_params), Prop::Atom(r_ident, r_params)) => {
+                if l_ident != r_ident {
+                    return false;
+                }
+
+                if l_params.len() != r_params.len() {
+                    return false;
+                }
+
+                let mut free_occurrences_env = Vec::new();
+                for (l_param, r_param) in Iterator::zip(l_params.iter(), r_params.iter()) {
+                    // search for identifiers
+                    let pair = env
+                        .iter()
+                        .rev()
+                        .find(|(x, y)| *x == l_param || *y == r_param);
+
+                    if let Some((x, y)) = pair {
+                        if *x != l_param || *y != r_param {
+                            return false;
+                        }
+                    } else {
+                        // free occurences and no structural comaprison, check for name equality
+                        if !compare_free_occurences_by_structure && l_param != r_param {
+                            return false;
+                        }
+
+                        // otherwise check if structural identical
+                        let pair = free_occurrences_env
+                            .iter()
+                            .rev()
+                            .find(|(x, y)| *x == l_param || *y == r_param);
+
+                        if let Some((x, y)) = pair {
+                            if *x != l_param || *y != r_param {
+                                return false;
+                            }
+                        } else {
+                            free_occurrences_env.push((l_param, r_param));
+                        }
+                    }
+                }
+
+                return true;
+            }
+            _ => false,
+        }
+    }
 }
 
 impl Into<Type> for Prop {
@@ -295,6 +346,25 @@ mod tests {
     use std::vec;
 
     use super::Prop;
+
+    // HELPER
+
+    use chumsky::{Parser, Stream};
+
+    use crate::kernel::parse::{fol::fol_parser, lexer::lexer};
+
+    fn parse_prop(prop: &str) -> Prop {
+        let len = prop.chars().count();
+
+        let tokens = lexer().parse(prop).unwrap();
+        let prop = fol_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        prop
+    }
+
+    // END Helper
 
     #[test]
     fn test_alpha_eq_no_quantors_equivalent() {
@@ -681,5 +751,122 @@ mod tests {
                 body: Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()]).boxed(),
             }
         )
+    }
+
+    #[test]
+    fn test_alpha_eq_atom_no_params() {
+        assert!(parse_prop("A").alpha_eq(&parse_prop("A")))
+    }
+
+    #[test]
+    fn test_not_alpha_eq_atom_no_params() {
+        assert!(!parse_prop("A").alpha_eq(&parse_prop("B")))
+    }
+
+    #[test]
+    fn test_alpha_eq_atom_params() {
+        assert!(Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("A(x, y, z)")
+        ))
+    }
+
+    #[test]
+    fn test_not_alpha_eq_atom_params() {
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("A(x, z, z)")
+        ));
+
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("A(x, y)")
+        ));
+
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("B(x, y, z)")
+        ))
+    }
+
+    #[test]
+    fn test_alpha_eq_atom_params_structural() {
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("A(a, b, c)")
+        ));
+    }
+
+    #[test]
+    fn test_not_alpha_eq_atom_params_structural() {
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("A(a, b, b)")
+        ));
+
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("A(a, b)")
+        ));
+
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A(x, y, z)"),
+            &parse_prop("B(a, b, c)")
+        ))
+    }
+
+    #[test]
+    fn test_alpha_eq_and() {
+        assert!(Prop::alpha_eq(&parse_prop("A && B"), &parse_prop("A && B")));
+    }
+
+    #[test]
+    fn test_not_alpha_eq_and() {
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A && B"),
+            &parse_prop("B && B")
+        ));
+    }
+
+    #[test]
+    fn test_alpha_eq_or() {
+        assert!(Prop::alpha_eq(&parse_prop("A || B"), &parse_prop("A || B")));
+    }
+
+    #[test]
+    fn test_not_alpha_eq_or() {
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A || B"),
+            &parse_prop("A || A")
+        ));
+    }
+
+    #[test]
+    fn test_alpha_eq_implication() {
+        assert!(Prop::alpha_eq(&parse_prop("A -> B"), &parse_prop("A -> B")));
+    }
+
+    #[test]
+    fn test_not_alpha_eq_implication() {
+        assert!(!Prop::alpha_eq(
+            &parse_prop("A -> B"),
+            &parse_prop("A -> A")
+        ));
+    }
+
+    #[test]
+    fn test_for_all() {
+        assert!(Prop::alpha_eq(
+            &parse_prop("\\forall x:t. A(x)"),
+            &parse_prop("\\forall w:t. A(w)")
+        ));
+    }
+
+    #[test]
+    fn test_exists() {
+        assert!(Prop::alpha_eq(
+            &parse_prop("\\exists x:t. A(x)"),
+            &parse_prop("\\exists w:t. A(w)")
+        ));
     }
 }
