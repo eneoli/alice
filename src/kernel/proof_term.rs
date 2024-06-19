@@ -1,5 +1,5 @@
 use super::prop::Prop;
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
@@ -8,6 +8,47 @@ use tsify_next::Tsify;
 pub enum Type {
     Prop(Prop),
     Datatype(String),
+}
+
+impl Type {
+    pub fn is_prop(&self) -> bool {
+        match self {
+            Type::Prop(_) => true,
+            Type::Datatype(_) => false,
+        }
+    }
+
+    pub fn is_datatype(&self) -> bool {
+        match self {
+            Type::Prop(_) => false,
+            Type::Datatype(_) => true,
+        }
+    }
+
+    pub fn has_free_parameters(&self) -> bool {
+        match self {
+            Type::Prop(prop) => prop.has_free_parameters(),
+            Type::Datatype(_) => false,
+        }
+    }
+
+    pub fn alpha_eq(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Datatype(ld), Type::Datatype(rd)) => ld == rd,
+            (Type::Prop(lprop), Type::Prop(rprop)) => Prop::alpha_eq(lprop, rprop),
+            _ => false,
+        }
+    }
+
+    pub fn alpha_eq_compare_free_occurences_by_structure(&self, other: &Type) -> bool {
+        match (self, other) {
+            (Type::Datatype(ld), Type::Datatype(rd)) => ld == rd,
+            (Type::Prop(lprop), Type::Prop(rprop)) => {
+                Prop::alpha_eq_compare_free_occurences_by_structure(lprop, rprop)
+            }
+            _ => false,
+        }
+    }
 }
 
 impl Into<Prop> for Type {
@@ -48,7 +89,7 @@ pub enum ProofTerm {
     ProjectSnd(Box<ProofTerm>),
     Function {
         param_ident: String,
-        param_type: Type,
+        param_type: Option<Type>,
         body: Box<ProofTerm>,
     },
     Application {
@@ -61,14 +102,8 @@ pub enum ProofTerm {
         pair_proof_term: Box<ProofTerm>,
         body: Box<ProofTerm>,
     },
-    OrLeft {
-        body: Box<ProofTerm>,
-        other: Prop,
-    },
-    OrRight {
-        body: Box<ProofTerm>,
-        other: Prop,
-    },
+    OrLeft(Box<ProofTerm>),
+    OrRight(Box<ProofTerm>),
     Case {
         proof_term: Box<ProofTerm>,
 
@@ -108,8 +143,8 @@ impl ProofTerm {
                 pair_proof_term,
                 body,
             } => visitor.visit_let_in(fst_ident, snd_ident, pair_proof_term, body),
-            ProofTerm::OrLeft { body, other } => visitor.visit_or_left(body, other),
-            ProofTerm::OrRight { body, other } => visitor.visit_or_right(body, other),
+            ProofTerm::OrLeft(body) => visitor.visit_or_left(body),
+            ProofTerm::OrRight(body) => visitor.visit_or_right(body),
             ProofTerm::Case {
                 proof_term,
                 left_ident,
@@ -128,7 +163,12 @@ pub trait ProofTermVisitor<R> {
     fn visit_pair(&mut self, fst: &ProofTerm, snd: &ProofTerm) -> R;
     fn visit_project_fst(&mut self, body: &ProofTerm) -> R;
     fn visit_project_snd(&mut self, body: &ProofTerm) -> R;
-    fn visit_function(&mut self, param_ident: &String, param_type: &Type, body: &ProofTerm) -> R;
+    fn visit_function(
+        &mut self,
+        param_ident: &String,
+        param_type: &Option<Type>,
+        body: &ProofTerm,
+    ) -> R;
     fn visit_application(&mut self, function: &ProofTerm, applicant: &ProofTerm) -> R;
     fn visit_let_in(
         &mut self,
@@ -137,8 +177,8 @@ pub trait ProofTermVisitor<R> {
         pair_proof_term: &ProofTerm,
         body: &ProofTerm,
     ) -> R;
-    fn visit_or_left(&mut self, body: &ProofTerm, other: &Prop) -> R;
-    fn visit_or_right(&mut self, body: &ProofTerm, other: &Prop) -> R;
+    fn visit_or_left(&mut self, body: &ProofTerm) -> R;
+    fn visit_or_right(&mut self, body: &ProofTerm) -> R;
     fn visit_case(
         &mut self,
         proof_term: &ProofTerm,
