@@ -1,6 +1,6 @@
 use self::prop::Prop;
 
-pub mod check;
+pub mod checker;
 pub mod parse;
 pub mod process;
 pub mod proof;
