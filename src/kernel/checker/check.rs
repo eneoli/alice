@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::kernel::{
@@ -11,25 +12,19 @@ use super::{
     synthesize::{synthesize, SynthesizeError},
 };
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum CheckError {
     #[error("An error happened while synthesizing")]
     SynthesizeError(#[from] SynthesizeError),
 
     #[error("Checkable type cannot include parameters")]
-    TypeHasFreeParameters(Type),
-
-    #[error("Cannot check for datatypes")]
-    CannotCheckForDatatypes,
+    PropHasFreeParameters(Prop),
 
     #[error("Proof Term does not match wich expected type")]
     IncompatibleProofTerm {
         expected_type: Type,
         proof_term: ProofTerm,
     },
-
-    #[error("Cannot check type without further type annotations")]
-    TypeAnnotationsNeeded(ProofTerm),
 
     #[error("Expected different type kind")]
     UnexpectedProofTermKind {
@@ -55,52 +50,48 @@ pub enum CheckError {
 
 pub fn check(
     proof_term: &ProofTerm,
-    expected_type: &Type,
-    ctx: IdentifierContext,
+    expected_prop: &Prop,
+    ctx: &IdentifierContext,
 ) -> Result<ProofTree, CheckError> {
-    if expected_type.has_free_parameters() {
-        return Err(CheckError::TypeHasFreeParameters(expected_type.clone()));
+    if expected_prop.has_free_parameters() {
+        return Err(CheckError::PropHasFreeParameters(expected_prop.clone()));
     }
 
-    if expected_type.is_datatype() {
-        return Err(CheckError::CannotCheckForDatatypes);
-    }
-
-    check_comapre_free_parameters_structurally(proof_term, expected_type, ctx)
+    check_allowing_free_params(proof_term, &Type::Prop(expected_prop.clone()), ctx)
 }
 
-pub(super) fn check_comapre_free_parameters_structurally(
+pub(super) fn check_allowing_free_params(
     proof_term: &ProofTerm,
     expected_type: &Type,
-    ctx: IdentifierContext,
+    ctx: &IdentifierContext,
 ) -> Result<ProofTree, CheckError> {
     let mut visitor = CheckVisitor::new(expected_type.clone(), ctx);
     proof_term.visit(&mut visitor)
 }
 
-struct CheckVisitor {
+struct CheckVisitor<'a> {
     expected_type: Type,
-    ctx: IdentifierContext,
+    ctx: &'a IdentifierContext,
 }
 
-impl CheckVisitor {
-    pub fn new(expected_type: Type, ctx: IdentifierContext) -> Self {
+impl<'a> CheckVisitor<'a> {
+    pub fn new(expected_type: Type, ctx: &'a IdentifierContext) -> Self {
         Self { expected_type, ctx }
     }
 }
 
-impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
+impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
     fn visit_ident(&mut self, ident: &String) -> Result<ProofTree, CheckError> {
-        let (_type, proof_tree) = synthesize(&ProofTerm::Ident(ident.clone()), self.ctx.clone())?;
+        let (_type, proof_tree) = synthesize(&ProofTerm::Ident(ident.clone()), self.ctx)?;
 
-        if !Type::alpha_eq_compare_free_occurences_by_structure(&_type, &self.expected_type) {
-            return Err(CheckError::UnexpectedType {
+        if !Type::alpha_eq(&_type, &self.expected_type) {
+            Err(CheckError::UnexpectedType {
                 expected: self.expected_type.clone(),
                 received: _type,
-            });
+            })
+        } else {
+            Ok(proof_tree)
         }
-
-        Ok(proof_tree)
     }
 
     fn visit_pair(
@@ -108,18 +99,39 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
         fst_term: &ProofTerm,
         snd_term: &ProofTerm,
     ) -> Result<ProofTree, CheckError> {
-        let (fst, snd) = match self.expected_type {
-            Type::Prop(Prop::And(ref fst, ref snd)) => {
-                (Type::Prop(*fst.clone()), Type::Prop(*snd.clone()))
-            }
-            Type::Prop(Prop::Exists {
-                ref object_type_ident,
-                ref body,
-                ..
-            }) => (
-                Type::Datatype(object_type_ident.clone()),
-                Type::Prop(*body.clone()),
+        let (fst_type, snd_type, rule, conclusion) = match self.expected_type {
+            // And
+            Type::Prop(ref prop @ Prop::And(ref fst, ref snd)) => (
+                Type::Prop(*fst.clone()),
+                Type::Prop(*snd.clone()),
+                ProofTreeRule::AndIntro,
+                ProofTreeConclusion::PropIsTrue(prop.clone()),
             ),
+
+            // Exists
+            Type::Prop(
+                ref prop @ Prop::Exists {
+                    ref object_ident,
+                    ref object_type_ident,
+                    ref body,
+                },
+            ) => {
+                // instantiate body with parameter name of function to account for \alpha-Equivalence
+                let substitution = match fst_term {
+                    ProofTerm::Ident(ident) => ident.clone(),
+                    _ => unreachable!(),
+                };
+
+                let mut substitued_body = *body.clone();
+                substitued_body.substitue_free_parameter(&object_ident, &substitution);
+
+                (
+                    Type::Datatype(object_type_ident.clone()),
+                    Type::Prop(substitued_body),
+                    ProofTreeRule::ExistsIntro,
+                    ProofTreeConclusion::PropIsTrue(prop.clone()),
+                )
+            }
             _ => {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
@@ -128,19 +140,9 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             }
         };
 
-        let fst_proof_tree = check_comapre_free_parameters_structurally(fst_term, &fst, self.ctx.clone())?;
-        let snd_proof_tree = check_comapre_free_parameters_structurally(snd_term, &snd, self.ctx.clone())?;
-
-        let rule = if fst.is_datatype() {
-            ProofTreeRule::ExistsIntro
-        } else {
-            ProofTreeRule::AndIntro
-        };
-
-        let conclusion = match self.expected_type {
-            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            Type::Datatype(_) => unreachable!(),
-        };
+        // check pair components
+        let fst_proof_tree = check_allowing_free_params(fst_term, &fst_type, &self.ctx)?;
+        let snd_proof_tree = check_allowing_free_params(snd_term, &snd_type, &self.ctx)?;
 
         Ok(ProofTree {
             premisses: vec![fst_proof_tree, snd_proof_tree],
@@ -150,10 +152,13 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
     }
 
     fn visit_project_fst(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
-        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
+        let (body_type, body_proof_tree) = synthesize(body, &self.ctx)?;
 
-        let fst = match body_type {
-            Type::Prop(Prop::And(ref fst, _)) => Type::Prop(*fst.clone()),
+        let (fst, conclusion) = match body_type {
+            Type::Prop(Prop::And(ref fst, _)) => (
+                Type::Prop(*fst.clone()),
+                ProofTreeConclusion::PropIsTrue(*fst.clone()),
+            ),
             _ => {
                 return Err(CheckError::UnexpectedPropKind {
                     expected: vec![PropKind::And],
@@ -162,12 +167,7 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             }
         };
 
-        if Type::alpha_eq_compare_free_occurences_by_structure(&self.expected_type, &fst) {
-            let conclusion = match self.expected_type {
-                Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                _ => unreachable!(),
-            };
-
+        if Type::alpha_eq(&self.expected_type, &fst) {
             Ok(ProofTree {
                 premisses: vec![body_proof_tree],
                 rule: ProofTreeRule::AndElimFst,
@@ -182,10 +182,13 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
     }
 
     fn visit_project_snd(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
-        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
+        let (body_type, body_proof_tree) = synthesize(body, &self.ctx)?;
 
-        let snd = match body_type {
-            Type::Prop(Prop::And(_, snd)) => Type::Prop(*snd.clone()),
+        let (snd, conclusion) = match body_type {
+            Type::Prop(Prop::And(_, ref snd)) => (
+                Type::Prop(*snd.clone()),
+                ProofTreeConclusion::PropIsTrue(*snd.clone()),
+            ),
             _ => {
                 return Err(CheckError::UnexpectedPropKind {
                     expected: vec![PropKind::And],
@@ -194,12 +197,7 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             }
         };
 
-        if Type::alpha_eq_compare_free_occurences_by_structure(&self.expected_type, &snd) {
-            let conclusion = match self.expected_type {
-                Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                _ => unreachable!(),
-            };
-
+        if Type::alpha_eq(&self.expected_type, &snd) {
             Ok(ProofTree {
                 premisses: vec![body_proof_tree],
                 rule: ProofTreeRule::AndElimSnd,
@@ -219,18 +217,34 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
         param_type: &Option<Type>,
         body: &ProofTerm,
     ) -> Result<ProofTree, CheckError> {
-        let (assumption, body_goal) = match self.expected_type {
-            Type::Prop(Prop::Impl(ref fst, ref snd)) => {
-                (Type::Prop(*fst.clone()), Type::Prop(*snd.clone()))
-            }
-            Type::Prop(Prop::ForAll {
-                ref object_type_ident,
-                ref body,
-                ..
-            }) => (
-                Type::Datatype(object_type_ident.clone()),
-                Type::Prop(*body.clone()),
+        let (expected_param_type, expected_body_prop, rule, conclusion) = match self.expected_type {
+            // Function
+            Type::Prop(ref prop @ Prop::Impl(ref fst, ref snd)) => (
+                Type::Prop(*fst.clone()),
+                *snd.clone(),
+                ProofTreeRule::ImplIntro(param_ident.clone()),
+                ProofTreeConclusion::PropIsTrue(prop.clone()),
             ),
+
+            // Allquant
+            Type::Prop(
+                ref prop @ Prop::ForAll {
+                    ref object_ident,
+                    ref object_type_ident,
+                    ref body,
+                },
+            ) => {
+                // instantiate body with parameter name of function to account for \alpha-Equivalence
+                let mut expected_body_prop = *body.clone();
+                expected_body_prop.substitue_free_parameter(object_ident, param_ident);
+
+                (
+                    Type::Datatype(object_type_ident.clone()),
+                    expected_body_prop,
+                    ProofTreeRule::ForAllIntro(param_ident.clone()),
+                    ProofTreeConclusion::PropIsTrue(prop.clone()),
+                )
+            }
             _ => {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
@@ -245,10 +259,7 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
 
         // fail if type annotation is not expected type
         if let Some(unboxed_param_type) = param_type {
-            if !Type::alpha_eq_compare_free_occurences_by_structure(unboxed_param_type, &assumption)
-            {
-                println!("{:#?}", unboxed_param_type);
-                println!("{:#?}", assumption);
+            if !Type::alpha_eq(unboxed_param_type, &expected_param_type) {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
                     proof_term: ProofTerm::Function {
@@ -260,20 +271,11 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             }
         }
 
+        // check body of function
         let mut body_ctx = self.ctx.clone();
-        body_ctx.insert(param_ident.clone(), assumption.clone());
-        let body_proof_tree = check_comapre_free_parameters_structurally(body, &body_goal, body_ctx)?;
-
-        let rule = if assumption.is_datatype() {
-            ProofTreeRule::ForAllIntro(param_ident.clone())
-        } else {
-            ProofTreeRule::ImplIntro(param_ident.clone())
-        };
-
-        let conclusion = match self.expected_type {
-            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            _ => unreachable!(),
-        };
+        body_ctx.insert(param_ident.clone(), expected_param_type.clone());
+        let body_proof_tree =
+            check_allowing_free_params(body, &Type::Prop(expected_body_prop), &body_ctx)?;
 
         Ok(ProofTree {
             premisses: vec![body_proof_tree],
@@ -293,14 +295,11 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
                 function: function.boxed(),
                 applicant: applicant.boxed(),
             },
-            self.ctx.clone(),
+            &self.ctx,
         );
 
         if let Ok((_type, proof_tree)) = function_type_synthesis {
-            return if Type::alpha_eq_compare_free_occurences_by_structure(
-                &_type,
-                &self.expected_type,
-            ) {
+            return if Type::alpha_eq(&_type, &self.expected_type) {
                 Ok(proof_tree)
             } else {
                 Err(CheckError::UnexpectedType {
@@ -310,31 +309,50 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             };
         }
 
-        // try to synthesize applicant
-        let (applicant_type, applicant_proof_tree) = synthesize(applicant, self.ctx.clone())?;
+        // function cannot be synthesized
+        // try to synthesize applicant instead
+        let (applicant_type, applicant_proof_tree) = synthesize(applicant, &self.ctx)?;
 
-        let required_function_type = match applicant_type {
-            Type::Prop(applicant_prop) => Type::Prop(Prop::Impl(
-                applicant_prop.boxed(),
-                match self.expected_type {
-                    Type::Prop(ref prop) => prop.boxed(),
-                    Type::Datatype(_) => return Err(CheckError::CannotReturnDatatype),
-                },
-            )), // Function
-            Type::Datatype(_) => return Err(CheckError::TypeAnnotationsNeeded(function.clone())), // Allquant
+        // determine required function body type
+        let (required_function_body_type, conclusion) = match self.expected_type {
+            Type::Prop(ref prop) => (prop.boxed(), ProofTreeConclusion::PropIsTrue(prop.clone())),
+            _ => return Err(CheckError::CannotReturnDatatype),
         };
 
-        let function_proof_tree = check_comapre_free_parameters_structurally(function, &required_function_type, self.ctx.clone())?;
+        // determine required function type
+        let (required_function_type, rule) = match applicant_type {
+            // Function
+            Type::Prop(applicant_prop) => (
+                Type::Prop(Prop::Impl(
+                    applicant_prop.boxed(),
+                    required_function_body_type.boxed(),
+                )),
+                ProofTreeRule::ImplElim,
+            ),
 
-        let rule = match required_function_type {
-            Type::Prop(Prop::Impl(_, _)) => ProofTreeRule::ImplElim,
-            _ => unreachable!(),
+            // Allquant
+            Type::Datatype(object_type_ident) => {
+                let object_ident = match applicant {
+                    ProofTerm::Ident(ident) => ident.clone(),
+                    _ => unreachable!(
+                        "Datatype instances are only introduced through identifiers of quantors."
+                    ),
+                };
+
+                (
+                    Type::Prop(Prop::ForAll {
+                        object_ident,
+                        object_type_ident,
+                        body: required_function_body_type,
+                    }),
+                    ProofTreeRule::ForAllElim,
+                )
+            }
         };
 
-        let conclusion = match self.expected_type {
-            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            _ => unreachable!(),
-        };
+        // check if function has determined type
+        let function_proof_tree =
+            check_allowing_free_params(function, &required_function_type, &self.ctx)?;
 
         Ok(ProofTree {
             premisses: vec![function_proof_tree, applicant_proof_tree],
@@ -350,8 +368,7 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
         pair_proof_term: &ProofTerm,
         body: &ProofTerm,
     ) -> Result<ProofTree, CheckError> {
-        let (pair_proof_term_type, pair_proof_term_tree) =
-            synthesize(pair_proof_term, self.ctx.clone())?;
+        let (pair_proof_term_type, pair_proof_term_tree) = synthesize(pair_proof_term, &self.ctx)?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -359,40 +376,28 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             body: mut exists_body,
         }) = pair_proof_term_type
         {
+            // instantiate proof with given name for witness
             exists_body.substitue_free_parameter(&object_ident, &fst_ident);
 
+            // check body
             let mut body_ctx = self.ctx.clone();
             body_ctx.insert(fst_ident.clone(), Type::Datatype(object_type_ident));
             body_ctx.insert(snd_ident.clone(), Type::Prop(*exists_body));
-            let body_proof_tree = check_comapre_free_parameters_structurally(body, &self.expected_type, body_ctx)?;
+            let body_proof_tree = check_allowing_free_params(body, &self.expected_type, &body_ctx)?;
 
             if let Type::Prop(prop) = &self.expected_type {
-
                 // check that quantified object does not escape it's scope
                 if prop.get_free_parameters().contains(&fst_ident) {
                     return Err(CheckError::QuantifiedObjectEscapesScope);
                 }
 
-                let conclusion = match self.expected_type {
-                    Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                    _ => unreachable!(),
-                };
-
                 Ok(ProofTree {
                     premisses: vec![pair_proof_term_tree, body_proof_tree],
                     rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
-                    conclusion,
+                    conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
                 })
             } else {
-                return Err(CheckError::IncompatibleProofTerm {
-                    expected_type: self.expected_type.clone(),
-                    proof_term: ProofTerm::LetIn {
-                        fst_ident: fst_ident.clone(),
-                        snd_ident: snd_ident.clone(),
-                        pair_proof_term: pair_proof_term.boxed(),
-                        body: body.boxed(),
-                    },
-                });
+                return Err(CheckError::CannotReturnDatatype);
             }
         } else {
             Err(CheckError::UnexpectedProofTermKind {
@@ -403,8 +408,11 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
     }
 
     fn visit_or_left(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
-        let expected = match self.expected_type {
-            Type::Prop(Prop::Or(ref fst, _)) => Type::Prop(*fst.clone()),
+        let (expected, conclusion) = match self.expected_type {
+            Type::Prop(ref prop @ Prop::Or(ref fst, _)) => (
+                Type::Prop(*fst.clone()),
+                ProofTreeConclusion::PropIsTrue(prop.clone()),
+            ),
             _ => {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
@@ -413,12 +421,7 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             }
         };
 
-        let body_proof_tree = check_comapre_free_parameters_structurally(body, &expected, self.ctx.clone())?;
-
-        let conclusion = match self.expected_type {
-            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            _ => unreachable!(),
-        };
+        let body_proof_tree = check_allowing_free_params(body, &expected, &self.ctx)?;
 
         Ok(ProofTree {
             premisses: vec![body_proof_tree],
@@ -428,8 +431,11 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
     }
 
     fn visit_or_right(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
-        let expected = match self.expected_type {
-            Type::Prop(Prop::Or(_, ref snd)) => Type::Prop(*snd.clone()),
+        let (expected_body_type, conclusion) = match self.expected_type {
+            Type::Prop(ref prop @ Prop::Or(_, ref snd)) => (
+                Type::Prop(*snd.clone()),
+                ProofTreeConclusion::PropIsTrue(prop.clone()),
+            ),
             _ => {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
@@ -438,12 +444,7 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             }
         };
 
-        let body_proof_tree = check_comapre_free_parameters_structurally(body, &expected, self.ctx.clone())?;
-
-        let conclusion = match self.expected_type {
-            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            _ => unreachable!(),
-        };
+        let body_proof_tree = check_allowing_free_params(body, &expected_body_type, &self.ctx)?;
 
         Ok(ProofTree {
             premisses: vec![body_proof_tree],
@@ -460,7 +461,7 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
         right_ident: &String,
         right_term: &ProofTerm,
     ) -> Result<ProofTree, CheckError> {
-        let (proof_term_type, proof_term_tree) = synthesize(proof_term, self.ctx.clone())?;
+        let (proof_term_type, proof_term_tree) = synthesize(proof_term, &self.ctx)?;
 
         let (fst, snd) = match proof_term_type {
             Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
@@ -472,13 +473,15 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
             }
         };
 
+        // check fst case arm
         let mut fst_ctx = self.ctx.clone();
-        fst_ctx.insert(left_ident.clone(), Type::Prop(*fst.clone()));
-        let fst_proof_tree = check_comapre_free_parameters_structurally(left_term, &self.expected_type, fst_ctx)?;
+        fst_ctx.insert(left_ident.clone(), Type::Prop(*fst));
+        let fst_proof_tree = check_allowing_free_params(left_term, &self.expected_type, &fst_ctx)?;
 
+        // check snd case arm
         let mut snd_ctx = self.ctx.clone();
-        snd_ctx.insert(right_ident.clone(), Type::Prop(*snd.clone()));
-        let snd_proof_tree = check_comapre_free_parameters_structurally(right_term, &self.expected_type, snd_ctx)?;
+        snd_ctx.insert(right_ident.clone(), Type::Prop(*snd));
+        let snd_proof_tree = check_allowing_free_params(right_term, &self.expected_type, &snd_ctx)?;
 
         let conclusion = match self.expected_type {
             Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
@@ -493,7 +496,8 @@ impl ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor {
     }
 
     fn visit_abort(&mut self, body: &ProofTerm) -> Result<ProofTree, CheckError> {
-        let body_proof_tree = check_comapre_free_parameters_structurally(body, &Type::Prop(Prop::False), self.ctx.clone())?;
+        let body_proof_tree =
+            check_allowing_free_params(body, &Type::Prop(Prop::False), &self.ctx)?;
 
         let conclusion = match self.expected_type {
             Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
