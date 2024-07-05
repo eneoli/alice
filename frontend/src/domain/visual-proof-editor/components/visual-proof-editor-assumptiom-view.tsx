@@ -13,20 +13,17 @@ export function VisualProofEditorAssumptionView(props: VisualProofEditorAssumpti
     const { assumptions, onAssumptionClick } = props;
 
     return (
-        <div>
-            <span>Assumptions: </span>
-            <ul className={cssAssumptionList}>
-                {
-                    assumptions.map((assumption, i) => (
-                        <li key={i} className={cssAssumptionListElement}>
-                            <Button onClick={() => onAssumptionClick(assumption)}>
-                                {displayAssumption(assumption)}
-                            </Button>
-                        </li>
-                    ))
-                }
-            </ul>
-        </div>
+        <ul className={cssAssumptionList}>
+            {
+                assumptions.map((assumption, i) => (
+                    <li key={i} className={cssAssumptionListElement}>
+                        <Button onClick={() => onAssumptionClick(assumption)}>
+                            {displayAssumption(assumption)}
+                        </Button>
+                    </li>
+                ))
+            }
+        </ul>
     );
 }
 
@@ -41,6 +38,8 @@ const cssAssumptionList = css`
     display: inline-block;
     list-decoration: none;
     padding: none;
+    position: relative;
+    z-index: 1000;
 `;
 
 const cssAssumptionListElement = css`
