@@ -26,5 +26,4 @@ export function handleImplIntroRule(proofTree: VisualProofEditorProofTree): Proo
             ident: generateIdentifier(),
         }],
     };
-
 }
