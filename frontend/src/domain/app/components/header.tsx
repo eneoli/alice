@@ -3,10 +3,11 @@ import React, { ChangeEvent, useRef, useState } from 'react';
 import { Button, Input, Label, SearchField } from 'react-aria-components';
 
 interface HeaderProps {
+    onPropChange: (prop: string) => void;
     onVerify: (prop: string) => void;
 }
 
-export function Header({ onVerify }: HeaderProps) {
+export function Header({ onPropChange, onVerify }: HeaderProps) {
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -44,6 +45,8 @@ export function Header({ onVerify }: HeaderProps) {
         replaceSymbol('=>', '→');
 
         setProp(value);
+        onPropChange(value);
+
         setImmediate(() => inputRef.current?.setSelectionRange(currentPos, currentPos));
     }
 
