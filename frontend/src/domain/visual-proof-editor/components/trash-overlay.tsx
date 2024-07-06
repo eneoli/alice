@@ -44,4 +44,5 @@ const cssTrashIcon = css`
 const cssText = css`
     color: grey;
     text-align: center;
+    user-select: none;
 `;
