@@ -9,6 +9,6 @@ export function printProp(prop: Prop): string {
         case 'ForAll': return `∀${prop.value.object_ident}:${prop.value.object_type_ident}. ` + printProp(prop.value.body);
         case 'Exists': return `∃${prop.value.object_ident}:${prop.value.object_type_ident}. ` + printProp(prop.value.body);
         case 'True': return '⊤';
-        case 'False': return 'False';
+        case 'False': return '⊥';
     }
 }
