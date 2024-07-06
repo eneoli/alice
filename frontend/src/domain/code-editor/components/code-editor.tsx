@@ -3,13 +3,12 @@ import { Editor, Monaco } from '@monaco-editor/react';
 import { useState } from 'react';
 
 interface CodeEditorProps {
+    height: string;
     onChange: (value: string) => void;
 }
 
 
 function handleEditorWillMount(monaco: Monaco) {
-    // here is the monaco instance
-    // do something before editor is mounted
     monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
     const keywords = ['fn', 'case', 'of', 'let', 'in', 'datatype', 'inl', 'inr', 'fst', 'snd'];
@@ -118,7 +117,7 @@ function handleEditorWillMount(monaco: Monaco) {
     });
 }
 
-export function CodeEditor({ onChange }: CodeEditorProps) {
+export function CodeEditor({ onChange, height }: CodeEditorProps) {
 
     const [value, setValue] = useState('// Write your proof here!\n\n');
 
@@ -128,7 +127,7 @@ export function CodeEditor({ onChange }: CodeEditorProps) {
     };
 
     return (
-        <Editor height="50vh"
+        <Editor height={height}
             beforeMount={handleEditorWillMount}
             onChange={onValueChange}
             value={value}
