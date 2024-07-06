@@ -11,20 +11,18 @@ export function App() {
     const [_prop, setProp] = useState('');
 
     return (
-        <>
-            <ConfigProvider theme={theme}>
-                <Header onPropChange={() => setAnalyzedProofTerm('')} onVerify={(prop) => {
-                    setProp(prop);
-                    setAnalyzedProofTerm(proofTerm);
-                }} />
+        <ConfigProvider theme={theme}>
+            <Header onPropChange={() => setAnalyzedProofTerm('')} onVerify={(prop) => {
+                setProp(prop);
+                setAnalyzedProofTerm(proofTerm);
+            }} />
 
-                <VisualProofEditor />
+            <VisualProofEditor />
 
-                <div style={{ marginTop: 20 }}>
-                    <CodeEditor onChange={setProofTerm} />
-                </div>
-            </ConfigProvider>
-        </>
+            <div style={{ marginTop: 20 }}>
+                <CodeEditor onChange={setProofTerm} />
+            </div>
+        </ConfigProvider>
     );
 }
 
