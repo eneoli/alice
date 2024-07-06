@@ -35,9 +35,12 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simple<c
         "of" => Token::OF,
         "let" => Token::LET,
         "in" => Token::IN,
+        "atom" => Token::ATOM,
         "datatype" => Token::DATATYPE,
         _ => Token::IDENT(s),
     });
+
+    let num = text::int(10).map(|s: String| Token::NUM(s.parse().unwrap()));
 
     let and = choice((just("&&"), just("&"), just("^"), just("∧")))
         .map(|_| Token::AND)
@@ -104,6 +107,7 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simple<c
         truth,
         falsum,
         ident,
+        num,
         and,
         or,
         arrow,
