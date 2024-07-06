@@ -37,13 +37,14 @@ const cssLineContainer = css`
     display: flex;
     align-items: center;
     gap: 2px;
+    user-select: none;
 `;
 
 const cssLine = css`
     width: 100%;
     color: #002D62;
     background-color: #002D62;
-    height: 1px;
+    height: 3px;
     margin: 0;
     border: 0;
 `;
