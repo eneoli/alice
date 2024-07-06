@@ -73,11 +73,15 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
     };
 
     return (
-        <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+        <div ref={setNodeRef} className={cssProofTreeContainer} style={style} {...listeners} {...attributes}>
             {renderTree(proofTree, true)}
         </div>
     );
 }
+
+const cssProofTreeContainer = css`
+    cursor: grab;
+`;
 
 interface ConclusionProps {
     contextId: string;
@@ -100,17 +104,17 @@ function Conclusion(props: ConclusionProps) {
 
     return (
         <div className={cx({
-            [cssProofTreeContainer]: true,
-            [cssSelectableProofContainer]: isSelectable,
-            [cssSelectedProofContainer]: isSelected,
-            [cssDraggedOverProofContainer]: isOver,
+            [cssProofTreeConclusionContainer]: true,
+            [cssSelectableProofTreeConclusionContainer]: isSelectable,
+            [cssSelectedProofTreeConclusionContainer]: isSelected,
+            [cssDraggedOverProofTreeConclusionContainer]: isOver,
         })} ref={setNodeRef}>
             {printProp(conclusion)}
         </div>
     );
 }
 
-const cssProofTreeContainer = css`
+const cssProofTreeConclusionContainer = css`
     cursor: grab;
     user-selection: none;
     border: 3px solid;
@@ -123,14 +127,14 @@ const cssProofTreeContainer = css`
     }
 `;
 
-const cssSelectableProofContainer = css`
+const cssSelectableProofTreeConclusionContainer = css`
     cursor: pointer;
 `;
 
-const cssSelectedProofContainer = css`
+const cssSelectedProofTreeConclusionContainer = css`
     border-color: green;
 `;
 
-const cssDraggedOverProofContainer = css`
+const cssDraggedOverProofTreeConclusionContainer = css`
     background-color: #ACE1AF;
 `;
