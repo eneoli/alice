@@ -1,6 +1,6 @@
 use std::fmt::{self, Debug};
 
-use super::proof_term::Type;
+use super::{checker::identifier::Identifier, proof_term::Type};
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 
@@ -15,15 +15,45 @@ pub enum PropKind {
     ForAll,
     Exists,
     True,
-    Fakse,
+    False,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
+pub enum PropParameter {
+    Uninstantiated(String),
+    Instantiated(Identifier),
+}
+
+impl PropParameter {
+    pub fn name(&self) -> &String {
+        match self {
+            Self::Uninstantiated(ident) => ident,
+            Self::Instantiated(ident) => ident.name(),
+        }
+    }
+
+    pub fn unique_id(&self) -> Option<usize> {
+        match self {
+            Self::Uninstantiated(_) => None,
+            Self::Instantiated(ident) => Some(ident.unique_id()),
+        }
+    }
+
+    pub fn is_uninstantiated(&self) -> bool {
+        match self {
+            Self::Uninstantiated(_) => true,
+            Self::Instantiated(_) => false,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(tag = "kind", content = "value")]
 pub enum Prop {
-    Any,
-    Atom(String, Vec<String>),
+    Atom(String, Vec<PropParameter>),
     And(Box<Prop>, Box<Prop>),
     Or(Box<Prop>, Box<Prop>),
     Impl(Box<Prop>, Box<Prop>),
@@ -52,35 +82,31 @@ impl Prop {
         self.get_free_parameters().len() > 0
     }
 
-    pub fn get_free_parameters(&self) -> Vec<String> {
-        fn _get_free_parameters(prop: &Prop, binded_idents: &mut Vec<String>) -> Vec<String> {
+    pub fn get_free_parameters(&self) -> Vec<PropParameter> {
+        fn _get_free_parameters(
+            prop: &Prop,
+            binded_idents: &mut Vec<String>,
+        ) -> Vec<PropParameter> {
             match prop {
                 Prop::True => vec![],
                 Prop::False => vec![],
-                Prop::Any => vec![],
                 Prop::And(fst, snd) => {
-                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+                    let fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let snd_idents = _get_free_parameters(snd, binded_idents);
 
-                    fst_idents.append(&mut snd_idents);
-
-                    fst_idents
+                    [fst_idents, snd_idents].concat()
                 }
                 Prop::Or(fst, snd) => {
-                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+                    let fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let snd_idents = _get_free_parameters(snd, binded_idents);
 
-                    fst_idents.append(&mut snd_idents);
-
-                    fst_idents
+                    [fst_idents, snd_idents].concat()
                 }
                 Prop::Impl(fst, snd) => {
-                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+                    let fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let snd_idents = _get_free_parameters(snd, binded_idents);
 
-                    fst_idents.append(&mut snd_idents);
-
-                    fst_idents
+                    [fst_idents, snd_idents].concat()
                 }
                 Prop::Exists {
                     object_ident, body, ..
@@ -98,7 +124,64 @@ impl Prop {
                 }
                 Prop::Atom(_, params) => {
                     let mut free_params = params.clone();
-                    free_params.retain(|param| !binded_idents.contains(param));
+                    free_params.retain(|param| !binded_idents.contains(param.name()));
+
+                    free_params
+                }
+            }
+        }
+
+        let mut binded_idents = Vec::new();
+
+        _get_free_parameters(self, &mut binded_idents)
+    }
+
+    pub fn get_free_parameters_mut<'a>(&'a mut self) -> Vec<&'a mut PropParameter> {
+        fn _get_free_parameters<'a>(
+            prop: &'a mut Prop,
+            binded_idents: &mut Vec<String>,
+        ) -> Vec<&'a mut PropParameter> {
+            match prop {
+                Prop::True => vec![],
+                Prop::False => vec![],
+                Prop::And(fst, snd) => {
+                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+
+                    fst_idents.append(&mut snd_idents);
+                    fst_idents
+                }
+                Prop::Or(fst, snd) => {
+                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+
+                    fst_idents.append(&mut snd_idents);
+                    fst_idents
+                }
+                Prop::Impl(fst, snd) => {
+                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+
+                    fst_idents.append(&mut snd_idents);
+                    fst_idents
+                }
+                Prop::Exists {
+                    object_ident, body, ..
+                } => {
+                    binded_idents.push(object_ident.to_string());
+
+                    _get_free_parameters(body, binded_idents)
+                }
+                Prop::ForAll {
+                    object_ident, body, ..
+                } => {
+                    binded_idents.push(object_ident.to_string());
+
+                    _get_free_parameters(body, binded_idents)
+                }
+                Prop::Atom(_, ref mut params) => {
+                    let mut free_params = params.iter_mut().collect::<Vec<&'a mut PropParameter>>();
+                    free_params.retain(|param| !binded_idents.contains(param.name()));
 
                     free_params
                 }
@@ -111,37 +194,31 @@ impl Prop {
     }
 
     // This can only replace with single identifiers, but that should be ok at the current state of the type checker.
-    // Substituent: The identifier that gets replaced.
+    // Substituent: The identifier that gets replaced. (Uninstantiated)
     // Substitutor: The identifier that will be replaced with.
-    pub fn substitue_free_parameter(&mut self, substituent: &String, substitutor: &String) {
+    pub fn instantiate_free_parameter(&mut self, substituent: &String, substitutor: &Identifier) {
         match self {
             Prop::True => (),
             Prop::False => (),
-            Prop::Any => (),
             Prop::And(ref mut fst, ref mut snd) => {
-                Prop::substitue_free_parameter(fst, substituent, substitutor);
-                Prop::substitue_free_parameter(snd, substituent, substitutor);
+                Prop::instantiate_free_parameter(fst, substituent, substitutor);
+                Prop::instantiate_free_parameter(snd, substituent, substitutor);
             }
             Prop::Or(ref mut fst, ref mut snd) => {
-                Prop::substitue_free_parameter(fst, substituent, substitutor);
-                Prop::substitue_free_parameter(snd, substituent, substitutor);
+                Prop::instantiate_free_parameter(fst, substituent, substitutor);
+                Prop::instantiate_free_parameter(snd, substituent, substitutor);
             }
             Prop::Impl(ref mut fst, ref mut snd) => {
-                Prop::substitue_free_parameter(fst, substituent, substitutor);
-                Prop::substitue_free_parameter(snd, substituent, substitutor);
+                Prop::instantiate_free_parameter(fst, substituent, substitutor);
+                Prop::instantiate_free_parameter(snd, substituent, substitutor);
             }
-            Prop::Atom(_, params) => params.iter_mut().for_each(|param| {
-                if *param == *substituent {
-                    *param = substitutor.clone()
-                }
-            }),
             Prop::Exists {
                 object_ident,
                 ref mut body,
                 ..
             } => {
                 if object_ident != substituent {
-                    Prop::substitue_free_parameter(body, substituent, substitutor);
+                    Prop::instantiate_free_parameter(body, substituent, substitutor);
                 }
             }
             Prop::ForAll {
@@ -150,44 +227,35 @@ impl Prop {
                 ..
             } => {
                 if object_ident != substituent {
-                    Prop::substitue_free_parameter(body, substituent, substitutor);
+                    Prop::instantiate_free_parameter(body, substituent, substitutor);
                 }
             }
+            Prop::Atom(_, params) => params.iter_mut().for_each(|param| {
+                if param.is_uninstantiated() && *param.name() == *substituent {
+                    *param = PropParameter::Instantiated(substitutor.clone())
+                }
+            }),
         }
     }
 
     pub fn alpha_eq(&self, other: &Prop) -> bool {
         let env = vec![];
 
-        Self::_alpha_eq(self, other, false, env)
+        Self::_alpha_eq(self, other, env)
     }
 
-    pub fn alpha_eq_compare_free_occurences_by_structure(&self, other: &Prop) -> bool {
-        let env = vec![];
-
-        Self::_alpha_eq(self, other, true, env)
-    }
-
-    fn _alpha_eq<'a>(
-        fst: &'a Prop,
-        snd: &'a Prop,
-        compare_free_occurences_by_structure: bool,
-        mut env: Vec<(&'a String, &'a String)>,
-    ) -> bool {
+    fn _alpha_eq<'a>(fst: &'a Prop, snd: &'a Prop, mut env: Vec<(&'a String, &'a String)>) -> bool {
         match (fst, snd) {
             (Prop::True, Prop::True) => true,
             (Prop::False, Prop::False) => true,
             (Prop::And(l1, l2), Prop::And(r1, r2)) => {
-                Self::_alpha_eq(l1, r1, compare_free_occurences_by_structure, env.clone())
-                    && Self::_alpha_eq(l2, r2, compare_free_occurences_by_structure, env)
+                Self::_alpha_eq(l1, r1, env.clone()) && Self::_alpha_eq(l2, r2, env)
             }
             (Prop::Or(l1, l2), Prop::Or(r1, r2)) => {
-                Self::_alpha_eq(l1, r1, compare_free_occurences_by_structure, env.clone())
-                    && Self::_alpha_eq(l2, r2, compare_free_occurences_by_structure, env)
+                Self::_alpha_eq(l1, r1, env.clone()) && Self::_alpha_eq(l2, r2, env)
             }
             (Prop::Impl(l1, l2), Prop::Impl(r1, r2)) => {
-                Self::_alpha_eq(l1, r1, compare_free_occurences_by_structure, env.clone())
-                    && Self::_alpha_eq(l2, r2, compare_free_occurences_by_structure, env)
+                Self::_alpha_eq(l1, r1, env.clone()) && Self::_alpha_eq(l2, r2, env)
             }
             (
                 Prop::Exists {
@@ -203,8 +271,7 @@ impl Prop {
             ) => {
                 env.push((l_object_ident, r_object_ident));
 
-                l_object_type_ident == r_object_type_ident
-                    && Self::_alpha_eq(l_body, r_body, compare_free_occurences_by_structure, env)
+                l_object_type_ident == r_object_type_ident && Self::_alpha_eq(l_body, r_body, env)
             }
 
             (
@@ -221,49 +288,42 @@ impl Prop {
             ) => {
                 env.push((l_object_ident, r_object_ident));
 
-                l_object_type_ident == r_object_type_ident
-                    && Self::_alpha_eq(l_body, r_body, compare_free_occurences_by_structure, env)
+                l_object_type_ident == r_object_type_ident && Self::_alpha_eq(l_body, r_body, env)
             }
-            (Prop::Atom(l_ident, l_params), Prop::Atom(r_ident, r_params)) => {
+            (left @ Prop::Atom(l_ident, l_params), right @ Prop::Atom(r_ident, r_params)) => {
                 if l_ident != r_ident {
                     return false;
                 }
 
+                // sanity check
                 if l_params.len() != r_params.len() {
-                    return false;
+                    panic!(
+                        "Error: Cannot have the same Atom with different aity: {:#?}, {:#?}",
+                        left, right
+                    );
                 }
 
-                let mut free_occurrences_env = Vec::new();
                 for (l_param, r_param) in Iterator::zip(l_params.iter(), r_params.iter()) {
-                    // search for identifiers
-                    let pair = env
-                        .iter()
-                        .rev()
-                        .find(|(x, y)| *x == l_param || *y == r_param);
-
-                    if let Some((x, y)) = pair {
-                        if *x != l_param || *y != r_param {
-                            return false;
-                        }
-                    } else {
-                        // free occurences and no structural comaprison, check for name equality
-                        if !compare_free_occurences_by_structure && l_param != r_param {
-                            return false;
-                        }
-
-                        // otherwise check if structural identical
-                        let pair = free_occurrences_env
+                    if let (
+                        PropParameter::Uninstantiated(l_param_name),
+                        PropParameter::Uninstantiated(r_param_name),
+                    ) = (l_param, r_param)
+                    {
+                        // search for uninstantiated identifiers
+                        let pair = env
                             .iter()
                             .rev()
-                            .find(|(x, y)| *x == l_param || *y == r_param);
+                            .find(|(x, y)| *x == l_param_name || *y == r_param_name);
 
                         if let Some((x, y)) = pair {
-                            if *x != l_param || *y != r_param {
+                            if *x != l_param_name || *y != r_param_name {
                                 return false;
                             }
                         } else {
-                            free_occurrences_env.push((l_param, r_param));
+                            panic!("Found uninstantiated parameter that is not binded by a quantor. left: {:#?}, right: {:#?}", left, right);
                         }
+                    } else if l_param != r_param {
+                        return false;
                     }
                 }
 
@@ -283,7 +343,6 @@ impl Into<Type> for Prop {
 impl Debug for Prop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Prop::Any => write!(f, "*"),
             Prop::Atom(ident, params) => {
                 if params.len() > 0 {
                     write!(f, "{}({})", format!("{:?}", ident), format!("{:?}", params))
@@ -351,7 +410,11 @@ mod tests {
 
     use chumsky::{Parser, Stream};
 
-    use crate::kernel::parse::{fol::fol_parser, lexer::lexer};
+    use crate::kernel::{
+        checker::identifier::Identifier,
+        parse::{fol::fol_parser, lexer::lexer},
+        prop::PropParameter,
+    };
 
     fn parse_prop(prop: &str) -> Prop {
         let len = prop.chars().count();
@@ -421,8 +484,16 @@ mod tests {
                 object_ident: "y".to_string(),
                 object_type_ident: "t".to_string(),
                 body: Prop::And(
-                    Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-                    Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+                    Prop::Atom(
+                        "A".to_string(),
+                        vec![PropParameter::Uninstantiated("x".to_string())],
+                    )
+                    .boxed(),
+                    Prop::Atom(
+                        "B".to_string(),
+                        vec![PropParameter::Uninstantiated("y".to_string())],
+                    )
+                    .boxed(),
                 )
                 .boxed(),
             }
@@ -436,8 +507,16 @@ mod tests {
                 object_ident: "x".to_string(),
                 object_type_ident: "t".to_string(),
                 body: Prop::And(
-                    Prop::Atom("A".to_string(), vec!["y".to_string()]).boxed(),
-                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+                    Prop::Atom(
+                        "A".to_string(),
+                        vec![PropParameter::Uninstantiated("y".to_string())],
+                    )
+                    .boxed(),
+                    Prop::Atom(
+                        "B".to_string(),
+                        vec![PropParameter::Uninstantiated("x".to_string())],
+                    )
+                    .boxed(),
                 )
                 .boxed(),
             }
@@ -456,8 +535,16 @@ mod tests {
                 object_ident: "y".to_string(),
                 object_type_ident: "t".to_string(),
                 body: Prop::And(
-                    Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+                    Prop::Atom(
+                        "A".to_string(),
+                        vec![PropParameter::Uninstantiated("x".to_string())],
+                    )
+                    .boxed(),
+                    Prop::Atom(
+                        "B".to_string(),
+                        vec![PropParameter::Uninstantiated("x".to_string())],
+                    )
+                    .boxed(),
                 )
                 .boxed(),
             }
@@ -471,8 +558,16 @@ mod tests {
                 object_ident: "x".to_string(),
                 object_type_ident: "t".to_string(),
                 body: Prop::And(
-                    Prop::Atom("A".to_string(), vec!["y".to_string()]).boxed(),
-                    Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+                    Prop::Atom(
+                        "A".to_string(),
+                        vec![PropParameter::Uninstantiated("y".to_string())],
+                    )
+                    .boxed(),
+                    Prop::Atom(
+                        "B".to_string(),
+                        vec![PropParameter::Uninstantiated("x".to_string())],
+                    )
+                    .boxed(),
                 )
                 .boxed(),
             }
@@ -492,53 +587,108 @@ mod tests {
     fn test_free_parameters_some() {
         let free_params = Prop::Atom(
             "A".to_string(),
-            vec!["x".to_string(), "y".to_string(), "z".to_string()],
+            vec![
+                PropParameter::Uninstantiated("x".to_string()),
+                PropParameter::Uninstantiated("y".to_string()),
+                PropParameter::Uninstantiated("z".to_string()),
+            ],
         )
         .get_free_parameters();
 
         assert_eq!(free_params.len(), 3);
-        assert_eq!(free_params.contains(&"x".to_string()), true);
-        assert_eq!(free_params.contains(&"y".to_string()), true);
-        assert_eq!(free_params.contains(&"z".to_string()), true);
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("x".to_string())),
+            true
+        );
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("y".to_string())),
+            true
+        );
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("z".to_string())),
+            true
+        );
     }
 
     #[test]
     fn test_free_parameters_and() {
         let free_params = Prop::And(
-            Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-            Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
+            Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("y".to_string())],
+            )
+            .boxed(),
         )
         .get_free_parameters();
 
         assert_eq!(free_params.len(), 2);
-        assert_eq!(free_params.contains(&"x".to_string()), true);
-        assert_eq!(free_params.contains(&"y".to_string()), true);
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("x".to_string())),
+            true
+        );
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("y".to_string())),
+            true
+        );
     }
 
     #[test]
     fn test_free_parameters_or() {
         let free_params = Prop::Or(
-            Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-            Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
+            Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("y".to_string())],
+            )
+            .boxed(),
         )
         .get_free_parameters();
 
         assert_eq!(free_params.len(), 2);
-        assert_eq!(free_params.contains(&"x".to_string()), true);
-        assert_eq!(free_params.contains(&"y".to_string()), true);
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("x".to_string())),
+            true
+        );
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("y".to_string())),
+            true
+        );
     }
 
     #[test]
     fn test_free_parameters_impl() {
         let free_params = Prop::Impl(
-            Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-            Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
+            Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("y".to_string())],
+            )
+            .boxed(),
         )
         .get_free_parameters();
 
         assert_eq!(free_params.len(), 2);
-        assert_eq!(free_params.contains(&"x".to_string()), true);
-        assert_eq!(free_params.contains(&"y".to_string()), true);
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("x".to_string())),
+            true
+        );
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("y".to_string())),
+            true
+        );
     }
 
     #[test]
@@ -546,7 +696,11 @@ mod tests {
         let free_params = Prop::ForAll {
             object_ident: "x".to_string(),
             object_type_ident: "t".to_string(),
-            body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+            body: Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
         }
         .get_free_parameters();
 
@@ -560,15 +714,25 @@ mod tests {
             object_type_ident: "t".to_string(),
             body: Prop::Atom(
                 "A".to_string(),
-                vec!["x".to_string(), "y".to_string(), "z".to_string()],
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("y".to_string()),
+                    PropParameter::Uninstantiated("z".to_string()),
+                ],
             )
             .boxed(),
         }
         .get_free_parameters();
 
         assert_eq!(free_params.len(), 2);
-        assert_eq!(free_params.contains(&"y".to_string()), true);
-        assert_eq!(free_params.contains(&"z".to_string()), true);
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("y".to_string())),
+            true
+        );
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("z".to_string())),
+            true
+        );
     }
 
     #[test]
@@ -576,7 +740,11 @@ mod tests {
         let free_params = Prop::Exists {
             object_ident: "x".to_string(),
             object_type_ident: "t".to_string(),
-            body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+            body: Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
         }
         .get_free_parameters();
 
@@ -590,47 +758,114 @@ mod tests {
             object_type_ident: "t".to_string(),
             body: Prop::Atom(
                 "A".to_string(),
-                vec!["x".to_string(), "y".to_string(), "z".to_string()],
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("y".to_string()),
+                    PropParameter::Uninstantiated("z".to_string()),
+                ],
             )
             .boxed(),
         }
         .get_free_parameters();
 
         assert_eq!(free_params.len(), 2);
-        assert_eq!(free_params.contains(&"y".to_string()), true);
-        assert_eq!(free_params.contains(&"z".to_string()), true);
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("y".to_string())),
+            true
+        );
+        assert_eq!(
+            free_params.contains(&PropParameter::Uninstantiated("z".to_string())),
+            true
+        );
     }
 
     #[test]
     fn test_substitute_none() {
         let mut prop = Prop::Atom("A".to_string(), vec![]);
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(prop, Prop::Atom("A".to_string(), vec![]))
     }
 
     #[test]
     fn test_substitute_some() {
-        let mut prop = Prop::Atom("A".to_string(), vec!["x".to_string()]);
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
+        let mut prop = Prop::Atom(
+            "A".to_string(),
+            vec![PropParameter::Uninstantiated("x".to_string())],
+        );
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
 
-        assert_eq!(prop, Prop::Atom("A".to_string(), vec!["y".to_string()]))
+        assert_eq!(
+            prop,
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Instantiated(Identifier::new(
+                    "y".to_string(),
+                    42
+                ))]
+            )
+        )
+    }
+
+    #[test]
+    fn test_do_not_substitute_instantiated_param() {
+        let mut prop = Prop::Atom(
+            "A".to_string(),
+            vec![PropParameter::Instantiated(Identifier::new(
+                "x".to_string(),
+                1,
+            ))],
+        );
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 2));
+
+        assert_eq!(
+            prop,
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Instantiated(Identifier::new(
+                    "x".to_string(),
+                    1
+                ))]
+            )
+        )
     }
 
     #[test]
     fn test_substitute_and() {
         let mut prop = Prop::And(
-            Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-            Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
+            Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
         );
 
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(
             prop,
             Prop::And(
-                Prop::Atom("A".to_string(), vec!["y".to_string()]).boxed(),
-                Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+                Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "y".to_string(),
+                        42
+                    ))]
+                )
+                .boxed(),
+                Prop::Atom(
+                    "B".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "y".to_string(),
+                        42
+                    ))]
+                )
+                .boxed(),
             )
         )
     }
@@ -638,17 +873,39 @@ mod tests {
     #[test]
     fn test_substitute_or() {
         let mut prop = Prop::Or(
-            Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-            Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
+            Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
         );
 
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(
             prop,
             Prop::Or(
-                Prop::Atom("A".to_string(), vec!["y".to_string()]).boxed(),
-                Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+                Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "y".to_string(),
+                        42
+                    ))]
+                )
+                .boxed(),
+                Prop::Atom(
+                    "B".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "y".to_string(),
+                        42
+                    ))]
+                )
+                .boxed(),
             )
         )
     }
@@ -656,17 +913,39 @@ mod tests {
     #[test]
     fn test_substitute_impl() {
         let mut prop = Prop::Impl(
-            Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
-            Prop::Atom("B".to_string(), vec!["x".to_string()]).boxed(),
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
+            Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
         );
 
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(
             prop,
             Prop::Impl(
-                Prop::Atom("A".to_string(), vec!["y".to_string()]).boxed(),
-                Prop::Atom("B".to_string(), vec!["y".to_string()]).boxed(),
+                Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "y".to_string(),
+                        42
+                    ))]
+                )
+                .boxed(),
+                Prop::Atom(
+                    "B".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "y".to_string(),
+                        42
+                    ))]
+                )
+                .boxed(),
             )
         )
     }
@@ -676,17 +955,25 @@ mod tests {
         let mut prop = Prop::ForAll {
             object_ident: "x".to_string(),
             object_type_ident: "t".to_string(),
-            body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+            body: Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
         };
 
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(
             prop,
             Prop::ForAll {
                 object_ident: "x".to_string(),
                 object_type_ident: "t".to_string(),
-                body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+                body: Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Uninstantiated("x".to_string())]
+                )
+                .boxed(),
             }
         )
     }
@@ -696,18 +983,32 @@ mod tests {
         let mut prop = Prop::ForAll {
             object_ident: "x".to_string(),
             object_type_ident: "t".to_string(),
-            body: Prop::Atom("A".to_string(), vec!["x".to_string(), "z".to_string()]).boxed(),
+            body: Prop::Atom(
+                "A".to_string(),
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("z".to_string()),
+                ],
+            )
+            .boxed(),
         };
 
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
-        prop.substitue_free_parameter(&"z".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
+        prop.instantiate_free_parameter(&"z".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(
             prop,
             Prop::ForAll {
                 object_ident: "x".to_string(),
                 object_type_ident: "t".to_string(),
-                body: Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()]).boxed(),
+                body: Prop::Atom(
+                    "A".to_string(),
+                    vec![
+                        PropParameter::Uninstantiated("x".to_string()),
+                        PropParameter::Instantiated(Identifier::new("y".to_string(), 42))
+                    ]
+                )
+                .boxed(),
             }
         )
     }
@@ -717,17 +1018,25 @@ mod tests {
         let mut prop = Prop::Exists {
             object_ident: "x".to_string(),
             object_type_ident: "t".to_string(),
-            body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+            body: Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )
+            .boxed(),
         };
 
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(
             prop,
             Prop::Exists {
                 object_ident: "x".to_string(),
                 object_type_ident: "t".to_string(),
-                body: Prop::Atom("A".to_string(), vec!["x".to_string()]).boxed(),
+                body: Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Uninstantiated("x".to_string())]
+                )
+                .boxed(),
             }
         )
     }
@@ -737,18 +1046,32 @@ mod tests {
         let mut prop = Prop::Exists {
             object_ident: "x".to_string(),
             object_type_ident: "t".to_string(),
-            body: Prop::Atom("A".to_string(), vec!["x".to_string(), "z".to_string()]).boxed(),
+            body: Prop::Atom(
+                "A".to_string(),
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("z".to_string()),
+                ],
+            )
+            .boxed(),
         };
 
-        prop.substitue_free_parameter(&"x".to_string(), &"y".to_string());
-        prop.substitue_free_parameter(&"z".to_string(), &"y".to_string());
+        prop.instantiate_free_parameter(&"x".to_string(), &Identifier::new("y".to_string(), 42));
+        prop.instantiate_free_parameter(&"z".to_string(), &Identifier::new("y".to_string(), 42));
 
         assert_eq!(
             prop,
             Prop::Exists {
                 object_ident: "x".to_string(),
                 object_type_ident: "t".to_string(),
-                body: Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()]).boxed(),
+                body: Prop::Atom(
+                    "A".to_string(),
+                    vec![
+                        PropParameter::Uninstantiated("x".to_string()),
+                        PropParameter::Instantiated(Identifier::new("y".to_string(), 42))
+                    ]
+                )
+                .boxed(),
             }
         )
     }
@@ -762,57 +1085,11 @@ mod tests {
     fn test_not_alpha_eq_atom_no_params() {
         assert!(!parse_prop("A").alpha_eq(&parse_prop("B")))
     }
-
+    
     #[test]
-    fn test_alpha_eq_atom_params() {
-        assert!(Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("A(x, y, z)")
-        ))
-    }
-
-    #[test]
-    fn test_not_alpha_eq_atom_params() {
-        assert!(!Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("A(x, z, z)")
-        ));
-
-        assert!(!Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("A(x, y)")
-        ));
-
-        assert!(!Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("B(x, y, z)")
-        ))
-    }
-
-    #[test]
-    fn test_alpha_eq_atom_params_structural() {
-        assert!(!Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("A(a, b, c)")
-        ));
-    }
-
-    #[test]
-    fn test_not_alpha_eq_atom_params_structural() {
-        assert!(!Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("A(a, b, b)")
-        ));
-
-        assert!(!Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("A(a, b)")
-        ));
-
-        assert!(!Prop::alpha_eq(
-            &parse_prop("A(x, y, z)"),
-            &parse_prop("B(a, b, c)")
-        ))
+    #[should_panic]
+    fn test_no_free_uninstantiated_params() {
+        Prop::alpha_eq(&parse_prop("A(a)"), &parse_prop("A(a)"));
     }
 
     #[test]
