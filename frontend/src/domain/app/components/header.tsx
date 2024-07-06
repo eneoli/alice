@@ -1,5 +1,5 @@
 import { css } from '@emotion/css';
-import React, { ChangeEvent, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Button, Input, Label, SearchField } from 'react-aria-components';
 
 interface HeaderProps {
@@ -13,8 +13,7 @@ export function Header({ onPropChange, onVerify }: HeaderProps) {
 
     const [prop, setProp] = useState('');
 
-    const onInputChange = (input: ChangeEvent<HTMLInputElement>) => {
-        let value = input.currentTarget.value;
+    const onInputChange = (value: string) => {
         let currentPos = inputRef.current?.selectionStart || 0;
 
         const replaceSymbol = (symbol: string, replacement: string) => {
@@ -58,9 +57,9 @@ export function Header({ onPropChange, onVerify }: HeaderProps) {
             <div className={cssHeaderContainer}>
                 <SearchField style={{ width: 1000 }}>
                     <Label>Proposition</Label>
-                    <Input ref={inputRef} spellCheck={false} width={1000} value={prop} onChange={(v) => onInputChange(v)} />
+                    <Input ref={inputRef} spellCheck={false} width={1000} value={prop} onChange={(v) => onInputChange(v.currentTarget.value)} />
 
-                    <Button onPressEnd={() => setProp('')}>✕</Button>
+                    <Button onPressEnd={() => onInputChange('')}>✕</Button>
                 </SearchField>
 
                 <Button style={{ marginTop: 18, marginLeft: 10 }}
@@ -80,13 +79,11 @@ const cssHeader = css`
 `;
 
 const cssHeaderTitle = css`
-    font-family: Arial;
     color: white;
     text-align: center;
 `;
 
 const cssHeaderSubtitle = css`
-    font-family: Arial;
     color: #dfdfdf;
 `;
 
@@ -96,7 +93,6 @@ const cssHeaderContainer = css`
     justify-content: center;
     width: 100%;
     flex-direction: row;
-    font-family: Arial;
     color: white;
 `;
 
