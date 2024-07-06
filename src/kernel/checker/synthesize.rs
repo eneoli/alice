@@ -1,24 +1,34 @@
-use core::panic;
-
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::kernel::{
-    proof_term::{ProofTerm, ProofTermKind, ProofTermVisitor, Type},
+    proof_term::{
+        Abort, Application, Case, Function, Ident, LetIn, OrLeft, OrRight, Pair, ProjectFst,
+        ProjectSnd, ProofTerm, ProofTermKind, ProofTermVisitor, Type, TypeAscription,
+    },
     proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
-    prop::{Prop, PropKind},
+    prop::{Prop, PropKind, PropParameter},
 };
 
 use super::{
-    check::{CheckError, check_comapre_free_parameters_structurally}, identifier_context::IdentifierContext
+    check::{check_allowing_free_params, CheckError},
+    identifier::IdentifierFactory,
+    identifier_context::IdentifierContext,
 };
 
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(Debug, Error, PartialEq, Eq, Serialize, Deserialize, Clone)]
 pub enum SynthesizeError {
     #[error("Checking type failed")]
     CheckError(#[from] Box<CheckError>),
 
     #[error("Unknown identifier")]
     UnknownIdentifier(String),
+
+    #[error("Cannot refer to Prop with unknown parameter")]
+    UnknownPropParameter { prop: Prop, parameter_ident: String },
+
+    #[error("Type Annotations needed")]
+    TypeAnnotationsNeeded,
 
     #[error("Synthesis yielded unexpected Proposition")]
     UnexpectedPropKind {
@@ -50,77 +60,95 @@ pub enum SynthesizeError {
 
 pub fn synthesize(
     proof_term: &ProofTerm,
-    ctx: IdentifierContext,
+    ctx: &IdentifierContext,
+    identifier_factory: &mut IdentifierFactory,
 ) -> Result<(Type, ProofTree), SynthesizeError> {
-    let mut visitor = SynthesizeVisitor::new(ctx);
+    let mut visitor = SynthesizeVisitor::new(ctx, identifier_factory);
 
     proof_term.visit(&mut visitor)
 }
 
-struct SynthesizeVisitor {
-    ctx: IdentifierContext,
+struct SynthesizeVisitor<'a> {
+    ctx: &'a IdentifierContext,
+    identifier_factory: &'a mut IdentifierFactory,
 }
 
-impl SynthesizeVisitor {
-    pub fn new(ctx: IdentifierContext) -> Self {
-        Self { ctx }
-    }
-}
-
-impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for SynthesizeVisitor {
-    fn visit_ident(&mut self, ident: &String) -> Result<(Type, ProofTree), SynthesizeError> {
-        let ident_type = self.ctx.get(ident);
-
-        if let Some(ident_type) = ident_type {
-            let conclusion = match ident_type {
-                Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                Type::Datatype(datatype) => {
-                    ProofTreeConclusion::TypeJudgement(ident.clone(), datatype.clone())
-                }
-            };
-
-            Ok((
-                ident_type.clone(),
-                ProofTree {
-                    premisses: vec![],
-                    rule: ProofTreeRule::Ident(Some(ident.clone())),
-                    conclusion,
-                },
-            ))
-        } else {
-            Err(SynthesizeError::UnknownIdentifier(ident.clone()))
+impl<'a> SynthesizeVisitor<'a> {
+    pub fn new(ctx: &'a IdentifierContext, identifier_factory: &'a mut IdentifierFactory) -> Self {
+        Self {
+            ctx,
+            identifier_factory,
         }
     }
 
-    fn visit_pair(
-        &mut self,
-        fst: &ProofTerm,
-        snd: &ProofTerm,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
-        let (fst_type, fst_proof_tree) = synthesize(fst, self.ctx.clone())?;
-        let (snd_type, snd_proof_tree) = synthesize(snd, self.ctx.clone())?;
+    fn bind_free_params_to_ctx(&self, _type: &mut Type) -> Result<(), SynthesizeError> {
+        if let Type::Prop(ref mut prop) = _type {
+            let free_params = prop.get_free_parameters_mut();
 
-        match (&fst_type, &snd_type) {
-            (Type::Datatype(type_ident), Type::Prop(snd_prop)) => {
-                if let ProofTerm::Ident(ident) = fst {
-                    let _type = Prop::Exists {
-                        object_ident: ident.to_string(),
-                        object_type_ident: type_ident.to_string(),
-                        body: snd_prop.boxed(),
-                    };
-
-                    Ok((
-                        _type.clone().into(),
-                        ProofTree {
-                            premisses: vec![fst_proof_tree, snd_proof_tree],
-                            rule: ProofTreeRule::ExistsIntro,
-                            conclusion: ProofTreeConclusion::PropIsTrue(_type),
-                        },
-                    ))
-                } else {
-                    panic!("Architecture error: Expected identifier. Are you implementing datatytpe functions?")
+            for free_param in free_params {
+                match free_param {
+                    PropParameter::Uninstantiated(name) => {
+                        let (identifier, _) = self
+                            .ctx
+                            .get_by_name(&name)
+                            .ok_or(SynthesizeError::UnknownIdentifier(name.clone()))?;
+                        *free_param = PropParameter::Instantiated(identifier.clone())
+                    }
+                    PropParameter::Instantiated(identifier) => {
+                        // sanity check
+                        if self.ctx.get(identifier).is_none() {
+                            panic!("Instantiated parameter does not exist: {:#?}", identifier);
+                        }
+                    }
                 }
             }
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for SynthesizeVisitor<'a> {
+    fn visit_ident(&mut self, ident: &Ident) -> Result<(Type, ProofTree), SynthesizeError> {
+        let Ident(ident) = ident;
+
+        // lookup identifier
+        let (_, ident_type) = match self.ctx.get_by_name(&ident) {
+            Some(ident_type) => ident_type,
+            None => return Err(SynthesizeError::UnknownIdentifier(ident.clone())),
+        };
+
+        // decide whether proposition is true or type judgment
+        let conclusion = match ident_type {
+            Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            Type::Datatype(datatype) => {
+                ProofTreeConclusion::TypeJudgement(ident.clone(), datatype.clone())
+            }
+        };
+
+        Ok((
+            ident_type.clone(),
+            ProofTree {
+                premisses: vec![],
+                rule: ProofTreeRule::Ident(ident.clone()),
+                conclusion,
+            },
+        ))
+    }
+
+    fn visit_pair(&mut self, pair: &Pair) -> Result<(Type, ProofTree), SynthesizeError> {
+        let Pair(fst, snd) = pair;
+
+        let (fst_type, fst_proof_tree) = synthesize(fst, &self.ctx, &mut self.identifier_factory)?;
+        let (snd_type, snd_proof_tree) = synthesize(snd, &self.ctx, &mut self.identifier_factory)?;
+
+        match (&fst_type, &snd_type) {
+            // Exists
+            (Type::Datatype(_), Type::Prop(_)) => {
+                return Err(SynthesizeError::TypeAnnotationsNeeded);
+            }
+
+            // And
             (Type::Prop(fst_prop), Type::Prop(snd_prop)) => {
                 let _type = Prop::And(fst_prop.boxed(), snd_prop.boxed());
 
@@ -133,6 +161,8 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
                     },
                 ))
             }
+
+            // other
             (_, Type::Datatype(datatype)) => Err(SynthesizeError::ExpectedProp {
                 received_datatype: datatype.to_string(),
             }),
@@ -141,9 +171,12 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
 
     fn visit_project_fst(
         &mut self,
-        body: &ProofTerm,
+        projection: &ProjectFst,
     ) -> Result<(Type, ProofTree), SynthesizeError> {
-        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
+        let ProjectFst(body) = projection;
+
+        let (body_type, body_proof_tree) =
+            synthesize(body, &self.ctx, &mut self.identifier_factory)?;
 
         let fst = match body_type {
             Type::Prop(Prop::And(fst, _)) => fst,
@@ -160,16 +193,19 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
             ProofTree {
                 premisses: vec![body_proof_tree],
                 rule: ProofTreeRule::AndElimFst,
-                conclusion: ProofTreeConclusion::PropIsTrue(*fst.clone()),
+                conclusion: ProofTreeConclusion::PropIsTrue(*fst),
             },
         ))
     }
 
     fn visit_project_snd(
         &mut self,
-        body: &ProofTerm,
+        projection: &ProjectSnd,
     ) -> Result<(Type, ProofTree), SynthesizeError> {
-        let (body_type, body_proof_tree) = synthesize(body, self.ctx.clone())?;
+        let ProjectSnd(body) = projection;
+
+        let (body_type, body_proof_tree) =
+            synthesize(body, &self.ctx, &mut self.identifier_factory)?;
 
         let snd = match body_type {
             Type::Prop(Prop::And(_, snd)) => snd,
@@ -185,33 +221,46 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
             Type::Prop(*snd.clone()),
             ProofTree {
                 premisses: vec![body_proof_tree],
-                rule: ProofTreeRule::AndElimFst,
-                conclusion: ProofTreeConclusion::PropIsTrue(*snd.clone()),
+                rule: ProofTreeRule::AndElimSnd,
+                conclusion: ProofTreeConclusion::PropIsTrue(*snd),
             },
         ))
     }
 
     fn visit_function(
         &mut self,
-        param_ident: &String,
-        param_type: &Option<Type>,
-        body: &ProofTerm,
+        function: &Function,
     ) -> Result<(Type, ProofTree), SynthesizeError> {
+        let Function {
+            param_ident,
+            param_type,
+            body,
+        } = function;
+
+        // require param annotation
         let param_type = match param_type {
             Some(param_type) => param_type,
-            None => return Err(SynthesizeError::NotSynthesizing(ProofTermKind::Function)),
+            None => return Err(SynthesizeError::TypeAnnotationsNeeded),
         };
 
+        // check that  if parameter is Prop, it only has known identifiers as free occurences
+        let mut binded_param_type = param_type.clone();
+        self.bind_free_params_to_ctx(&mut binded_param_type)?;
+
+        // add param to context
+        let param_identifier = self.identifier_factory.create(param_ident.clone());
         let mut body_ctx = self.ctx.clone();
-        body_ctx.insert(param_ident.clone(), param_type.clone());
-        let (body_type, body_proof_tree) = synthesize(body, body_ctx.clone())?;
+        body_ctx.insert(param_identifier, binded_param_type);
+        let (body_type, body_proof_tree) =
+            synthesize(body, &body_ctx, &mut self.identifier_factory)?;
 
         match (&param_type, &body_type) {
+            // Forall
             (Type::Datatype(ident), Type::Prop(body_type)) => {
                 let _type = Prop::ForAll {
                     object_ident: param_ident.clone(),
                     object_type_ident: ident.clone(),
-                    body: body_type.boxed(), // TODO have I to replace parameterized props?
+                    body: body_type.boxed(),
                 };
 
                 Ok((
@@ -223,6 +272,8 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
                     },
                 ))
             }
+
+            // Implication
             (Type::Prop(fst), Type::Prop(snd)) => {
                 let _type = Prop::Impl(fst.boxed(), snd.boxed());
 
@@ -235,29 +286,58 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
                     },
                 ))
             }
+
+            // otherwise
             (_, Type::Datatype(_)) => return Err(SynthesizeError::CannotReturnDatatype),
         }
     }
 
     fn visit_application(
         &mut self,
-        function: &ProofTerm,
-        applicant: &ProofTerm,
+        application: &Application,
     ) -> Result<(Type, ProofTree), SynthesizeError> {
-        let (function_type, function_proof_tree) = synthesize(function, self.ctx.clone())?;
+        let Application {
+            function,
+            applicant,
+        } = application;
 
-        let (requested_applicant_type, return_type) = match function_type {
-            Type::Prop(Prop::Impl(fst, snd)) => {
-                (Type::Prop(*fst.clone()), Type::Prop(*snd.clone()))
-            }
-            Type::Prop(Prop::ForAll {
-                object_type_ident,
-                body,
-                ..
-            }) => (
-                Type::Datatype(object_type_ident.clone()),
-                Type::Prop(*body.clone()),
+        // synthesize function
+        let (function_type, function_proof_tree) =
+            synthesize(function, &self.ctx, &mut self.identifier_factory)?;
+
+        let (requested_applicant_type, return_type, rule) = match function_type {
+            // Implication
+            Type::Prop(Prop::Impl(fst, snd)) => (
+                Type::Prop(*fst.clone()),
+                *snd.clone(),
+                ProofTreeRule::ImplElim,
             ),
+
+            // Universal quantification
+            Type::Prop(Prop::ForAll {
+                object_ident,
+                object_type_ident,
+                mut body,
+            }) => {
+                let param_ident = match **applicant {
+                    ProofTerm::Ident(Ident(ref ident)) => ident,
+                    _ => unreachable!("Datatype functions do not exists"),
+                };
+
+                let (identifier, _) = self
+                    .ctx
+                    .get_by_name(param_ident)
+                    .ok_or(SynthesizeError::UnknownIdentifier(param_ident.clone()))?;
+                body.instantiate_free_parameter(&object_ident, identifier);
+
+                (
+                    Type::Datatype(object_type_ident.clone()),
+                    *body.clone(),
+                    ProofTreeRule::ForAllElim,
+                )
+            }
+
+            // other
             _ => {
                 return Err(SynthesizeError::UnexpectedProofTermKind {
                     expected: vec![ProofTermKind::Function],
@@ -266,50 +346,58 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
             }
         };
 
-        let applicant_proof_tree = check_comapre_free_parameters_structurally(applicant, &requested_applicant_type, self.ctx.clone())
-            .map_err(|err| Box::new(err))?;
-
-        let conclusion = match return_type {
-            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            _ => return Err(SynthesizeError::CannotReturnDatatype),
-        };
+        let applicant_proof_tree = check_allowing_free_params(
+            applicant,
+            &requested_applicant_type,
+            &self.ctx,
+            &mut self.identifier_factory,
+        )
+        .map_err(|err| Box::new(err))?;
 
         Ok((
-            return_type.clone(),
+            Type::Prop(return_type.clone()),
             ProofTree {
                 premisses: vec![function_proof_tree, applicant_proof_tree],
-                rule: ProofTreeRule::ImplElim,
-                conclusion,
+                rule,
+                conclusion: ProofTreeConclusion::PropIsTrue(return_type),
             },
         ))
     }
 
-    fn visit_let_in(
-        &mut self,
-        fst_ident: &String,
-        snd_ident: &String,
-        pair_proof_term: &ProofTerm,
-        body: &ProofTerm,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
-        let (pair_proof_term_type, pair_proof_term_tree) =
-            synthesize(pair_proof_term, self.ctx.clone())?;
+    fn visit_let_in(&mut self, let_in: &LetIn) -> Result<(Type, ProofTree), SynthesizeError> {
+        let LetIn {
+            fst_ident,
+            snd_ident,
+            head,
+            body,
+        } = let_in;
+
+        let (head_type, pair_proof_term_tree) =
+            synthesize(head, &self.ctx, &mut self.identifier_factory)?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
             object_type_ident,
             body: mut exists_body,
-        }) = pair_proof_term_type
+        }) = head_type
         {
-            exists_body.substitue_free_parameter(&object_ident, &fst_ident);
+            let fst_identifier = self.identifier_factory.create(fst_ident.clone());
+            let snd_identifier = self.identifier_factory.create(snd_ident.clone());
+
+            exists_body.instantiate_free_parameter(&object_ident, &fst_identifier);
 
             let mut body_ctx = self.ctx.clone();
-            body_ctx.insert(fst_ident.clone(), Type::Datatype(object_type_ident));
-            body_ctx.insert(snd_ident.clone(), Type::Prop(*exists_body));
-            let (body_type, body_proof_tree) = synthesize(body, body_ctx)?;
+            body_ctx.insert(fst_identifier.clone(), Type::Datatype(object_type_ident));
+            body_ctx.insert(snd_identifier, Type::Prop(*exists_body));
+            let (body_type, body_proof_tree) =
+                synthesize(body, &body_ctx, &mut self.identifier_factory)?;
 
-            // check that quantified object does not escape it's scope
             if let Type::Prop(prop) = &body_type {
-                if prop.get_free_parameters().contains(&fst_ident) {
+                // check that quantified object does not escape it's scope
+                if prop
+                    .get_free_parameters()
+                    .contains(&PropParameter::Instantiated(fst_identifier))
+                {
                     return Err(SynthesizeError::QuantifiedObjectEscapesScope);
                 }
 
@@ -327,63 +415,77 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
         } else {
             Err(SynthesizeError::UnexpectedProofTermKind {
                 expected: vec![ProofTermKind::ExistsPair],
-                received: pair_proof_term_type,
+                received: head_type,
             })
         }
     }
 
-    fn visit_or_left(&mut self, _body: &ProofTerm) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_or_left(&mut self, _body: &OrLeft) -> Result<(Type, ProofTree), SynthesizeError> {
         Err(SynthesizeError::NotSynthesizing(ProofTermKind::OrLeft))
     }
 
-    fn visit_or_right(&mut self, _body: &ProofTerm) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_or_right(&mut self, _body: &OrRight) -> Result<(Type, ProofTree), SynthesizeError> {
         Err(SynthesizeError::NotSynthesizing(ProofTermKind::OrRight))
     }
 
-    fn visit_case(
-        &mut self,
-        proof_term: &ProofTerm,
-        left_ident: &String,
-        left_term: &ProofTerm,
-        right_ident: &String,
-        right_term: &ProofTerm,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
-        let (proof_term_type, proof_term_tree) = synthesize(proof_term, self.ctx.clone())?;
+    fn visit_case(&mut self, case: &Case) -> Result<(Type, ProofTree), SynthesizeError> {
+        let Case {
+            head,
+            fst_ident,
+            fst_term,
+            snd_ident,
+            snd_term,
+        } = case;
 
-        if let Type::Prop(Prop::Or(fst, snd)) = proof_term_type {
-            let mut left_ctx = self.ctx.clone();
-            left_ctx.insert(left_ident.clone(), Type::Prop(*fst));
-            let (fst_type, fst_proof_tree) = synthesize(left_term, left_ctx)?;
+        let (proof_term_type, proof_term_tree) =
+            synthesize(head, &self.ctx, &mut self.identifier_factory)?;
 
-            let mut right_ctx = self.ctx.clone();
-            right_ctx.insert(right_ident.clone(), Type::Prop(*snd));
-            let (snd_type, snd_proof_tree) = synthesize(right_term, right_ctx)?;
-
-            if fst_type != snd_type {
-                return Err(SynthesizeError::CaseArmsDifferent { fst_type, snd_type });
+        let (fst, snd) = match proof_term_type {
+            Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
+            _ => {
+                return Err(SynthesizeError::UnexpectedPropKind {
+                    expected: vec![PropKind::Or],
+                    received: proof_term_type,
+                })
             }
+        };
 
-            if let Type::Prop(fst_type) = fst_type {
-                Ok((
-                    snd_type,
-                    ProofTree {
-                        premisses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
-                        rule: ProofTreeRule::OrElim(left_ident.clone(), right_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(fst_type),
-                    },
-                ))
-            } else {
-                Err(SynthesizeError::CannotReturnDatatype)
-            }
-        } else {
-            Err(SynthesizeError::UnexpectedPropKind {
-                expected: vec![PropKind::Or],
-                received: proof_term_type,
-            })
+        // synthesize fst arm
+        let fst_identifier = self.identifier_factory.create(fst_ident.clone());
+        let mut fst_ctx = self.ctx.clone();
+        fst_ctx.insert(fst_identifier, Type::Prop(*fst));
+        let (fst_type, fst_proof_tree) =
+            synthesize(fst_term, &fst_ctx, &mut self.identifier_factory)?;
+
+        // snythesize snd arm
+        let snd_identifier = self.identifier_factory.create(snd_ident.clone());
+        let mut snd_ctx = self.ctx.clone();
+        snd_ctx.insert(snd_identifier, Type::Prop(*snd));
+        let (snd_type, snd_proof_tree) =
+            synthesize(snd_term, &snd_ctx, &mut self.identifier_factory)?;
+
+        // check for alpha-equivalence
+        if !Type::alpha_eq(&fst_type, &snd_type) {
+            return Err(SynthesizeError::CaseArmsDifferent { fst_type, snd_type });
         }
+
+        // check whether datatype returned
+        let conclusion = match fst_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            _ => return Err(SynthesizeError::CannotReturnDatatype),
+        };
+
+        Ok((
+            snd_type,
+            ProofTree {
+                premisses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
+                rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
+                conclusion,
+            },
+        ))
     }
 
-    fn visit_abort(&mut self, _body: &ProofTerm) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_abort(&mut self, _abort: &Abort) -> Result<(Type, ProofTree), SynthesizeError> {
         Err(SynthesizeError::NotSynthesizing(ProofTermKind::Abort))
     }
 
@@ -396,5 +498,28 @@ impl ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthesize
                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
             },
         ))
+    }
+
+    fn visit_type_ascription(
+        &mut self,
+        type_ascription: &TypeAscription,
+    ) -> Result<(Type, ProofTree), SynthesizeError> {
+        let TypeAscription {
+            proof_term,
+            ascription,
+        } = type_ascription;
+
+        // check that  if ascription is Prop, it only has known identifiers as free occurences
+        let mut binded_ascription = ascription.clone();
+        self.bind_free_params_to_ctx(&mut binded_ascription)?;
+
+        check_allowing_free_params(
+            &proof_term,
+            &binded_ascription,
+            &self.ctx,
+            &mut self.identifier_factory,
+        )
+        .map(|proof_tree| (ascription.clone(), proof_tree))
+        .map_err(|check_err| SynthesizeError::CheckError(Box::new(check_err)))
     }
 }
