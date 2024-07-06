@@ -1,10 +1,10 @@
 use alice::kernel::{
-    check::typify,
-    parse::{lexer::lexer, proof::proof_parser},
+    checker::{check::check, identifier_context::IdentifierContext},
+    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
 };
-use ariadne::{sources, Color, Label, Report, ReportKind, Source};
-use chumsky::{chain::Chain, error::Simple, Parser, Stream};
+use ariadne::{Color, Label, Report, ReportKind, Source};
+use chumsky::{Parser, Stream};
 
 fn main() {
     let src = std::fs::read_to_string("test.proof").unwrap();
@@ -45,15 +45,33 @@ fn main() {
 
         return;
     }
-    // Step 3: Preprocess ProofTerm
 
     let processed_proof = ProofPipeline::new()
         .pipe(ResolveDatatypes::boxed())
-        .apply(proof.unwrap());
+        .apply(proof.unwrap())
+        .unwrap();
+
+    // Step 3: Preprocess ProofTerm
 
     println!("{:#?}", processed_proof);
+    let fol = "(\\exists x:t. A(x)) -> (\\forall x:t. A(x))";
+    let fol_tokens = lexer().parse(fol).unwrap();
+    let fol_len = fol.chars().count();
 
-    let _type = typify(&processed_proof.proof_term);
+    let prop = fol_parser()
+        .parse(Stream::from_iter(
+            fol_len..fol_len + 1,
+            fol_tokens.into_iter(),
+        ))
+        .unwrap();
+
+    println!("{:#?}", prop.get_free_parameters());
+
+    let _type = check(
+        &processed_proof.proof_term,
+        &prop,
+        &IdentifierContext::new(),
+    );
 
     println!("{:#?}", _type);
 }

@@ -3,12 +3,12 @@ import React, { ReactNode } from 'react';
 import { ProofLine } from './proof-line';
 
 interface ProofNodeProps {
-    label?: string;
+    rule: string | null;
     content: ReactNode
     children?: ReactNode
 }
 
-export function ProofNode({ children, content, label }: ProofNodeProps) {
+export function ProofNode({ children, content, rule }: ProofNodeProps) {
 
     return (
         <div className={cssProofNode}>
@@ -16,7 +16,9 @@ export function ProofNode({ children, content, label }: ProofNodeProps) {
                 {children}
             </div>
 
-            <ProofLine label={label || ''} />
+            {rule && (
+                <ProofLine label={rule} />
+            )}
 
             <div className={cssConclusion}>
                 <span className={cssProofNodeContent}>
@@ -28,7 +30,7 @@ export function ProofNode({ children, content, label }: ProofNodeProps) {
 }
 
 const cssProofNode = css`
-    display: inline-flex;
+    display: flex;
     flex-direction: column;
     font-size: 30px;
     font-family: Computer Modern;

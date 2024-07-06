@@ -1,8 +1,9 @@
 use std::vec;
 
 use chumsky::prelude::*;
+use itertools::Itertools;
 
-use crate::kernel::prop::Prop;
+use crate::kernel::prop::{Prop, PropParameter};
 
 use super::Token;
 
@@ -75,7 +76,12 @@ pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
             .map(|(ident, params)| {
                 if let Some((head, mut tail)) = params {
                     tail.insert(0, head);
-                    Prop::Atom(ident, tail)
+                    Prop::Atom(
+                        ident,
+                        tail.into_iter()
+                            .map(PropParameter::Uninstantiated)
+                            .collect_vec(),
+                    )
                 } else {
                     Prop::Atom(ident, vec![])
                 }
@@ -138,7 +144,7 @@ mod tests {
     use crate::{
         kernel::{
             parse::{fol::fol_parser, lexer::lexer},
-            prop::Prop,
+            prop::{Prop, PropParameter},
         },
         s,
     };
@@ -166,7 +172,13 @@ mod tests {
             .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
 
-        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]));
+        assert_eq!(
+            ast,
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())]
+            )
+        );
     }
 
     #[test]
@@ -179,7 +191,13 @@ mod tests {
             .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
 
-        assert_eq!(ast, Prop::Atom("A".to_string(), vec!["x".to_string()]));
+        assert_eq!(
+            ast,
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())]
+            )
+        );
     }
 
     #[test]
@@ -194,7 +212,13 @@ mod tests {
 
         assert_eq!(
             ast,
-            Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()])
+            Prop::Atom(
+                "A".to_string(),
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("y".to_string()),
+                ]
+            )
         );
     }
 
@@ -210,7 +234,13 @@ mod tests {
 
         assert_eq!(
             ast,
-            Prop::Atom("A".to_string(), vec!["x".to_string(), "y".to_string()])
+            Prop::Atom(
+                "A".to_string(),
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("y".to_string()),
+                ]
+            )
         );
     }
 
@@ -228,7 +258,11 @@ mod tests {
             ast,
             Prop::Atom(
                 "A".to_string(),
-                vec!["x".to_string(), "y".to_string(), "z".to_string()]
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("y".to_string()),
+                    PropParameter::Uninstantiated("z".to_string()),
+                ]
             )
         );
     }
@@ -247,7 +281,11 @@ mod tests {
             ast,
             Prop::Atom(
                 "A".to_string(),
-                vec!["x".to_string(), "y".to_string(), "z".to_string()]
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Uninstantiated("y".to_string()),
+                    PropParameter::Uninstantiated("z".to_string()),
+                ]
             )
         );
     }
@@ -268,17 +306,34 @@ mod tests {
                 Prop::Or(
                     Prop::And(
                         Prop::Atom("A".to_string(), vec![]).boxed(),
-                        Prop::Atom("B".to_string(), vec!["x".to_string(), "y".to_string()]).boxed()
+                        Prop::Atom(
+                            "B".to_string(),
+                            vec![
+                                PropParameter::Uninstantiated("x".to_string()),
+                                PropParameter::Uninstantiated("y".to_string()),
+                            ]
+                        )
+                        .boxed()
                     )
                     .boxed(),
-                    Prop::Atom("C".to_string(), vec!["x".to_string()]).boxed()
+                    Prop::Atom(
+                        "C".to_string(),
+                        vec![PropParameter::Uninstantiated("x".to_string())]
+                    )
+                    .boxed()
                 )
                 .boxed(),
                 Prop::ForAll {
                     object_ident: "z".to_string(),
                     object_type_ident: "t".to_string(),
-                    body: Prop::Atom("Z".to_string(), vec!["z".to_string(), "x".to_string()])
-                        .boxed(),
+                    body: Prop::Atom(
+                        "Z".to_string(),
+                        vec![
+                            PropParameter::Uninstantiated("z".to_string()),
+                            PropParameter::Uninstantiated("x".to_string())
+                        ]
+                    )
+                    .boxed(),
                 }
                 .boxed()
             ),

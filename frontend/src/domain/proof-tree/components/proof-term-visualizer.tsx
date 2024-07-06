@@ -1,18 +1,19 @@
 import React, { Fragment, useEffect, useState } from 'react';
 import { ProofNode } from './proof-node';
-import { ProofTree, annotate_proof_term, ProofTreeRule, Prop } from 'alice';
+import { ProofTree, ProofTreeRule, Prop, verify } from 'alice';
 
 interface ProofTermVisualizer {
+    prop: string;
     proofTermString: string;
 }
 
-export function ProofTermVisualizer({ proofTermString }: ProofTermVisualizer) {
+export function ProofTermVisualizer({ prop, proofTermString }: ProofTermVisualizer) {
 
     const [proofTree, setProofTree] = useState<ProofTree | null>(null);
 
     useEffect(() => {
         try {
-            setProofTree(annotate_proof_term(proofTermString));
+            setProofTree(verify(prop, proofTermString));
         } catch (e) {
             console.log(e);
         }
@@ -35,13 +36,13 @@ function toProofTree(proofTree: ProofTree | null) {
         return null;
     }
 
-    const conclusion = proofTree.conclusion.kind === 'Prop' ? printProp(proofTree.conclusion.value) : proofTree.conclusion.value[0] + ':' + proofTree.conclusion.value[1];
+    const conclusion = proofTree.conclusion.kind === 'PropIsTrue' ? printProp(proofTree.conclusion.value) : proofTree.conclusion.value[0] + ':' + proofTree.conclusion.value[1];
 
     return (
         <div>
-            <ProofNode label={printProofRule(proofTree.rule)} content={conclusion}>
+            <ProofNode rule={printProofRule(proofTree.rule)} content={conclusion}>
                 {
-                    proofTree.hypotheses.map((child: ProofTree, i: number) => <Fragment key={i}>{toProofTree(child)}</Fragment>)
+                    proofTree.premisses.map((child: ProofTree, i: number) => <Fragment key={i}>{toProofTree(child)}</Fragment>)
                 }
             </ProofNode>
         </div>
@@ -71,7 +72,6 @@ function printProofRule(proofTreeRule: ProofTreeRule): string {
 
 function printProp(prop: Prop): string {
     switch (prop.kind) {
-        case 'Any': return '*';
         case 'Atom': return prop.value[0] + (prop.value[1].length > 0 ? `(${prop.value[1].join(', ')})` : '');
         case 'And': return printProp(prop.value[0]) + ' ∧ ' + printProp(prop.value[1]);
         case 'Or': return printProp(prop.value[0]) + ' ∨ ' + printProp(prop.value[1]);
