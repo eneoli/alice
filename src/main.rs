@@ -74,7 +74,4 @@ fn main() {
     );
 
     println!("{:#?}", _type);
-
-    let f = (|x| x)(|x: usize| x);
-
 }
