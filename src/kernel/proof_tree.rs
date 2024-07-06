@@ -14,7 +14,7 @@ pub enum ProofTreeRule {
     TrueIntro,
     ImplIntro(String),
     ImplElim,
-    Ident(Option<String>),
+    Ident(String),
     OrIntroFst,
     OrIntroSnd,
     OrElim(String, String),
