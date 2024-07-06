@@ -5,6 +5,7 @@ import { ProofNode } from '../../proof-tree/components/proof-node';
 import { printProp } from '../../../util/print-prop';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Prop } from 'alice';
+import { printProofRule } from '../../../util/print-proof-rule';
 
 export interface ReasoningContextNodeSelection {
     nodeId: string;
@@ -30,7 +31,7 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
 
     const renderTree = (proofTree: VisualProofEditorProofTree, isRoot: boolean) => {
         const isLeaf = proofTree.premisses.length == 0;
-        const isSelectable = isRoot || isLeaf;
+        const isSelectable = isRoot || (isLeaf && proofTree.rule === null);
         const isSelected = isSelectable && proofTree.id === activeNode;
 
         const onNodeClick = (e: MouseEvent) => {
@@ -48,16 +49,17 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
         };
 
         const conclusion = (
-            <Conclusion id={proofTree.id}
+            <Conclusion contextId={context.id}
+                nodeId={proofTree.id}
                 conclusion={proofTree.conclusion}
                 isSelectable={isSelectable}
                 isSelected={isSelected}
-                isDroppable={isLeaf || isRoot} />
+                isDroppable={isSelectable} />
         );
 
         return (
             <div onClick={onNodeClick}>
-                <ProofNode rule={proofTree.rule} content={conclusion}>
+                <ProofNode rule={proofTree.rule ? printProofRule(proofTree.rule) : null} content={conclusion}>
                     {
                         proofTree.premisses.map((child: VisualProofEditorProofTree, i: number) => (
                             <Fragment key={i}>
@@ -78,7 +80,8 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
 }
 
 interface ConclusionProps {
-    id: string;
+    contextId: string;
+    nodeId: string;
     conclusion: Prop;
     isSelectable: boolean;
     isSelected: boolean;
@@ -87,18 +90,20 @@ interface ConclusionProps {
 
 function Conclusion(props: ConclusionProps) {
 
-    const { id, conclusion, isSelectable, isSelected, isDroppable } = props;
+    const { contextId, nodeId, conclusion, isSelectable, isSelected, isDroppable } = props;
 
-    const { setNodeRef, isOver, over, } = useDroppable({ id, disabled: !isDroppable });
-
-    const isOverDifferentElement = isOver && over?.id == id;
+    const { setNodeRef, isOver } = useDroppable({
+        id: `${contextId};${nodeId}`,
+        data: { contextId, nodeId },
+        disabled: !isDroppable,
+    });
 
     return (
         <div className={cx({
             [cssProofTreeContainer]: true,
             [cssSelectableProofContainer]: isSelectable,
             [cssSelectedProofContainer]: isSelected,
-            [cssDraggedOverProofContainer]: isOverDifferentElement,
+            [cssDraggedOverProofContainer]: isOver,
         })} ref={setNodeRef}>
             {printProp(conclusion)}
         </div>
