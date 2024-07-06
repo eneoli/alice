@@ -23,7 +23,7 @@ export function handleAndIntroRule(proofTree: VisualProofEditorProofTree): Proof
                 createEmptyVisualProofEditorProofTree(fst),
                 createEmptyVisualProofEditorProofTree(snd),
             ],
-            rule: 'AndIntro',
+            rule: { kind: 'AndIntro' },
             conclusion,
         },
     };

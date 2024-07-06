@@ -15,7 +15,7 @@ export function handleOrIntroSndRule(proofTree: VisualProofEditorProofTree): Pro
         newProofTree: {
             id,
             premisses: [createEmptyVisualProofEditorProofTree(snd)],
-            rule: 'OrIntroSnd',
+            rule: { kind: 'OrIntroSnd' },
             conclusion,
         },
         additionalAssumptions: [],

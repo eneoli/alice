@@ -16,7 +16,7 @@ export function handleOrIntroFstRule(proofTree: VisualProofEditorProofTree): Pro
         newProofTree: {
             id: id,
             premisses: [createEmptyVisualProofEditorProofTree(fst)],
-            rule: 'OrIntroFst',
+            rule: { kind: 'OrIntroFst' },
             conclusion,
         },
     };

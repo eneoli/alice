@@ -16,7 +16,7 @@ export function handleAndElimFstRule(proofTree: VisualProofEditorProofTree): Pro
         newProofTree: {
             id: v4(),
             premisses: [proofTree],
-            rule: 'AndElimFst',
+            rule: { kind: 'AndElimFst' },
             conclusion: fst,
         }
     };

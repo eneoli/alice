@@ -13,17 +13,19 @@ export function handleImplIntroRule(proofTree: VisualProofEditorProofTree): Proo
 
     const [fst, snd] = proofTree.conclusion.value;
 
+    const ident = generateIdentifier();
+
     return {
         newProofTree: {
             id: proofTree.id,
             premisses: [createEmptyVisualProofEditorProofTree(snd)],
-            rule: 'ImplIntro',
+            rule: { kind: 'ImplIntro', value: ident },
             conclusion,
         },
         additionalAssumptions: [{
             kind: 'PropIsTrue',
             prop: fst,
-            ident: generateIdentifier(),
+            ident,
         }],
     };
 }
