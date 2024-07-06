@@ -143,7 +143,6 @@ mod tests {
 
     use crate::{
         kernel::{
-            checker::identifier::Identifier,
             parse::{fol::fol_parser, lexer::lexer},
             prop::{Prop, PropParameter},
         },
