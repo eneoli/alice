@@ -2,16 +2,18 @@
 mod tests {
     use std::vec;
 
-    use chumsky::{Parser, Stream};
+    use chumsky::{primitive::end, Parser, Stream};
 
-    use crate::kernel::{
-        checker::{check::check, identifier_context::IdentifierContext, synthesize::{synthesize, SynthesizeError}},
+    use crate::{kernel::{
+        checker::{
+            check::check, identifier::IdentifierFactory, identifier_context::IdentifierContext, synthesize::{synthesize, SynthesizeError}
+        },
         parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
         process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
-        proof_term::{ProofTerm, Type},
+        proof_term::ProofTerm,
         proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
         prop::Prop,
-    };
+    }, util::counter::Counter};
 
     // HELPER
 
@@ -20,12 +22,14 @@ mod tests {
         let tokens = lexer().parse(proof).unwrap();
 
         let proof_ast = proof_parser()
+            .then_ignore(end())
             .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
 
         let processed_proof = ProofPipeline::new()
             .pipe(ResolveDatatypes::boxed())
-            .apply(proof_ast);
+            .apply(proof_ast)
+            .unwrap();
 
         processed_proof.proof_term
     }
@@ -35,6 +39,7 @@ mod tests {
 
         let tokens = lexer().parse(prop).unwrap();
         let ast = fol_parser()
+            .then_ignore(end())
             .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
 
@@ -47,12 +52,7 @@ mod tests {
 
         (
             prop_ast.clone(),
-            check(
-                &proof_term_ast,
-                &Type::Prop(prop_ast),
-                IdentifierContext::new(),
-            )
-            .unwrap(),
+            check(&proof_term_ast, &prop_ast, &IdentifierContext::new()).unwrap(),
         )
     }
 
@@ -72,7 +72,7 @@ mod tests {
                         premisses: vec![
                             ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                rule: ProofTreeRule::Ident("u".to_string()),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "A".to_string(),
                                     vec![]
@@ -80,7 +80,7 @@ mod tests {
                             },
                             ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("w".to_string())),
+                                rule: ProofTreeRule::Ident("w".to_string()),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "B".to_string(),
                                     vec![]
@@ -123,7 +123,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                rule: ProofTreeRule::Ident("u".to_string()),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
                                     Prop::Atom("A".to_string(), vec![]).boxed(),
                                     Prop::Atom("B".to_string(), vec![]).boxed(),
@@ -138,7 +138,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                rule: ProofTreeRule::Ident("u".to_string()),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
                                     Prop::Atom("A".to_string(), vec![]).boxed(),
                                     Prop::Atom("B".to_string(), vec![]).boxed(),
@@ -182,7 +182,7 @@ mod tests {
                                     premisses: vec![
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                            rule: ProofTreeRule::Ident("u".to_string()),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Impl(
                                                     Prop::Atom("A".to_string(), vec![]).boxed(),
@@ -196,7 +196,7 @@ mod tests {
                                         },
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("w".to_string())),
+                                            rule: ProofTreeRule::Ident("w".to_string()),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Atom("A".to_string(), vec![])
                                             ),
@@ -226,7 +226,7 @@ mod tests {
                                     premisses: vec![
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("u".to_string())),
+                                            rule: ProofTreeRule::Ident("u".to_string()),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Impl(
                                                     Prop::Atom("A".to_string(), vec![]).boxed(),
@@ -240,7 +240,7 @@ mod tests {
                                         },
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident(Some("w".to_string())),
+                                            rule: ProofTreeRule::Ident("w".to_string()),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Atom("A".to_string(), vec![])
                                             ),
@@ -307,17 +307,26 @@ mod tests {
 
     #[test]
     fn or_expansion() {
-        check_proof_term("fn u  => case u of inl a => inl a, inr b => inr b", "A || B -> A || B");
+        check_proof_term(
+            "fn u  => case u of inl a => inl a, inr b => inr b",
+            "A || B -> A || B",
+        );
     }
 
     #[test]
     fn test_forall_expansion() {
-        check_proof_term("datatype t; fn u => fn w => u w", "(\\forall x:t. A(x)) -> (\\forall x:t. A(x))");
+        check_proof_term(
+            "datatype t; fn u => fn w => u w",
+            "(\\forall x:t. A(x)) -> (\\forall x:t. A(x))",
+        );
     }
 
     #[test]
     fn test_exsists_expansion() {
-        check_proof_term("fn u => let (w, p) = u in (w, p)", "(\\exists x:t. A(x)) -> (\\exists x:t. A(x))");
+        check_proof_term(
+            "fn u => let (w, p) = u in (w, p)",
+            "(\\exists x:t. A(x)) -> (\\exists x:t. A(x))",
+        );
     }
 
     #[test]
@@ -347,7 +356,7 @@ mod tests {
                     premisses: vec![
                         ProofTree {
                             premisses: vec![],
-                            rule: ProofTreeRule::Ident(Some("u".to_string())),
+                            rule: ProofTreeRule::Ident("u".to_string()),
                             conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
                                 Prop::Atom("A".to_string(), vec![]).boxed(),
                                 Prop::Atom("B".to_string(), vec![]).boxed(),
@@ -356,7 +365,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("a".to_string())),
+                                rule: ProofTreeRule::Ident("a".to_string()),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "A".to_string(),
                                     vec![]
@@ -371,7 +380,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident(Some("b".to_string())),
+                                rule: ProofTreeRule::Ident("b".to_string()),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "B".to_string(),
                                     vec![]
@@ -421,7 +430,10 @@ mod tests {
     #[test]
     fn test_composition_of_identities_annotated_left() {
         check_proof_term(
-            "(fn u: (A -> A) && (A -> A) => fn w: A => (snd u) ((fst u) w)) ((fn x => x), (fn y => y))",
+            "
+                atom A;
+                (fn u: (A -> A) && (A -> A) => fn w: A => (snd u) ((fst u) w)) ((fn x => x), (fn y => y))
+            ",
             "A -> A",
         );
     }
@@ -429,7 +441,10 @@ mod tests {
     #[test]
     fn test_composition_of_identities_annotated_right() {
         check_proof_term(
-            "(fn u => fn w: A => (snd u) ((fst u) w)) ((fn x: A => x), (fn y: A => y))",
+            "
+                atom A;
+                (fn u => fn w: A => (snd u) ((fst u) w)) ((fn x: A => x), (fn y: A => y))
+            ",
             "A -> A",
         );
     }
@@ -465,6 +480,9 @@ mod tests {
         check_proof_term(
             "
         datatype t;
+        atom A(1);
+        atom B(1);
+
         fn u: (\\forall x:t. A(x) & B(x)) => (
             fn x: t => fst (u x),
             fn x: t => snd (u x)
@@ -476,24 +494,86 @@ mod tests {
 
     #[test]
     fn test_reusing_allquant_ident() {
-        check_proof_term("datatype t; fn u: (∀x:t. C(x, x)) => fn a:t => fn a:t => u a", "(∀x:t. C(x, x)) -> \\forall a:t. \\forall a:t. C(a, a)");
+        check_proof_term(
+            "
+                atom C(2);
+                datatype t;
+                
+                fn u: (∀x:t. C(x, x)) => fn a:t => fn a:t => u a
+            ",
+            "(∀x:t. C(x, x)) -> \\forall a:t. \\forall a:t. C(a, a)",
+        );
     }
 
     #[test]
     fn test_exsists_move_unquantified() {
         check_proof_term(
-            "datatype t; fn u: (\\forall x:t. A(x) -> C) => fn w: \\exists x:t. A(x) => let (a, proof) = w in u a proof",
+            "
+                datatype t;
+                atom A(1);
+                atom C;
+                
+                fn u: (\\forall x:t. A(x) -> C) => fn w: \\exists x:t. A(x) => let (a, proof) = w in u a proof
+            ",
             "(\\forall x:t. A(x) -> C) -> (\\exists x:t. A(x)) -> C"
         );
     }
 
     #[test]
-    fn test_do_not_allow_exists_quant_escape() {
-        let proof_term = parse_proof("datatype t; fn u: \\exists x:t. C(x) => let (a, proof) = u in proof");
+        fn test_do_not_allow_exists_quant_escape() {
+        let proof_term =
+            parse_proof("
+                datatype t;
+                atom C(1);
 
-        let _type = synthesize(&proof_term, IdentifierContext::new());
+                fn u: \\exists x:t. C(x) => let (a, proof) = u in proof
+            ");
+
+        let _type = synthesize(&proof_term, &IdentifierContext::new(), &mut IdentifierFactory::new(Counter::new()));
 
         assert_eq!(_type, Err(SynthesizeError::QuantifiedObjectEscapesScope))
     }
-}
 
+    #[test]
+    #[should_panic]
+    fn test_do_not_allow_free_params_function_annotations() {
+        check_proof_term("
+            atom A(1);
+
+            fn u => snd (fn u: A(a) => (), ())
+        ", "B -> \\top");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_do_not_allow_free_params_type_ascription() {
+        check_proof_term("
+            atom A(1);
+
+            fn u => snd (abort u : A(a), ())
+        ", "\\bot -> \\top");
+    }
+
+    #[test]
+    fn test_allow_binded_params_function_annotations() {
+        check_proof_term(
+            "
+                atom A(1);
+
+                fn u => fn a => snd (fn x: A(a) => (), ())
+            ",
+            "(\\forall x:t. A(x)) -> \\forall x:t. \\top",
+        );
+    }
+
+    #[test]
+    fn test_do_allow_binded_params_type_ascription() {
+        check_proof_term(
+            "
+                atom A(1);
+                fn u => fn a => snd (abort u : A(a), ())
+            ",
+            "\\bot -> \\forall x:t. \\top",
+        );
+    }
+}
