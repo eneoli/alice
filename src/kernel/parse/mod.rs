@@ -8,6 +8,7 @@ pub mod proof_term;
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Token {
     IDENT(String),
+    NUM(usize),
     AND,
     OR,
     ARROW,
@@ -30,6 +31,7 @@ pub enum Token {
     LET,
     IN,
     EQUAL,
+    ATOM,
     DATATYPE,
 }
 
@@ -37,6 +39,7 @@ impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Token::IDENT(s) => write!(f, "{}", s),
+            Token::NUM(n) => write!(f, "NUM({})", n),
             Token::AND => write!(f, "∧"),
             Token::OR => write!(f, "∨"),
             Token::ARROW => write!(f, "=>"),
@@ -59,6 +62,7 @@ impl fmt::Display for Token {
             Token::LET => write!(f, "let"),
             Token::IN => write!(f, "in"),
             Token::EQUAL => write!(f, "="),
+            Token::ATOM => write!(f, "atom"),
             Token::DATATYPE => write!(f, "datatype"),
         }
     }
