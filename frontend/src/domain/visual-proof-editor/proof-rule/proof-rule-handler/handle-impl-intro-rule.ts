@@ -3,7 +3,7 @@ import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sid
 import { generateIdentifier } from './generate-identifier';
 import { createEmptyVisualProofEditorProofTree } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 
-export function handleImplIntroRule(proofTree: VisualProofEditorProofTree): ProofRuleHandlerResult {
+export async function handleImplIntroRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
 
     const { conclusion } = proofTree;
 
