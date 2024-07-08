@@ -12,7 +12,7 @@ export interface ProofRuleHandlerResult {
     additionalAssumptions: Assumption[],
 }
 
-type VisualProofEditorRuleHandler = (proofTree: VisualProofEditorProofTree) => ProofRuleHandlerResult;
+type VisualProofEditorRuleHandler = (proofTree: VisualProofEditorProofTree) => Promise<ProofRuleHandlerResult>;
 
 export interface VisualProofEditorRule {
     id: NaturalDeductionRule;
