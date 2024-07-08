@@ -2,7 +2,7 @@ import { VisualProofEditorProofTree } from '../../components/visual-proof-editor
 import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
 import { createEmptyVisualProofEditorProofTree } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 
-export function handleAndIntroRule(proofTree: VisualProofEditorProofTree): ProofRuleHandlerResult {
+export async function handleAndIntroRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
     const { rule, conclusion, id } = proofTree;
 
     if (conclusion.kind != 'And') {

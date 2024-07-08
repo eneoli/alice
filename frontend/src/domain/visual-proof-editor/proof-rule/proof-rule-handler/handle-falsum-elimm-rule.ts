@@ -2,7 +2,7 @@ import { createEmptyVisualProofEditorProofTree } from '../../../../util/create-v
 import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
 import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
 
-export function handleFalsumElimRule(proofTree: VisualProofEditorProofTree): ProofRuleHandlerResult {
+export async function handleFalsumElimRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
 
     const {id, conclusion} = proofTree;
 

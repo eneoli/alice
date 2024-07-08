@@ -2,7 +2,7 @@ import { v4 } from 'uuid';
 import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
 import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
 
-export function handleAndElimFstRule(proofTree: VisualProofEditorProofTree): ProofRuleHandlerResult {
+export async function handleAndElimFstRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
     if (conclusion.kind != 'And') {
