@@ -43,6 +43,9 @@ export function Header({ onPropChange, onVerify }: HeaderProps) {
         replaceSymbol('->', '→');
         replaceSymbol('=>', '→');
 
+        replaceSymbol('\\top', '⊤');
+        replaceSymbol('\\bot', '⊥');
+
         setProp(value);
         onPropChange(value);
 
