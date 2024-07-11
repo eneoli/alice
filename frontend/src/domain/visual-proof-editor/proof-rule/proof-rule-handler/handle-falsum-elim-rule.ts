@@ -1,4 +1,4 @@
-import { createEmptyVisualProofEditorProofTree } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
 import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
 
@@ -11,7 +11,7 @@ export async function handleFalsumElimRule(proofTree: VisualProofEditorProofTree
         newProofTree: {
             id,
             premisses: [
-                createEmptyVisualProofEditorProofTree({ kind: 'False' }),
+                createEmptyVisualProofEditorProofTreeFromProp({ kind: 'False' }),
             ],
             rule: { kind: 'FalsumElim' },
             conclusion,

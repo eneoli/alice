@@ -5,11 +5,17 @@ import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sid
 export async function handleImplElimRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
-    if (conclusion.kind !== 'Impl') {
+    if (conclusion.kind !== 'PropIsTrue') {
         throw new Error('Conclusion is not an implication');
     }
 
-    const [fst, snd] = conclusion.value;
+    const propConclusion = conclusion.value;
+
+    if (propConclusion.kind !== 'Impl') {
+        throw new Error('Conclusion is not an implication');
+    }
+
+    const [fst, snd] = propConclusion.value;
 
     return {
         additionalAssumptions: [],
@@ -19,10 +25,10 @@ export async function handleImplElimRule(proofTree: VisualProofEditorProofTree):
                 id: v4(),
                 premisses: [],
                 rule: null,
-                conclusion: fst,
+                conclusion: { kind: 'PropIsTrue', value: fst },
             }],
             rule: { kind: 'ImplElim' },
-            conclusion: snd,
+            conclusion: { kind: 'PropIsTrue', value: snd },
         }
     };
 }

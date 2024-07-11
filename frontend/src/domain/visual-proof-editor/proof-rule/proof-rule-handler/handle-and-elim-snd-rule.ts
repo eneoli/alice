@@ -5,11 +5,17 @@ import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sid
 export async function handleAndElimSndRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
-    if (conclusion.kind != 'And') {
+    if (conclusion.kind !== 'PropIsTrue') {
         throw new Error('Conclusion is not a conjunction');
     }
 
-    const [_fst, snd] = conclusion.value;
+    const propConclusion = conclusion.value;
+
+    if (propConclusion.kind !== 'And') {
+        throw new Error('Conclusion is not a conjunction');
+    }
+
+    const [_fst, snd] = propConclusion.value;
 
     return {
         additionalAssumptions: [],
@@ -17,7 +23,7 @@ export async function handleAndElimSndRule(proofTree: VisualProofEditorProofTree
             id: v4(),
             premisses: [proofTree],
             rule: { kind: 'AndElimSnd' },
-            conclusion: snd,
+            conclusion: { kind: 'PropIsTrue', value: snd }
         }
     };
 }

@@ -4,7 +4,13 @@ import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sid
 export async function handleTrueIntroRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
-    if (conclusion.kind !== 'True') {
+    if (conclusion.kind !== 'PropIsTrue') {
+        throw new Error('Conclusion is not truth.');
+    }
+
+    const propConclusion = conclusion.value;
+
+    if (propConclusion.kind !== 'True') {
         throw new Error('Conclusion is not truth.');
     }
 

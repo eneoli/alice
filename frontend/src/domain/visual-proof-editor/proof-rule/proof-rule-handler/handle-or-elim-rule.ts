@@ -3,13 +3,19 @@ import { VisualProofEditorProofTree } from '../../components/visual-proof-editor
 import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
 import { parse_prop } from 'alice';
 import { v4 } from 'uuid';
-import { createEmptyVisualProofEditorProofTree } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 import { generateIdentifier } from './generate-identifier';
 
 export async function handleOrElimRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
-    if (conclusion.kind !== 'Or') {
+    if (conclusion.kind !== 'PropIsTrue') {
+        throw new Error('Conclusion is not an implication');
+    }
+
+    const propConclusion = conclusion.value;
+
+    if (propConclusion.kind !== 'Or') {
         throw new Error('Conclusion is not an implication');
     }
 
@@ -29,7 +35,7 @@ export async function handleOrElimRule(proofTree: VisualProofEditorProofTree): P
         };
     }
 
-    const [fst, snd] = conclusion.value;
+    const [fst, snd] = propConclusion.value;
 
     const newConclusion = parse_prop(newConclusionPromptResult.value);
 
@@ -45,11 +51,11 @@ export async function handleOrElimRule(proofTree: VisualProofEditorProofTree): P
             id: v4(),
             premisses: [
                 { ...proofTree },
-                createEmptyVisualProofEditorProofTree(newConclusion),
-                createEmptyVisualProofEditorProofTree(newConclusion),
+                createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
+                createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
             ],
             rule: { kind: 'OrElim', value: [fstIdent, sndIdent] },
-            conclusion: newConclusion,
+            conclusion: { kind: 'PropIsTrue', value: newConclusion },
         }
     };
 }
