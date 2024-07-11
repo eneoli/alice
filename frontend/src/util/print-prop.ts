@@ -26,32 +26,43 @@ export function printProp(prop: Prop): string {
         return '⊥';
     }
 
-    if (prop.kind === 'And') {
-        const [fst, snd] = prop.value;
-
-        const propPrecedence = getPrecedence(prop);
-        const fstPrecedence = getPrecedence(fst);
-        const sndPrecedence = getPrecedence(snd);
-
-        const shouldWrapFst = (propPrecedence > fstPrecedence) || (propPrecedence === fstPrecedence && isRightAssociative(prop));
-        const shouldWrapSnd = (propPrecedence > sndPrecedence) || (propPrecedence === sndPrecedence && isLeftAssociative(prop));
-
-        return wrap(fst, shouldWrapFst) + ' ∧ ' + wrap(snd, shouldWrapSnd);
+    if (prop.kind === 'ForAll') {
+        return `∀${prop.value.object_ident}:${prop.value.object_type_ident}. ` + printProp(prop.value.body);
     }
 
+    if (prop.kind === 'Exists') {
+        return `∃${prop.value.object_ident}:${prop.value.object_type_ident}. ` + printProp(prop.value.body);
+    }
+
+    let connective;
     switch (prop.kind) {
-        case 'Or': return printProp(prop.value[0]) + ' ∨ ' + printProp(prop.value[1]);
-        case 'Impl': return printProp(prop.value[0]) + ' ⊃ ' + printProp(prop.value[1]);
-        case 'ForAll': return `∀${prop.value.object_ident}:${prop.value.object_type_ident}. ` + printProp(prop.value.body);
-        case 'Exists': return `∃${prop.value.object_ident}:${prop.value.object_type_ident}. ` + printProp(prop.value.body);
+        case 'And':
+            connective = '∧';
+            break;
+        case 'Or':
+            connective = '∨';
+            break;
+        case 'Impl':
+            connective = '⊃';
     }
+
+    const [fst, snd] = prop.value;
+
+    const propPrecedence = getPrecedence(prop);
+    const fstPrecedence = getPrecedence(fst);
+    const sndPrecedence = getPrecedence(snd);
+
+    const shouldWrapFst = (propPrecedence > fstPrecedence) || (propPrecedence === fstPrecedence && isRightAssociative(prop));
+    const shouldWrapSnd = (propPrecedence > sndPrecedence) || (propPrecedence === sndPrecedence && isLeftAssociative(prop));
+
+    return wrap(fst, shouldWrapFst) + ` ${connective} ` + wrap(snd, shouldWrapSnd);
 }
 
 function getPrecedence(prop: Prop): number {
     switch (prop.kind) {
-        case 'Atom': return 41;
-        case 'True': return 41;
-        case 'False': return 41;
+        case 'Atom': return 999;
+        case 'True': return 999;
+        case 'False': return 999;
         case 'And': return 4;
         case 'Or': return 3;
         case 'Impl': return 2;
