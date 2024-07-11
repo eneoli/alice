@@ -14,7 +14,7 @@ export function VisualProofEditorAssumptionView(props: VisualProofEditorAssumpti
     const { assumptions, onResetClick, onAssumptionClick } = props;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+        <div className={cssAssumptionContainer}>
             <ul className={cssAssumptionList}>
                 {
                     assumptions.map((assumption, i) => (
@@ -26,7 +26,12 @@ export function VisualProofEditorAssumptionView(props: VisualProofEditorAssumpti
                     ))
                 }
             </ul>
-            <Button onClick={onResetClick} type={'primary'} danger={true} className={cssResetButton}>Reset</Button>
+            <Button onClick={onResetClick}
+                type={'primary'}
+                danger={true}
+                className={cssResetButton}>
+                Reset
+            </Button>
         </div>
     );
 }
@@ -37,6 +42,13 @@ function displayAssumption(assumption: Assumption) {
         case 'Datatype': return assumption.ident + ': ' + assumption.datatype;
     }
 }
+
+const cssAssumptionContainer = css`
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+`;
 
 const cssAssumptionList = css`
     display: inline-block;
