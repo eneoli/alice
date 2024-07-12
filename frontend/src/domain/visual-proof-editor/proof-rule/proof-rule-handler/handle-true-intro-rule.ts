@@ -1,7 +1,6 @@
-import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
-import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
+import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
 
-export async function handleTrueIntroRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
+export async function handleTrueIntroRule({ proofTree }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
     if (conclusion.kind !== 'PropIsTrue') {

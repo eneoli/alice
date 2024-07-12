@@ -1,8 +1,7 @@
 import { v4 } from 'uuid';
-import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
-import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
+import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
 
-export async function handleAndElimSndRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
+export async function handleAndElimSndRule({proofTree}: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
     if (conclusion.kind !== 'PropIsTrue') {

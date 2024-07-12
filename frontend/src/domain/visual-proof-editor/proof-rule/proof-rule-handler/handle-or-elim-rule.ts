@@ -1,12 +1,10 @@
 import Swal from 'sweetalert2';
-import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
-import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
+import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
 import { parse_prop } from 'alice';
 import { v4 } from 'uuid';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
-import { generateIdentifier } from './generate-identifier';
 
-export async function handleOrElimRule(proofTree: VisualProofEditorProofTree): Promise<ProofRuleHandlerResult> {
+export async function handleOrElimRule({ proofTree, generateIdentifier }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
     if (conclusion.kind !== 'PropIsTrue') {
