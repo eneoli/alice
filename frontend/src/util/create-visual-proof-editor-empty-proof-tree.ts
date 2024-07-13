@@ -10,3 +10,12 @@ export function createEmptyVisualProofEditorProofTreeFromProp(conclusion: Prop):
         conclusion: { kind: 'PropIsTrue', value: conclusion },
     }
 }
+
+export function createEmptyVisualProofEditorProofTreeFromTypeJudgment(objectIdent: string, typeIdent: string): VisualProofEditorProofTree {
+    return {
+        id: v4(),
+        premisses: [],
+        rule: null,
+        conclusion: { kind: 'TypeJudgement', value: [objectIdent, typeIdent] },
+    }
+}
