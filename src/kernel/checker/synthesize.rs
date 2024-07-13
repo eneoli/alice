@@ -321,7 +321,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             }) => {
                 let param_ident = match **applicant {
                     ProofTerm::Ident(Ident(ref ident)) => ident,
-                    _ => unreachable!("Datatype functions do not exists"),
+                    _ => unreachable!("Datatype functions do not exist"),
                 };
 
                 let (identifier, _) = self
