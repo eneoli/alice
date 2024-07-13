@@ -54,7 +54,7 @@ fn main() {
     // Step 3: Preprocess ProofTerm
 
     println!("{:#?}", processed_proof);
-    let fol = "(\\exists x:t. A(x)) -> (\\forall x:t. A(x))";
+    let fol = "(\\forall x:t. A(x)) -> (\\forall x:t. A(x))";
     let fol_tokens = lexer().parse(fol).unwrap();
     let fol_len = fol.chars().count();
 
