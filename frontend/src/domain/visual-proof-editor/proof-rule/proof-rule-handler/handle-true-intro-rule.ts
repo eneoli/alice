@@ -1,10 +1,15 @@
-import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
-import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 
-export function handleTrueIntroRule(proofTree: VisualProofEditorProofTree): ProofRuleHandlerResult {
+export async function handleTrueIntroRule({ proofTree }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
-    if (conclusion.kind !== 'True') {
+    if (conclusion.kind !== 'PropIsTrue') {
+        throw new Error('Conclusion is not truth.');
+    }
+
+    const propConclusion = conclusion.value;
+
+    if (propConclusion.kind !== 'True') {
         throw new Error('Conclusion is not truth.');
     }
 

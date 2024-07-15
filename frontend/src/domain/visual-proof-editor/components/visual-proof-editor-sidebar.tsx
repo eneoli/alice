@@ -1,25 +1,8 @@
 import React from 'react';
 import { css } from '@emotion/css';
-import { NaturalDeductionRule, VisualProofEditorProofTree } from './visual-proof-editor';
 import { partition } from 'lodash';
-import { Prop } from 'alice';
 import { Button } from 'antd';
-
-export type Assumption = { kind: 'PropIsTrue', prop: Prop, ident: string } | { kind: 'Datatype', datatype: string, ident: string };
-
-export interface ProofRuleHandlerResult {
-    newProofTree: VisualProofEditorProofTree,
-    additionalAssumptions: Assumption[],
-}
-
-type VisualProofEditorRuleHandler = (proofTree: VisualProofEditorProofTree) => ProofRuleHandlerResult;
-
-export interface VisualProofEditorRule {
-    id: NaturalDeductionRule;
-    name: string;
-    reasoning: 'TopDown' | 'BottomUp';
-    handler: VisualProofEditorRuleHandler;
-}
+import { VisualProofEditorRule } from '../proof-rule';
 
 interface VisualProofEditorSidebarProps {
     rules: VisualProofEditorRule[];

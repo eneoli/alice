@@ -1,20 +1,25 @@
-import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
-import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
-import { createEmptyVisualProofEditorProofTree } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 
-export function handleOrIntroSndRule(proofTree: VisualProofEditorProofTree): ProofRuleHandlerResult {
+export async function handleOrIntroSndRule({ proofTree }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { id, conclusion } = proofTree;
 
-    if (conclusion.kind != 'Or') {
+    if (conclusion.kind !== 'PropIsTrue') {
         throw new Error('Conclusion is not a disjunction.');
     }
 
-    const [_fst, snd] = conclusion.value;
+    const propConclusion = conclusion.value;
+
+    if (propConclusion.kind !== 'Or') {
+        throw new Error('Conclusion is not a disjunction.');
+    }
+
+    const [_fst, snd] = propConclusion.value;
 
     return {
         newProofTree: {
             id,
-            premisses: [createEmptyVisualProofEditorProofTree(snd)],
+            premisses: [createEmptyVisualProofEditorProofTreeFromProp(snd)],
             rule: { kind: 'OrIntroSnd' },
             conclusion,
         },

@@ -37,10 +37,10 @@ export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTree
     return (
         <div className={cssVisualProofEditorProofTreeView} ref={setNodeRef}>
             {
-                contexts.filter((ctx) => !ctx.isActive).map((ctx) => (
+                contexts.filter((ctx) => !ctx.isDragging).map((ctx) => (
                     <div key={ctx.id}
                         className={cssReasoningContextVisualizerContainer}
-                        style={{ top: ctx.y, left: ctx.x }}>
+                        style={{ left: ctx.x, top: ctx.y }}>
                         <ReasoningContextVisualizer
                             context={ctx}
                             onNodeSelect={(result) => onNodeSelect(ctx.id, result)} />
@@ -55,7 +55,7 @@ export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTree
             {createPortal(
                 <DragOverlay>
                     {
-                        contexts.filter((ctx) => ctx.isActive).map((context) => (
+                        contexts.filter((ctx) => ctx.isDragging).map((context) => (
                             <ReasoningContextVisualizer
                                 key={context.id}
                                 context={context}

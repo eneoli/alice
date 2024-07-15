@@ -1,32 +1,42 @@
 import React from 'react';
 import { printProp } from '../../../util/print-prop';
 import { css } from '@emotion/css';
-import { Assumption } from './visual-proof-editor-sidebar';
 import { Button } from 'antd';
+import { Assumption, AssumptionContext } from '../proof-rule';
 
 interface VisualProofEditorAssumptionViewProps {
-    assumptions: Assumption[];
+    assumptionContexts: AssumptionContext[];
+    // onUndoClick: () => void;
+    // onRedoClick: () => void;
     onResetClick: () => void;
-    onAssumptionClick: (assumption: Assumption) => void;
+    onAssumptionClick: (assumptionCtx: AssumptionContext) => void;
 }
 
 export function VisualProofEditorAssumptionView(props: VisualProofEditorAssumptionViewProps) {
-    const { assumptions, onResetClick, onAssumptionClick } = props;
+    const { assumptionContexts, onResetClick, onAssumptionClick } = props;
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', width: '100%' }}>
+        <div className={cssAssumptionContainer}>
             <ul className={cssAssumptionList}>
                 {
-                    assumptions.map((assumption, i) => (
+                    assumptionContexts.map((ctx, i) => (
                         <li key={i} className={cssAssumptionListElement}>
-                            <Button onClick={() => onAssumptionClick(assumption)}>
-                                {displayAssumption(assumption)}
+                            <Button onClick={() => onAssumptionClick(ctx)}>
+                                {displayAssumption(ctx.assumption)}
                             </Button>
                         </li>
                     ))
                 }
             </ul>
-            <Button onClick={onResetClick} type={'primary'} danger={true} className={cssResetButton}>Reset</Button>
+            <div className={cssButtonContainer}>
+                {/* <Button onClick={onUndoClick}><UndoIcon style={{ width: '20px' }} /></Button> */}
+                {/* <Button onClick={onRedoClick}><RedoIcon style={{ width: '20px' }} /></Button> */}
+                <Button onClick={onResetClick}
+                    type={'primary'}
+                    danger={true}>
+                    Reset
+                </Button>
+            </div>
         </div>
     );
 }
@@ -37,6 +47,13 @@ function displayAssumption(assumption: Assumption) {
         case 'Datatype': return assumption.ident + ': ' + assumption.datatype;
     }
 }
+
+const cssAssumptionContainer = css`
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+`;
 
 const cssAssumptionList = css`
     display: inline-block;
@@ -52,7 +69,10 @@ const cssAssumptionListElement = css`
     margin-right: 5px;
 `;
 
-const cssResetButton = css`
-    margin-right: 35px;
+const cssButtonContainer = css`
+    display: flex;
     margin-top: 20px;
+    * {
+        margin-right: 5px;
+    }
 `;

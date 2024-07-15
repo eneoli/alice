@@ -1,15 +1,20 @@
 import { v4 } from 'uuid';
-import { VisualProofEditorProofTree } from '../../components/visual-proof-editor';
-import { ProofRuleHandlerResult } from '../../components/visual-proof-editor-sidebar';
+import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
 
-export function handleAndElimFstRule(proofTree: VisualProofEditorProofTree): ProofRuleHandlerResult {
+export async function handleAndElimFstRule({ proofTree }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
 
-    if (conclusion.kind != 'And') {
+    if (conclusion.kind !== 'PropIsTrue') {
         throw new Error('Conclusion is not a conjunction');
     }
 
-    const [fst, _snd] = conclusion.value;
+    const propConclusion = conclusion.value;
+
+    if (propConclusion.kind != 'And') {
+        throw new Error('Conclusion is not a conjunction');
+    }
+
+    const [fst, _snd] = propConclusion.value;
 
     return {
         additionalAssumptions: [],
@@ -17,7 +22,7 @@ export function handleAndElimFstRule(proofTree: VisualProofEditorProofTree): Pro
             id: v4(),
             premisses: [proofTree],
             rule: { kind: 'AndElimFst' },
-            conclusion: fst,
+            conclusion: { kind: 'PropIsTrue', value: fst },
         }
     };
 }

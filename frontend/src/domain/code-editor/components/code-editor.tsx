@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Editor, Monaco } from '@monaco-editor/react';
 import { useState } from 'react';
 
 interface CodeEditorProps {
     height: string;
+    initialValue: string;
     onChange: (value: string) => void;
 }
 
@@ -117,9 +118,15 @@ function handleEditorWillMount(monaco: Monaco) {
     });
 }
 
-export function CodeEditor({ onChange, height }: CodeEditorProps) {
+export function CodeEditor(props: CodeEditorProps) {
+
+    const { onChange, initialValue, height } = props;
 
     const [value, setValue] = useState('// Write your proof here!\n\n');
+
+    useEffect(() => {
+        setValue(initialValue);
+    });
 
     const onValueChange = (value: string | undefined) => {
         setValue(value || '');

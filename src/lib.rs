@@ -2,8 +2,7 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{error::Simple, Parser, Stream};
 use kernel::{
     checker::{
-        check::{check, CheckError},
-        identifier_context::IdentifierContext,
+        check::{check, CheckError}, identifier::Identifier, identifier_context::IdentifierContext
     },
     parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline, ProofPipelineError},
@@ -134,4 +133,10 @@ pub fn parse_proof_term(proof_term: &str) -> Result<Proof, BackendError> {
     Ok(ProofPipeline::new()
         .pipe(ResolveDatatypes::boxed())
         .apply(proof)?)
+}
+
+#[wasm_bindgen]
+pub fn instantiate_free_parameter(mut prop: Prop, substituent: String, substitutor: &Identifier) -> Prop {
+    prop.instantiate_free_parameter(&substituent, substitutor);
+    prop
 }
