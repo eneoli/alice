@@ -576,4 +576,18 @@ mod tests {
             "\\bot -> \\forall x:t. \\top",
         );
     }
+
+    #[test]
+    #[should_panic]
+    fn test_exists_does_not_imply_forall()  {
+        check_proof_term(
+            "
+                atom A(1);
+                datatype t;
+
+                fn u: (\\exists x:t. A(x)) => let (a, proof) = u in fn a => proof
+            ",
+            "(\\forall x:t. A(x)) -> (\\exists x:t. A(x))"
+        );
+    }
 }
