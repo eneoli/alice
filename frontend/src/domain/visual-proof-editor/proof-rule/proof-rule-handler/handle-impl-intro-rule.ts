@@ -1,7 +1,7 @@
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 
-export async function handleImplIntroRule({ proofTree, generateIdentifier }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+export async function handleImplIntroRule({ proofTree, reasoningContextId, generateIdentifier }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
 
     const { conclusion } = proofTree;
 
@@ -26,10 +26,16 @@ export async function handleImplIntroRule({ proofTree, generateIdentifier }: Vis
             rule: { kind: 'ImplIntro', value: ident },
             conclusion,
         },
-        additionalAssumptions: [{
-            kind: 'PropIsTrue',
-            prop: fst,
-            ident,
-        }],
+        additionalAssumptions: [
+            {
+                assumption: {
+                    kind: 'PropIsTrue',
+                    prop: fst,
+                    ident,
+                },
+                owningReasoningCtxId: reasoningContextId,
+                owningNodeId: proofTree.id,
+            }
+        ],
     };
 }

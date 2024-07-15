@@ -1,5 +1,5 @@
 import { v4 } from 'uuid';
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 
 export async function handleAndElimSndRule({proofTree}: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;

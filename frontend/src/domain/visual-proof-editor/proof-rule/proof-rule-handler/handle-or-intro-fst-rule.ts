@@ -1,4 +1,4 @@
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 
 export async function handleOrIntroFstRule({ proofTree }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {

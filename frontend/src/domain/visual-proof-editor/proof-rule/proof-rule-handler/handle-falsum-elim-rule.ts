@@ -1,5 +1,5 @@
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
 
 export async function handleFalsumElimRule({ proofTree }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
 

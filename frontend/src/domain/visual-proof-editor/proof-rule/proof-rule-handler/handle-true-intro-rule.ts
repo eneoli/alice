@@ -1,4 +1,4 @@
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '../../components/visual-proof-editor-sidebar';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 
 export async function handleTrueIntroRule({ proofTree }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
     const { conclusion } = proofTree;
