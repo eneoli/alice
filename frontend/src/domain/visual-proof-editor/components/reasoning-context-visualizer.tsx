@@ -2,10 +2,12 @@ import React, { Fragment, MouseEvent, useState } from 'react';
 import { css, cx } from '@emotion/css';
 import { ReasoningContext, VisualProofEditorProofTree } from './visual-proof-editor';
 import { ProofNode } from '../../proof-tree/components/proof-node';
-import { printProp } from '../../../util/print-prop';
+import { printProp, printTypeJudgment } from '../../../util/print-prop';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { Prop } from 'alice';
+import { ProofTreeConclusion } from 'alice';
 import { printProofRule } from '../../../util/print-proof-rule';
+import { useOutsideClick } from '../../../lib/hooks/use-outside-click';
+import { mergeRefs } from 'react-merge-refs';
 
 export interface ReasoningContextNodeSelection {
     nodeId: string;
@@ -23,6 +25,10 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
     const { proofTree } = context;
 
     const [activeNode, setActiveNode] = useState<string | null>(null);
+
+    const containerRef = useOutsideClick(() => {
+        setActiveNode(null);
+    });
 
     const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: context.id });
     const style = transform ? {
@@ -54,7 +60,8 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
                 conclusion={proofTree.conclusion}
                 isSelectable={isSelectable}
                 isSelected={isSelected}
-                isDroppable={isSelectable} />
+                isDroppable={isSelectable && isLeaf}
+                isRoot={isRoot} />
         );
 
         return (
@@ -73,7 +80,7 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
     };
 
     return (
-        <div ref={setNodeRef} className={cssProofTreeContainer} style={style} {...listeners} {...attributes}>
+        <div ref={mergeRefs([setNodeRef, containerRef])} className={cssProofTreeContainer} style={style} {...listeners} {...attributes}>
             {renderTree(proofTree, true)}
         </div>
     );
@@ -86,19 +93,20 @@ const cssProofTreeContainer = css`
 interface ConclusionProps {
     contextId: string;
     nodeId: string;
-    conclusion: Prop;
+    conclusion: ProofTreeConclusion,
     isSelectable: boolean;
     isSelected: boolean;
     isDroppable: boolean;
+    isRoot: boolean;
 }
 
 function Conclusion(props: ConclusionProps) {
 
-    const { contextId, nodeId, conclusion, isSelectable, isSelected, isDroppable } = props;
+    const { contextId, nodeId, conclusion, isSelectable, isSelected, isDroppable, isRoot } = props;
 
     const { setNodeRef, isOver } = useDroppable({
         id: `${contextId};${nodeId}`,
-        data: { contextId, nodeId },
+        data: { contextId, nodeId, isRoot },
         disabled: !isDroppable,
     });
 
@@ -109,7 +117,13 @@ function Conclusion(props: ConclusionProps) {
             [cssSelectedProofTreeConclusionContainer]: isSelected,
             [cssDraggedOverProofTreeConclusionContainer]: isOver,
         })} ref={setNodeRef}>
-            {printProp(conclusion)}
+            {conclusion.kind === 'PropIsTrue' && (
+                printProp(conclusion.value)
+            )}
+
+            {conclusion.kind === 'TypeJudgement' && (
+                printTypeJudgment(conclusion.value)
+            )}
         </div>
     );
 }
