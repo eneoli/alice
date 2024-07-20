@@ -78,6 +78,19 @@ impl Prop {
         Box::new(self.clone())
     }
 
+    pub fn has_quantifiers(&self) -> bool {
+        match self {
+            Prop::Atom(_, _) => false,
+            Prop::True => false,
+            Prop::False => false,
+            Prop::And(fst, snd) => fst.has_quantifiers() || snd.has_quantifiers(),
+            Prop::Or(fst, snd) => fst.has_quantifiers() || snd.has_quantifiers(),
+            Prop::Impl(fst, snd) => fst.has_quantifiers() || snd.has_quantifiers(),
+            Prop::ForAll { .. } => true,
+            Prop::Exists { .. } => true,
+        }
+    }
+
     pub fn has_free_parameters(&self) -> bool {
         self.get_free_parameters().len() > 0
     }
@@ -1085,7 +1098,7 @@ mod tests {
     fn test_not_alpha_eq_atom_no_params() {
         assert!(!parse_prop("A").alpha_eq(&parse_prop("B")))
     }
-    
+
     #[test]
     #[should_panic]
     fn test_no_free_uninstantiated_params() {
