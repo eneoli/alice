@@ -1,3 +1,6 @@
+use core::fmt;
+use std::fmt::Display;
+
 use super::prop::Prop;
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
@@ -172,8 +175,67 @@ impl ProofTerm {
             ProofTerm::OrRight(or_right) => visitor.visit_or_right(or_right),
             ProofTerm::Case(case) => visitor.visit_case(case),
             ProofTerm::Abort(abort) => visitor.visit_abort(abort),
-            ProofTerm::TypeAscription(type_ascription) => visitor.visit_type_ascription(type_ascription),
+            ProofTerm::TypeAscription(type_ascription) => {
+                visitor.visit_type_ascription(type_ascription)
+            }
             ProofTerm::Unit => visitor.visit_unit(),
+        }
+    }
+}
+
+impl Display for ProofTerm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ProofTerm::Unit => write!(f, "()"),
+            ProofTerm::Ident(Ident(ident)) => write!(f, "{}", ident),
+            ProofTerm::Pair(Pair(fst, snd)) => write!(f, "({}, {})", fst, snd),
+            ProofTerm::ProjectFst(ProjectFst(body)) => write!(f, "fst {}", body),
+            ProofTerm::ProjectSnd(ProjectSnd(body)) => write!(f, "snd {}", body),
+            ProofTerm::Abort(Abort(body)) => write!(f, "abort {}", body),
+            ProofTerm::OrLeft(OrLeft(body)) => write!(f, "inl {}", body),
+            ProofTerm::OrRight(OrRight(body)) => write!(f, "inr {}", body),
+            ProofTerm::Case(Case {
+                head,
+                fst_ident,
+                fst_term,
+                snd_ident,
+                snd_term,
+            }) => {
+                write!(
+                    f,
+                    "case {} of inl {} => {}, inr {} => {}",
+                    head, fst_ident, fst_term, snd_ident, snd_term
+                )
+            }
+            ProofTerm::Function(Function {
+                param_ident,
+                param_type,
+                body,
+            }) => {
+                if let Some(param_type) = param_type {
+                    write!(f, "fn {}: {:?} => {}", param_ident, param_type, body)
+                } else {
+                    write!(f, "fn {} => {}", param_ident, body)
+                }
+            }
+            ProofTerm::Application(Application {
+                function,
+                applicant,
+            }) => write!(f, "({}) ({})", function, applicant),
+            ProofTerm::LetIn(LetIn {
+                fst_ident,
+                snd_ident,
+                head,
+                body,
+            }) => write!(
+                f,
+                "let ({}, {}) = {} in {}",
+                fst_ident, snd_ident, head, body
+            ),
+            ProofTerm::TypeAscription(TypeAscription {
+                proof_term,
+                ascription,
+            }) => write!(f, "{}: {:?}", proof_term, ascription),
         }
     }
 }
