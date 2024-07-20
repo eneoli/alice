@@ -1,7 +1,6 @@
 use alice::kernel::{
-    checker::{check::check, identifier_context::IdentifierContext},
     parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
-    process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
+    process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline}, prove::prove,
 };
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{Parser, Stream};
@@ -54,7 +53,7 @@ fn main() {
     // Step 3: Preprocess ProofTerm
 
     println!("{:#?}", processed_proof);
-    let fol = "(\\forall x:t. A(x)) -> (\\forall x:t. A(x))";
+    let fol = "~~(A || ~A)";
     let fol_tokens = lexer().parse(fol).unwrap();
     let fol_len = fol.chars().count();
 
@@ -65,13 +64,15 @@ fn main() {
         ))
         .unwrap();
 
-    println!("{:#?}", prop.get_free_parameters());
+    // println!("{:#?}", prop.get_free_parameters());
 
-    let _type = check(
-        &processed_proof.proof_term,
-        &prop,
-        &IdentifierContext::new(),
-    );
+    // let _type = check(
+    //     &processed_proof.proof_term,
+    //     &prop,
+    //     &IdentifierContext::new(),
+    // );
 
-    println!("{:#?}", _type);
+    // println!("{:#?}", _type);
+
+    println!("{}", prove(&prop).unwrap());
 }
