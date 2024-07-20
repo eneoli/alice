@@ -45,6 +45,7 @@ const cssVisualProofEditorSidebar = css`
     display: flex;
     flex-direction: column;
     border: 2px solid #37485f;
+    overflow-y: auto;
 `;
 
 const cssVisualProofEditorRuleList = css`
