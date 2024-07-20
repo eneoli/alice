@@ -4,6 +4,7 @@ use super::{
     checker::{check::check, identifier_context::IdentifierContext},
     proof_term::{
         Abort, Application, Case, Function, Ident, OrLeft, OrRight, Pair, ProofTerm, Type,
+        TypeAscription,
     },
     prop::Prop,
 };
@@ -57,7 +58,6 @@ pub fn prove(prop: &Prop) -> Option<ProofTerm> {
 
     let proof_term = prover.prove_right(Sequent::new(prop))?;
 
-    println!("{}", proof_term);
     // sanity check
     let check_result = check(&proof_term, prop, &IdentifierContext::new());
     if check_result.is_err() {
@@ -82,8 +82,8 @@ impl Prover {
     }
 
     fn prove_right(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
-        println!("{:#?}", sequent);
         match sequent.goal {
+            Prop::True => Some(ProofTerm::Unit),
             Prop::And(fst, snd) => {
                 let fst_sequent = sequent.with_new_goal(fst);
                 let fst_proof_term = self.prove_right(fst_sequent)?;
@@ -97,8 +97,6 @@ impl Prover {
                 )))
             }
 
-            Prop::True => Some(ProofTerm::Unit),
-
             Prop::Impl(fst, snd) => {
                 let param_ident = self.generate_identifier();
 
@@ -109,7 +107,7 @@ impl Prover {
 
                 Some(ProofTerm::Function(Function {
                     param_ident,
-                    param_type: Some(Type::Prop(*fst.clone())),
+                    param_type: None,
                     body: body_proof_term.boxed(),
                 }))
             }
@@ -123,7 +121,6 @@ impl Prover {
     }
 
     fn prove_left(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
-        println!("{:#?}", sequent);
         if sequent.ordered_ctx.len() == 0 {
             return self.search(sequent);
         }
@@ -187,18 +184,22 @@ impl Prover {
 
                     let fst_ident = self.generate_identifier();
                     let snd_ident = self.generate_identifier();
-                    let new_proof_term = ProofTerm::Function(Function {
-                        param_ident: fst_ident.clone(),
-                        param_type: Some(Type::Prop(*and_fst)),
-                        body: ProofTerm::Function(Function {
-                            param_ident: snd_ident.clone(),
-                            param_type: Some(Type::Prop(*and_snd)),
-                            body: ProofTerm::Application(Application {
-                                function: proof_term.boxed(),
-                                applicant: ProofTerm::Pair(Pair(
-                                    ProofTerm::Ident(Ident(fst_ident)).boxed(),
-                                    ProofTerm::Ident(Ident(snd_ident)).boxed(),
-                                ))
+                    let new_proof_term = ProofTerm::TypeAscription(TypeAscription {
+                        ascription: Type::Prop(new_prop.clone()),
+                        proof_term: ProofTerm::Function(Function {
+                            param_ident: fst_ident.clone(),
+                            param_type: None,
+                            body: ProofTerm::Function(Function {
+                                param_ident: snd_ident.clone(),
+                                param_type: None,
+                                body: ProofTerm::Application(Application {
+                                    function: proof_term.boxed(),
+                                    applicant: ProofTerm::Pair(Pair(
+                                        ProofTerm::Ident(Ident(fst_ident)).boxed(),
+                                        ProofTerm::Ident(Ident(snd_ident)).boxed(),
+                                    ))
+                                    .boxed(),
+                                })
                                 .boxed(),
                             })
                             .boxed(),
@@ -213,14 +214,18 @@ impl Prover {
                 Prop::Or(or_fst, or_snd) => {
                     let or_fst_prop = Prop::Impl(or_fst, snd.clone());
                     let or_fst_ident = self.generate_identifier();
-                    let or_fst_proof_term = ProofTerm::Function(Function {
-                        param_ident: or_fst_ident.clone(),
-                        param_type: None,
-                        body: ProofTerm::Application(Application {
-                            function: proof_term.boxed(),
-                            applicant: ProofTerm::OrLeft(OrLeft(
-                                ProofTerm::Ident(Ident(or_fst_ident)).boxed(),
-                            ))
+                    let or_fst_proof_term = ProofTerm::TypeAscription(TypeAscription {
+                        ascription: Type::Prop(or_fst_prop.clone()),
+                        proof_term: ProofTerm::Function(Function {
+                            param_ident: or_fst_ident.clone(),
+                            param_type: None,
+                            body: ProofTerm::Application(Application {
+                                function: proof_term.boxed(),
+                                applicant: ProofTerm::OrLeft(OrLeft(
+                                    ProofTerm::Ident(Ident(or_fst_ident)).boxed(),
+                                ))
+                                .boxed(),
+                            })
                             .boxed(),
                         })
                         .boxed(),
@@ -229,14 +234,18 @@ impl Prover {
 
                     let or_snd_prop = Prop::Impl(or_snd.clone(), (*snd).boxed());
                     let or_snd_ident = self.generate_identifier();
-                    let or_snd_proof_term = ProofTerm::Function(Function {
-                        param_ident: or_snd_ident.clone(),
-                        param_type: Some(Type::Prop(*or_snd)),
-                        body: ProofTerm::Application(Application {
-                            function: proof_term.boxed(),
-                            applicant: ProofTerm::OrRight(OrRight(
-                                ProofTerm::Ident(Ident(or_snd_ident)).boxed(),
-                            ))
+                    let or_snd_proof_term = ProofTerm::TypeAscription(TypeAscription {
+                        ascription: Type::Prop(or_snd_prop.clone()),
+                        proof_term: ProofTerm::Function(Function {
+                            param_ident: or_snd_ident.clone(),
+                            param_type: None,
+                            body: ProofTerm::Application(Application {
+                                function: proof_term.boxed(),
+                                applicant: ProofTerm::OrRight(OrRight(
+                                    ProofTerm::Ident(Ident(or_snd_ident)).boxed(),
+                                ))
+                                .boxed(),
+                            })
                             .boxed(),
                         })
                         .boxed(),
@@ -265,7 +274,6 @@ impl Prover {
     }
 
     fn search(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
-        println!("{:#?}", sequent);
         if sequent.ordered_ctx.len() > 0 {
             panic!("Do not search when ordered context is not empty.");
         }
@@ -342,17 +350,22 @@ impl Prover {
 
                     let first_param_ident = self.generate_identifier();
 
+                    let new_prop = Prop::Impl(impl_impl_snd.boxed(), impl_snd.boxed());
                     fst_sequent.append_unordered(
-                        Prop::Impl(impl_impl_snd.boxed(), impl_snd.boxed()),
-                        ProofTerm::Function(Function {
-                            param_ident: first_param_ident.clone(),
-                            param_type: Some(Type::Prop(*impl_impl_snd.clone())),
-                            body: ProofTerm::Application(Application {
-                                function: proof_term.boxed(),
-                                applicant: ProofTerm::Function(Function {
-                                    param_ident: self.generate_identifier(),
-                                    param_type: None,
-                                    body: ProofTerm::Ident(Ident(first_param_ident)).boxed(),
+                        new_prop.clone(),
+                        ProofTerm::TypeAscription(TypeAscription {
+                            ascription: Type::Prop(new_prop),
+                            proof_term: ProofTerm::Function(Function {
+                                param_ident: first_param_ident.clone(),
+                                param_type: None,
+                                body: ProofTerm::Application(Application {
+                                    function: proof_term.boxed(),
+                                    applicant: ProofTerm::Function(Function {
+                                        param_ident: self.generate_identifier(),
+                                        param_type: None,
+                                        body: ProofTerm::Ident(Ident(first_param_ident)).boxed(),
+                                    })
+                                    .boxed(),
                                 })
                                 .boxed(),
                             })
