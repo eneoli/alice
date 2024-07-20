@@ -2,17 +2,19 @@ use crate::kernel::proof_term::{ProjectFst, ProjectSnd};
 
 use super::{
     checker::{check::check, identifier_context::IdentifierContext},
-    proof_term::{Abort, Application, Case, Function, Ident, OrLeft, OrRight, Pair, ProofTerm},
+    proof_term::{
+        Abort, Application, Case, Function, Ident, OrLeft, OrRight, Pair, ProofTerm, Type,
+    },
     prop::Prop,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct TypeJudgment {
     prop: Prop,
     proof_term: ProofTerm,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct Sequent<'a> {
     unordered_ctx: Vec<TypeJudgment>,
     ordered_ctx: Vec<TypeJudgment>,
@@ -55,11 +57,13 @@ pub fn prove(prop: &Prop) -> Option<ProofTerm> {
 
     let proof_term = prover.prove_right(Sequent::new(prop))?;
 
+    println!("{}", proof_term);
     // sanity check
-    if check(&proof_term, prop, &IdentifierContext::new()).is_err() {
+    let check_result = check(&proof_term, prop, &IdentifierContext::new());
+    if check_result.is_err() {
         panic!(
-            "Prover returned wrong proof. Prop: {:#?}, proof term: {:#?}",
-            prop, proof_term
+            "Prover returned wrong proof. Prop: {:#?}, proof term: {:#?}, error: {:#?}",
+            prop, proof_term, check_result,
         );
     }
 
@@ -78,6 +82,7 @@ impl Prover {
     }
 
     fn prove_right(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
+        println!("{:#?}", sequent);
         match sequent.goal {
             Prop::And(fst, snd) => {
                 let fst_sequent = sequent.with_new_goal(fst);
@@ -104,7 +109,7 @@ impl Prover {
 
                 Some(ProofTerm::Function(Function {
                     param_ident,
-                    param_type: None,
+                    param_type: Some(Type::Prop(*fst.clone())),
                     body: body_proof_term.boxed(),
                 }))
             }
@@ -118,6 +123,7 @@ impl Prover {
     }
 
     fn prove_left(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
+        println!("{:#?}", sequent);
         if sequent.ordered_ctx.len() == 0 {
             return self.search(sequent);
         }
@@ -174,16 +180,19 @@ impl Prover {
                 }
 
                 Prop::And(and_fst, and_snd) => {
-                    let new_prop = Prop::Impl(and_fst, Prop::Impl(and_snd, snd.clone()).boxed());
+                    let new_prop = Prop::Impl(
+                        and_fst.clone(),
+                        Prop::Impl(and_snd.clone(), snd.clone()).boxed(),
+                    );
 
                     let fst_ident = self.generate_identifier();
                     let snd_ident = self.generate_identifier();
                     let new_proof_term = ProofTerm::Function(Function {
                         param_ident: fst_ident.clone(),
-                        param_type: None,
+                        param_type: Some(Type::Prop(*and_fst)),
                         body: ProofTerm::Function(Function {
                             param_ident: snd_ident.clone(),
-                            param_type: None,
+                            param_type: Some(Type::Prop(*and_snd)),
                             body: ProofTerm::Application(Application {
                                 function: proof_term.boxed(),
                                 applicant: ProofTerm::Pair(Pair(
@@ -218,11 +227,11 @@ impl Prover {
                     });
                     sequent.append_ordered(or_fst_prop, or_fst_proof_term);
 
-                    let or_snd_prop = Prop::Impl(or_snd, (*snd).boxed());
+                    let or_snd_prop = Prop::Impl(or_snd.clone(), (*snd).boxed());
                     let or_snd_ident = self.generate_identifier();
                     let or_snd_proof_term = ProofTerm::Function(Function {
                         param_ident: or_snd_ident.clone(),
-                        param_type: None,
+                        param_type: Some(Type::Prop(*or_snd)),
                         body: ProofTerm::Application(Application {
                             function: proof_term.boxed(),
                             applicant: ProofTerm::OrRight(OrRight(
@@ -256,6 +265,7 @@ impl Prover {
     }
 
     fn search(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
+        println!("{:#?}", sequent);
         if sequent.ordered_ctx.len() > 0 {
             panic!("Do not search when ordered context is not empty.");
         }
@@ -296,69 +306,73 @@ impl Prover {
             }
         }
 
-        // Impl Rules
-        // TODO check if goal is positive
-        let TypeJudgment { prop, proof_term } = sequent.unordered_ctx.pop()?;
-        if let Prop::Impl(impl_fst, impl_snd) = prop {
-            // impl atom rule
-            if let Prop::Atom(_, _) = *impl_fst {
-                if let Some(elem) = sequent
-                    .unordered_ctx
-                    .iter()
-                    .find(|elem| elem.prop == *impl_fst)
-                {
-                    let mut new_sequent = sequent.clone();
-                    new_sequent.append_ordered(
-                        *impl_snd.clone(),
-                        ProofTerm::Application(Application {
-                            function: proof_term.boxed(),
-                            applicant: elem.proof_term.boxed(),
-                        }),
-                    );
+        for (i, TypeJudgment { prop, proof_term }) in sequent.unordered_ctx.iter().enumerate() {
+            let mut my_sequent = sequent.clone();
+            my_sequent.unordered_ctx.remove(i);
 
-                    if let Some(result_proof_term) = self.prove_left(new_sequent) {
-                        return Some(result_proof_term);
+            // Impl Rules
+            // TODO check if goal is positive
+            if let Prop::Impl(impl_fst, impl_snd) = prop {
+                // impl atom rule
+                if let Prop::Atom(_, _) = **impl_fst {
+                    if let Some(elem) = my_sequent
+                        .unordered_ctx
+                        .iter()
+                        .find(|elem| elem.prop == **impl_fst)
+                    {
+                        let mut new_sequent = my_sequent.clone();
+                        new_sequent.append_ordered(
+                            *impl_snd.clone(),
+                            ProofTerm::Application(Application {
+                                function: proof_term.boxed(),
+                                applicant: elem.proof_term.boxed(),
+                            }),
+                        );
+
+                        if let Some(result_proof_term) = self.prove_left(new_sequent) {
+                            return Some(result_proof_term);
+                        }
                     }
                 }
-            }
 
-            // Impl Impl left rule
-            if let Prop::Impl(impl_impl_fst, impl_impl_snd) = *impl_fst {
-                let fst_goal = Prop::Impl(impl_impl_fst.clone(), impl_impl_snd.clone());
-                let mut fst_sequent = sequent.with_new_goal(&fst_goal);
+                // Impl Impl left rule
+                if let Prop::Impl(ref impl_impl_fst, ref impl_impl_snd) = **impl_fst {
+                    let fst_goal = Prop::Impl(impl_impl_fst.clone(), impl_impl_snd.clone());
+                    let mut fst_sequent = my_sequent.with_new_goal(&fst_goal);
 
-                let first_param_ident = self.generate_identifier();
+                    let first_param_ident = self.generate_identifier();
 
-                fst_sequent.append_unordered(
-                    Prop::Impl(impl_impl_snd.boxed(), impl_snd.boxed()),
-                    ProofTerm::Function(Function {
-                        param_ident: first_param_ident.clone(),
-                        param_type: None,
-                        body: ProofTerm::Application(Application {
-                            function: proof_term.boxed(),
-                            applicant: ProofTerm::Function(Function {
-                                param_ident: self.generate_identifier(),
-                                param_type: None,
-                                body: ProofTerm::Ident(Ident(first_param_ident)).boxed(),
+                    fst_sequent.append_unordered(
+                        Prop::Impl(impl_impl_snd.boxed(), impl_snd.boxed()),
+                        ProofTerm::Function(Function {
+                            param_ident: first_param_ident.clone(),
+                            param_type: Some(Type::Prop(*impl_impl_snd.clone())),
+                            body: ProofTerm::Application(Application {
+                                function: proof_term.boxed(),
+                                applicant: ProofTerm::Function(Function {
+                                    param_ident: self.generate_identifier(),
+                                    param_type: None,
+                                    body: ProofTerm::Ident(Ident(first_param_ident)).boxed(),
+                                })
+                                .boxed(),
                             })
                             .boxed(),
-                        })
-                        .boxed(),
-                    }),
-                );
-
-                if let Some(fst_proof_term) = self.prove_right(fst_sequent) {
-                    let mut snd_sequent = sequent.clone();
-                    snd_sequent.append_unordered(
-                        *impl_snd,
-                        ProofTerm::Application(Application {
-                            function: proof_term.boxed(),
-                            applicant: fst_proof_term.boxed(),
                         }),
                     );
 
-                    if let Some(final_proof_term) = self.prove_left(snd_sequent) {
-                        return Some(final_proof_term);
+                    if let Some(fst_proof_term) = self.prove_right(fst_sequent) {
+                        let mut snd_sequent = my_sequent.clone();
+                        snd_sequent.append_unordered(
+                            *impl_snd.clone(),
+                            ProofTerm::Application(Application {
+                                function: proof_term.boxed(),
+                                applicant: fst_proof_term.boxed(),
+                            }),
+                        );
+
+                        if let Some(final_proof_term) = self.prove_left(snd_sequent) {
+                            return Some(final_proof_term);
+                        }
                     }
                 }
             }
@@ -400,5 +414,260 @@ impl IdentifierGenerator {
         self.idx += 1;
 
         identifier.chars().rev().collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chumsky::{primitive::end, Parser, Stream};
+
+    use crate::kernel::{
+        checker::{check::check, identifier_context::IdentifierContext},
+        parse::{fol::fol_parser, lexer::lexer},
+    };
+
+    use super::prove;
+
+    pub fn assert_proof(prop: &str) {
+        let prop_tokens = lexer().then_ignore(end()).parse(prop).unwrap();
+
+        let prop_len = prop.chars().count();
+
+        let prop = fol_parser()
+            .parse(Stream::from_iter(
+                prop_len..prop_len + 1,
+                prop_tokens.into_iter(),
+            ))
+            .unwrap();
+
+        let proof_term_result = prove(&prop);
+
+        assert!(proof_term_result.is_some());
+        assert!(check(
+            &proof_term_result.unwrap(),
+            &prop,
+            &IdentifierContext::new()
+        )
+        .is_ok());
+    }
+
+    pub fn assert_no_proof(prop: &str) {
+        let prop_tokens = lexer().then_ignore(end()).parse(prop).unwrap();
+
+        let prop_len = prop.chars().count();
+
+        let prop = fol_parser()
+            .parse(Stream::from_iter(
+                prop_len..prop_len + 1,
+                prop_tokens.into_iter(),
+            ))
+            .unwrap();
+
+        let proof_term_result = prove(&prop);
+
+        assert!(proof_term_result.is_none());
+    }
+
+    #[test]
+    fn test_no_falsum_proof() {
+        assert_no_proof("\\bot");
+    }
+
+    #[test]
+    fn test_truth_proof() {
+        assert_proof("\\top");
+    }
+
+    #[test]
+    fn test_atom_identity() {
+        assert_proof("A -> A");
+    }
+
+    #[test]
+    fn test_impl_with_unused() {
+        assert_proof("A -> (B -> A)");
+    }
+
+    #[test]
+    fn test_impl_none() {
+        assert_no_proof("A -> B");
+    }
+
+    #[test]
+    fn test_swap() {
+        assert_proof("A & B -> B & A");
+    }
+
+    #[test]
+    fn test_currying() {
+        assert_proof("(A & B -> C) -> (A -> B -> C)");
+    }
+
+    #[test]
+    fn test_uncurrying() {
+        assert_proof("(A -> B -> C) -> (A & B -> C)");
+    }
+
+    #[test]
+    fn test_project_fst() {
+        assert_proof("A && B -> A");
+    }
+
+    #[test]
+    fn test_project_snd() {
+        assert_proof("A && B -> B");
+    }
+
+    #[test]
+    fn test_impl_switch_params() {
+        assert_proof("(A -> B -> C) -> (B -> A -> C)");
+    }
+
+    #[test]
+    fn test_impl_elim() {
+        assert_proof("A && (A -> B) -> B");
+    }
+
+    #[test]
+    fn test_interaction_law_of_distributivity() {
+        assert_proof("(A -> (B & C)) -> ((A -> B) & (A -> C))");
+    }
+
+    #[test]
+    fn test_distribution_of_or() {
+        assert_proof("A -> (B || C) -> ((A -> B) || (A -> C))");
+    }
+
+    #[test]
+    fn test_undo_distribution_of_or() {
+        assert_proof("((A -> B) || (A -> C)) -> A -> (B || C)");
+    }
+
+    #[test]
+    fn test_commutativity_of_disjunction() {
+        assert_proof("A || B -> B || A");
+    }
+
+    #[test]
+    fn test_ex_falso_quodlibet() {
+        assert_proof("\\bot -> A");
+    }
+
+    #[test]
+    fn test_composition_of_functions() {
+        assert_proof("((A -> B) & (B -> C)) -> (A -> C)");
+    }
+
+    #[test]
+    fn test_apply_composition_of_functions() {
+        assert_proof("A && (A -> B) && (B -> C) -> C");
+    }
+
+    #[test]
+    fn test_s_combinator() {
+        assert_proof("(A -> B) -> (A -> (B -> C)) -> (A -> C)");
+    }
+
+    #[test]
+    fn test_no_negated_lem() {
+        assert_no_proof("~(A || ~A)");
+    }
+
+    #[test]
+    fn test_lem_double_negated() {
+        assert_proof("~~(A || ~A)");
+    }
+
+    #[test]
+    fn test_tripple_negation_elimination() {
+        assert_proof("~~~A -> ~A");
+    }
+
+    #[test]
+    fn test_no_double_negation_elimination() {
+        assert_no_proof("~~A -> A");
+    }
+
+    #[test]
+    fn test_or_impl() {
+        assert_proof("A || B -> B || A -> B || A -> A || B");
+    }
+
+    #[test]
+    fn test_peirces_law() {
+        assert_no_proof("((A -> B) -> A) -> A");
+    }
+
+    #[test]
+    fn test_double_negation_peirces_law() {
+        assert_proof("~~(((A -> B) -> A) -> A)");
+    }
+
+    #[test]
+    fn test_long_proof() {
+        assert_proof("(P -> (C ∧ K) || (D ∧ L)) -> (~K -> S) -> (D || L) -> (P -> ~S) ∧ (S -> ~P) -> (C -> ~D) ∧ (D -> ~C) -> (K -> ~L) ∧ (L -> ~K) -> ~P");
+    }
+
+    #[test]
+    fn test_impl_and_or() {
+        assert_proof("(A || C) && (B -> C) -> (A -> B) -> C");
+    }
+
+    #[test]
+    fn test_some_tautologies() {
+        assert_proof("((A || B) && (B -> C)) -> ((A -> B) -> C)");
+        assert_proof("(A || B -> C) -> (A -> C) && (B -> C)");
+        assert_proof("(A -> C) && (B -> C) -> (A || B -> C)");
+
+        assert_proof("(A && (B || C)) -> (A && B) || (A && C)");
+        assert_proof("(A && B) || (A && C) -> (A && (B || C))");
+
+        assert_proof("(A || (B && C)) -> (A || B) && (A || C)");
+        assert_proof("(A || B) && (A || C) -> (A || (B && C))");
+
+        assert_proof("((A -> B) -> (A -> C) -> A -> B)");
+        assert_proof("((A -> B) -> (A -> C) -> A -> C)");
+        assert_proof("A -> ((A -> B) -> (A -> C) -> B)");
+        assert_proof("A -> ((A -> B) -> (A -> C) -> C)");
+        assert_proof("((A -> B -> C) -> A -> B -> C)");
+        assert_proof("((A -> B -> C) -> B -> A -> C)");
+        assert_proof("A -> B -> (A -> B -> C) -> C");
+        assert_proof("B -> A -> (A -> B -> C) -> C");
+
+        assert_proof("((A -> B) -> A -> B)");
+        assert_proof("(((A -> B) -> C) -> ((A -> B) -> C))");
+        assert_proof("((((A -> B) -> C) -> D) -> (((A -> B) -> C) -> D))");
+        assert_proof("(((((A -> B) -> C) -> D) -> E) -> (((A -> B) -> C) -> D) -> E)");
+        assert_proof("((((((A -> B) -> C) -> D) -> E) -> F) -> (((A -> B) -> C) -> D) -> E -> F)");
+        assert_proof("((((((A -> B) -> C) -> D) -> E) -> F) -> (((((A -> B) -> C) -> D) -> E) -> F) || (((((A -> B) -> C) -> D) -> E) -> F))");
+        assert_proof("((A -> B) -> C) -> D -> D || D");
+    }
+
+    #[test]
+    fn test_demorgan() {
+        assert_no_proof("~(A && B) -> ~A || ~B");
+        assert_proof("~A || ~B -> ~(A && B)");
+
+        assert_proof("~(A || B) -> ~A && ~B");
+        assert_proof("~A && ~B -> ~(A || B)");
+
+        assert_no_proof("~(A -> B) -> A && ~B");
+        assert_proof("A && ~B -> ~(A -> B)");
+
+        assert_proof("A -> ~~A");
+
+        assert_proof("~\\top -> \\bot");
+        assert_proof("\\bot -> ~\\top");
+    }
+
+    #[test]
+    fn test_no_proofs() {
+        assert_no_proof("(A -> B || C) -> (A -> B) || (A -> C)");
+        assert_no_proof("((A -> B) -> C) -> ((A || B) && (B -> C))");
+    }
+
+    #[test]
+    fn test_three_way_composition() {
+        assert_proof("(A -> B) -> (B -> C) -> (C -> D) -> (A -> D)");
     }
 }
