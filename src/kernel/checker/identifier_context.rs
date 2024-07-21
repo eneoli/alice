@@ -7,6 +7,12 @@ pub struct IdentifierContext {
     ctx: Vec<(Identifier, Type)>,
 }
 
+impl Default for IdentifierContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IdentifierContext {
     pub fn new() -> Self {
         Self { ctx: Vec::new() }

@@ -31,6 +31,12 @@ pub enum ResolveDatatypesStageError {
 
 pub struct ResolveDatatypes {}
 
+impl Default for ResolveDatatypes {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResolveDatatypes {
     pub fn new() -> Self {
         Self {}
@@ -42,7 +48,7 @@ impl ResolveDatatypes {
 
     fn has_datatype_identifier(&self, prop: &Prop, datatypes: &Vec<String>) -> bool {
         match prop {
-            Prop::Atom(ident, _) => datatypes.contains(&ident),
+            Prop::Atom(ident, _) => datatypes.contains(ident),
             Prop::And(fst, snd) => {
                 self.has_datatype_identifier(fst, datatypes)
                     || self.has_datatype_identifier(snd, datatypes)
@@ -77,8 +83,8 @@ impl ResolveDatatypes {
             }
 
             // Prop that includes datatype
-            Type::Prop(prop) if self.has_datatype_identifier(&prop, &datatypes) => {
-                return Err(ResolveDatatypesStageError::PropContainsDatatypeIdentifier);
+            Type::Prop(prop) if self.has_datatype_identifier(&prop, datatypes) => {
+                Err(ResolveDatatypesStageError::PropContainsDatatypeIdentifier)
             }
 
             // Actual Atom
@@ -207,7 +213,7 @@ impl ProofPipelineStage for ResolveDatatypes {
             ..
         } = proof;
 
-        let atom_map = HashMap::from_iter(atoms.clone().into_iter());
+        let atom_map = HashMap::from_iter(atoms.clone());
 
         let new_proof_term = self
             .resolve_datatypes(proof_term, &atom_map, &datatypes)

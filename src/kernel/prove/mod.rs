@@ -141,7 +141,7 @@ impl Prover {
     }
 
     fn prove_left(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
-        if sequent.ordered_ctx.len() == 0 {
+        if sequent.ordered_ctx.is_empty() {
             return self.search(sequent);
         }
 
@@ -337,7 +337,7 @@ impl Prover {
 
     fn search(&mut self, sequent: Sequent) -> Option<ProofTerm> {
         assert!(
-            sequent.ordered_ctx.len() == 0,
+            sequent.ordered_ctx.is_empty(),
             "Do not search when ordered context is not empty."
         );
 

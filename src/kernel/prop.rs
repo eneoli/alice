@@ -92,7 +92,7 @@ impl Prop {
     }
 
     pub fn has_free_parameters(&self) -> bool {
-        self.get_free_parameters().len() > 0
+        !self.get_free_parameters().is_empty()
     }
 
     pub fn get_free_parameters(&self) -> Vec<PropParameter> {
@@ -149,7 +149,7 @@ impl Prop {
         _get_free_parameters(self, &mut binded_idents)
     }
 
-    pub fn get_free_parameters_mut<'a>(&'a mut self) -> Vec<&'a mut PropParameter> {
+    pub fn get_free_parameters_mut(&mut self) -> Vec<&mut PropParameter> {
         fn _get_free_parameters<'a>(
             prop: &'a mut Prop,
             binded_idents: &mut Vec<String>,
@@ -340,16 +340,16 @@ impl Prop {
                     }
                 }
 
-                return true;
+                true
             }
             _ => false,
         }
     }
 }
 
-impl Into<Type> for Prop {
-    fn into(self) -> Type {
-        Type::Prop(self)
+impl From<Prop> for Type {
+    fn from(val: Prop) -> Self {
+        Type::Prop(val)
     }
 }
 
@@ -357,7 +357,7 @@ impl Debug for Prop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Prop::Atom(ident, params) => {
-                if params.len() > 0 {
+                if !params.is_empty() {
                     write!(f, "{}({})", format!("{:?}", ident), format!("{:?}", params))
                 } else {
                     write!(f, "{}", format!("{:?}", ident))

@@ -95,7 +95,7 @@ pub fn verify(prop: &str, proof_term: &str) -> Result<ProofTree, BackendError> {
         &IdentifierContext::new(),
     )?;
 
-    return Ok(proof_tree);
+    Ok(proof_tree)
 }
 
 #[wasm_bindgen]

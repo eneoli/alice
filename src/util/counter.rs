@@ -2,6 +2,12 @@ pub struct Counter {
     count: usize,
 }
 
+impl Default for Counter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Counter {
     pub fn new() -> Self {
         Self { count: 0 }

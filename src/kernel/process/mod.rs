@@ -34,6 +34,12 @@ pub struct ProofPipeline {
     stages: Vec<Box<dyn ProofPipelineStage>>,
 }
 
+impl Default for ProofPipeline {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProofPipeline {
     pub fn new() -> Self {
         Self { stages: vec![] }

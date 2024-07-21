@@ -44,9 +44,9 @@ impl Type {
     }
 }
 
-impl Into<Prop> for Type {
-    fn into(self) -> Prop {
-        if let Type::Prop(_type) = self {
+impl From<Type> for Prop {
+    fn from(val: Type) -> Self {
+        if let Type::Prop(_type) = val {
             return _type;
         }
 
@@ -83,7 +83,7 @@ impl Ident {
     }
 
     pub fn as_str(&self) -> &str {
-        &self.0.as_str()
+        self.0.as_str()
     }
 }
 

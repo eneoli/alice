@@ -61,7 +61,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .map(|((param_ident, param_prop), body)| {
                 ProofTerm::Function(Function {
                     param_ident,
-                    param_type: param_prop.map(|prop| Type::Prop(prop)),
+                    param_type: param_prop.map(Type::Prop),
                     body: Box::new(body),
                 })
             })
@@ -69,9 +69,9 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
         let let_in = just(Token::LET)
             .ignore_then(just(Token::LROUND))
-            .ignore_then(ident_token.clone())
+            .ignore_then(ident_token)
             .then_ignore(just(Token::COMMA))
-            .then(ident_token.clone())
+            .then(ident_token)
             .then_ignore(just(Token::RROUND))
             .then_ignore(just(Token::EQUAL))
             .then(proof_term.clone())
@@ -95,13 +95,13 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     .then_ignore(just(Token::OF))
                     //
                     .then_ignore(just(Token::IDENT("inl".to_string())))
-                    .then(ident_token.clone())
+                    .then(ident_token)
                     .then_ignore(just(Token::ARROW))
                     .then(proof_term.clone())
                     .then_ignore(just(Token::COMMA))
                     //
                     .then_ignore(just(Token::IDENT("inr".to_string())))
-                    .then(ident_token.clone())
+                    .then(ident_token)
                     .then_ignore(just(Token::ARROW))
                     .then(proof_term.clone())
                     .then_ignore(just(Token::COMMA).or_not())
@@ -135,7 +135,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     //  check that if lhs is constructor/destructor, we got a rhs
                     let identifiers = ["inl", "inr", "abort", "fst", "snd"];
                     if let ProofTerm::Ident(Ident(ref ident)) = lhs {
-                        if identifiers.contains(&ident.as_str()) && rhs.len() == 0 {
+                        if identifiers.contains(&ident.as_str()) && rhs.is_empty() {
                             return Err(Simple::custom(span, "Missing applicant"));
                         }
                     }
