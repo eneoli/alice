@@ -226,8 +226,6 @@ mod tests {
         prop::{Prop, PropParameter},
     };
 
-    use super::ResolveDatatypes;
-
     #[test]
     fn test_simple_resolve() {
         let mut proof_term = ProofTerm::Function(Function {
