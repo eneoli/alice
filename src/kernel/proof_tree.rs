@@ -23,6 +23,7 @@ pub enum ProofTreeRule {
     ForAllElim,
     ExistsIntro,
     ExistsElim(String, String),
+    Sorry,
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Tsify, Debug)]

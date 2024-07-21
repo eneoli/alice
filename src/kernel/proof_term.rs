@@ -72,6 +72,7 @@ pub enum ProofTermKind {
     Abort,
     TypeAscription,
     Unit,
+    Sorry,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
@@ -236,6 +237,7 @@ pub enum ProofTerm {
     Abort(Abort),
     TypeAscription(TypeAscription),
     Unit,
+    Sorry,
 }
 
 impl ProofTerm {
@@ -260,6 +262,7 @@ impl ProofTerm {
                 visitor.visit_type_ascription(type_ascription)
             }
             ProofTerm::Unit => visitor.visit_unit(),
+            ProofTerm::Sorry => visitor.visit_sorry(),
         }
     }
 }
@@ -317,6 +320,7 @@ impl Display for ProofTerm {
                 proof_term,
                 ascription,
             }) => write!(f, "{}: {:?}", proof_term, ascription),
+            ProofTerm::Sorry => write!(f, "sorry"),
         }
     }
 }
@@ -335,4 +339,5 @@ pub trait ProofTermVisitor<R> {
     fn visit_abort(&mut self, abort: &Abort) -> R;
     fn visit_type_ascription(&mut self, type_ascription: &TypeAscription) -> R;
     fn visit_unit(&mut self) -> R;
+    fn visit_sorry(&mut self) -> R;
 }

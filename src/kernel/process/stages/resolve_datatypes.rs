@@ -210,6 +210,7 @@ fn resolve_datatypes(
             ascription: get_real_type(ascription)?,
             proof_term: resolve_datatypes(*proof_term, atoms, datatypes)?.boxed(),
         }),
+        ProofTerm::Sorry => ProofTerm::Sorry,
     };
 
     Ok(result)

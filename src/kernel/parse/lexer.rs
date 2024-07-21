@@ -37,6 +37,7 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Range<usize>)>, Error = Simple<c
         "in" => Token::IN,
         "atom" => Token::ATOM,
         "datatype" => Token::DATATYPE,
+        "sorry" => Token::SORRY,
         _ => Token::IDENT(s),
     });
 

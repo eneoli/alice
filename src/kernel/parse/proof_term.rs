@@ -10,11 +10,11 @@ use super::{fol::fol_parser, Token};
 /*
     == Proof Term Parser ==
 
-    Expr            = (Function | Case | Application | LetIn), [ TypeAscription ] ;
+    Expr            = (Function | Case | Application | LetIn ), [ TypeAscription ] ;
     TypeAscription  = ":", Prop ;
     Unit            = "(", ")" ;
     Pair            = "(", Expr, ",", Expr, [ "," ], ")" ;
-    Atom            = "(", Expr, ")" | Ident | Pair | Unit ;
+    Atom            = "(", Expr, ")" | Ident | Pair | Unit | Sorry ;
     Function        = "fn", Ident, [ ":", Prop ], "=>", Expr ;
     CaseExpr        = Case | Application | LetIn;
     Case            = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
@@ -43,13 +43,16 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .map(|(fst, snd)| ProofTerm::Pair(Pair(Box::new(fst), Box::new(snd))))
             .boxed();
 
+        let sorry = just(Token::SORRY).map(|_| ProofTerm::Sorry);
+
         let atom = choice((
             proof_term
                 .clone()
                 .delimited_by(just(Token::LROUND), just(Token::RROUND)),
-            ident_term.clone(),
-            pair.clone(),
-            unit.clone(),
+            ident_term,
+            pair,
+            unit,
+            sorry,
         ))
         .boxed();
 
@@ -216,6 +219,21 @@ mod tests {
     };
 
     use super::proof_term_parser;
+
+    // UTILS
+
+    fn parse(proof_term: &str) -> ProofTerm {
+        let len = proof_term.chars().count();
+
+        let tokens = lexer().parse(proof_term).unwrap();
+        let ast = proof_term_parser()
+            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
+            .unwrap();
+
+        ast
+    }
+
+    // END UTILS
 
     #[test]
     pub fn test_id_function() {
@@ -863,4 +881,117 @@ mod tests {
             })
         )
     }
-}
+
+    #[test]
+    fn test_root_sorry() {
+        let ast = parse("sorry");
+
+        assert_eq!(ast, ProofTerm::Sorry);
+    }
+
+    #[test]
+    fn test_sorry_in_function_body() {
+        let ast = parse("fn u => sorry");
+
+        assert_eq!(
+            ast,
+            Function::create("u".to_string(), None, ProofTerm::Sorry.boxed())
+        );
+    }
+
+    #[test]
+    fn test_sorry_in_pair() {
+        let ast = parse("(sorry, sorry)");
+
+        assert_eq!(
+            ast,
+            Pair::create(ProofTerm::Sorry.boxed(), ProofTerm::Sorry.boxed())
+        );
+    }
+
+    #[test]
+    fn test_sorry_as_function_in_application() {
+        let ast = parse("sorry u");
+        assert_eq!(
+            ast,
+            Application::create(
+                ProofTerm::Sorry.boxed(),
+                Ident::create("u".to_string()).boxed()
+            )
+        );
+    }
+
+    #[test]
+    fn test_sorry_as_applicant_in_application() {
+        let ast = parse("u sorry");
+
+        assert_eq!(
+            ast,
+            Application::create(
+                Ident::create("u".to_string()).boxed(),
+                ProofTerm::Sorry.boxed()
+            )
+        );
+    }
+
+    #[test]
+    fn test_sorry_in_let_in_head() {
+        let ast = parse("let (a, b)  = sorry in u");
+
+        assert_eq!(
+            ast,
+            ProofTerm::LetIn(LetIn {
+                fst_ident: "a".to_string(),
+                snd_ident: "b".to_string(),
+                head: ProofTerm::Sorry.boxed(),
+                body: Ident::create("u".to_string()).boxed(),
+            })
+        )
+    }
+
+    #[test]
+    fn test_sorry_in_let_in_body() {
+        let ast = parse("let (a, b)  = u in sorry");
+
+        assert_eq!(
+            ast,
+            ProofTerm::LetIn(LetIn {
+                fst_ident: "a".to_string(),
+                snd_ident: "b".to_string(),
+                head: Ident::create("u".to_string()).boxed(),
+                body: ProofTerm::Sorry.boxed(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_sorry_in_case_head() {
+        let ast = parse("case sorry of inl a => a, inr b => b");
+
+        assert_eq!(
+            ast,
+            Case::create(
+                ProofTerm::Sorry.boxed(),
+                "a".to_string(),
+                Ident::create("a".to_string()).boxed(),
+                "b".to_string(),
+                Ident::create("b".to_string()).boxed(),
+            )
+        );
+    }
+    
+    #[test]
+    fn test_sorry_in_case_body() {
+        let ast = parse("case u of inl a => sorry, inr b => sorry");
+
+        assert_eq!(
+            ast,
+            Case::create(
+                Ident::create("u".to_string()).boxed(),
+                "a".to_string(),
+                ProofTerm::Sorry.boxed(),
+                "b".to_string(),
+                ProofTerm::Sorry.boxed(),
+            )
+        );
+    }}
