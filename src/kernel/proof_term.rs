@@ -78,6 +78,10 @@ pub enum ProofTermKind {
 pub struct Ident(pub String);
 
 impl Ident {
+    pub fn create(ident: String) -> ProofTerm {
+        ProofTerm::Ident(Self(ident))
+    }
+
     pub fn as_str(&self) -> &str {
         &self.0.as_str()
     }
@@ -86,11 +90,29 @@ impl Ident {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct Pair(pub Box<ProofTerm>, pub Box<ProofTerm>);
 
+impl Pair {
+    pub fn create(fst: Box<ProofTerm>, snd: Box<ProofTerm>) -> ProofTerm {
+        ProofTerm::Pair(Self(fst, snd))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct ProjectFst(pub Box<ProofTerm>);
 
+impl ProjectFst {
+    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
+        ProofTerm::ProjectFst(ProjectFst(body))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct ProjectSnd(pub Box<ProofTerm>);
+
+impl ProjectSnd {
+    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
+        ProofTerm::ProjectSnd(ProjectSnd(body))
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct Function {
@@ -99,10 +121,33 @@ pub struct Function {
     pub body: Box<ProofTerm>,
 }
 
+impl Function {
+    pub fn create(
+        param_ident: String,
+        param_type: Option<Type>,
+        body: Box<ProofTerm>,
+    ) -> ProofTerm {
+        ProofTerm::Function(Function {
+            param_ident,
+            param_type,
+            body,
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct Application {
     pub function: Box<ProofTerm>,
     pub applicant: Box<ProofTerm>,
+}
+
+impl Application {
+    pub fn create(function: Box<ProofTerm>, applicant: Box<ProofTerm>) -> ProofTerm {
+        ProofTerm::Application(Application {
+            function,
+            applicant,
+        })
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
@@ -116,8 +161,20 @@ pub struct LetIn {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct OrLeft(pub Box<ProofTerm>);
 
+impl OrLeft {
+    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
+        ProofTerm::OrLeft(OrLeft(body))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct OrRight(pub Box<ProofTerm>);
+
+impl OrRight {
+    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
+        ProofTerm::OrRight(OrRight(body))
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct Case {
@@ -130,8 +187,32 @@ pub struct Case {
     pub snd_term: Box<ProofTerm>,
 }
 
+impl Case {
+    pub fn create(
+        head: Box<ProofTerm>,
+        fst_ident: String,
+        fst_term: Box<ProofTerm>,
+        snd_ident: String,
+        snd_term: Box<ProofTerm>,
+    ) -> ProofTerm {
+        ProofTerm::Case(Case {
+            head,
+            fst_ident,
+            fst_term,
+            snd_ident,
+            snd_term,
+        })
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct Abort(pub Box<ProofTerm>);
+
+impl Abort {
+    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
+        ProofTerm::Abort(Abort(body))
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
 pub struct TypeAscription {
