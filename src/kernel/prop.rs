@@ -358,52 +358,25 @@ impl Debug for Prop {
         match self {
             Prop::Atom(ident, params) => {
                 if !params.is_empty() {
-                    write!(f, "{}({})", format!("{:?}", ident), format!("{:?}", params))
+                    write!(f, "{:?}({:?})", ident, params)
                 } else {
-                    write!(f, "{}", format!("{:?}", ident))
+                    write!(f, "{:?}", ident)
                 }
             }
 
-            Prop::And(left, right) => write!(
-                f,
-                "({}) ∧ ({})",
-                format!("{:?}", left),
-                format!("{:?}", right)
-            ),
-            Prop::Or(left, right) => write!(
-                f,
-                "({}) ∨ ({})",
-                format!("{:?}", left),
-                format!("{:?}", right)
-            ),
-            Prop::Impl(left, right) => write!(
-                f,
-                "({}) => ({})",
-                format!("{:?}", left),
-                format!("{:?}", right)
-            ),
+            Prop::And(left, right) => write!(f, "({:?}) ∧ ({:?})", left, right),
+            Prop::Or(left, right) => write!(f, "({:?}) ∨ ({:?})", left, right),
+            Prop::Impl(left, right) => write!(f, "({:?}) => ({:?})", left, right),
             Prop::ForAll {
                 object_ident,
                 object_type_ident,
                 body,
-            } => write!(
-                f,
-                "∀{}:{}. ({})",
-                object_ident,
-                object_type_ident,
-                format!("{:?}", body)
-            ),
+            } => write!(f, "∀{}:{}. ({:?})", object_ident, object_type_ident, body),
             Prop::Exists {
                 object_ident,
                 object_type_ident,
                 body,
-            } => write!(
-                f,
-                "∃{}:{}. ({})",
-                object_ident,
-                object_type_ident,
-                format!("{:?}", body)
-            ),
+            } => write!(f, "∃{}:{}. ({:?})", object_ident, object_type_ident, body),
 
             Prop::True => write!(f, "T"),
             Prop::False => write!(f, "⊥"),

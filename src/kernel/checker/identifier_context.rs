@@ -22,6 +22,10 @@ impl IdentifierContext {
         self.ctx.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn insert(&mut self, ident: Identifier, identifer_type: Type) {
         self.ctx.push((ident, identifer_type));
     }

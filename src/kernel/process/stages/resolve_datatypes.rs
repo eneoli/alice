@@ -45,159 +45,6 @@ impl ResolveDatatypes {
     pub fn boxed() -> Box<Self> {
         Box::new(Self {})
     }
-
-    fn has_datatype_identifier(&self, prop: &Prop, datatypes: &Vec<String>) -> bool {
-        match prop {
-            Prop::Atom(ident, _) => datatypes.contains(ident),
-            Prop::And(fst, snd) => {
-                self.has_datatype_identifier(fst, datatypes)
-                    || self.has_datatype_identifier(snd, datatypes)
-            }
-            Prop::Or(fst, snd) => {
-                self.has_datatype_identifier(fst, datatypes)
-                    || self.has_datatype_identifier(snd, datatypes)
-            }
-            Prop::False => false,
-            Prop::True => false,
-            Prop::Impl(fst, snd) => {
-                self.has_datatype_identifier(fst, datatypes)
-                    || self.has_datatype_identifier(snd, datatypes)
-            }
-            Prop::Exists { body, .. } => self.has_datatype_identifier(body, datatypes),
-            Prop::ForAll { body, .. } => self.has_datatype_identifier(body, datatypes),
-        }
-    }
-
-    fn resolve_datatypes(
-        &self,
-        proof_term: ProofTerm,
-        atoms: &HashMap<String, usize>,
-        datatypes: &Vec<String>,
-    ) -> Result<ProofTerm, ResolveDatatypesStageError> {
-        let get_real_type = |_type: Type| match _type {
-            // Atom that is in fact a datatype
-            Type::Prop(Prop::Atom(ident, params))
-                if params.is_empty() && datatypes.contains(&ident) =>
-            {
-                Ok(Type::Datatype(ident.clone()))
-            }
-
-            // Prop that includes datatype
-            Type::Prop(prop) if self.has_datatype_identifier(&prop, datatypes) => {
-                Err(ResolveDatatypesStageError::PropContainsDatatypeIdentifier)
-            }
-
-            // Actual Atom
-            Type::Prop(Prop::Atom(ref ident, ref params)) => {
-                if let Some(expected_arity) = atoms.get(ident) {
-                    if *expected_arity != params.len() {
-                        return Err(ResolveDatatypesStageError::ArityWrong {
-                            ident: ident.clone(),
-                            expected: *expected_arity,
-                            actual: params.len(),
-                        });
-                    }
-                } else {
-                    return Err(ResolveDatatypesStageError::AtomUnknown(ident.clone()));
-                }
-
-                Ok(_type)
-            }
-            _ => Ok(_type),
-        };
-
-        let result = match proof_term {
-            ProofTerm::Unit => ProofTerm::Unit,
-            ProofTerm::Ident(ident) => ProofTerm::Ident(ident),
-            ProofTerm::Pair(Pair(fst, snd)) => ProofTerm::Pair(Pair(
-                self.resolve_datatypes(*fst, atoms, datatypes)?.boxed(),
-                self.resolve_datatypes(*snd, atoms, datatypes)?.boxed(),
-            )),
-            ProofTerm::Abort(Abort(body)) => ProofTerm::Abort(Abort(
-                self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            )),
-            ProofTerm::Application(Application {
-                function,
-                applicant,
-            }) => ProofTerm::Application(Application {
-                function: self.resolve_datatypes(*function, atoms, datatypes)?.boxed(),
-                applicant: self
-                    .resolve_datatypes(*applicant, atoms, datatypes)?
-                    .boxed(),
-            }),
-            ProofTerm::Case(Case {
-                head,
-                fst_ident: left_ident,
-                fst_term: left_term,
-                snd_ident: right_ident,
-                snd_term: right_term,
-            }) => ProofTerm::Case(Case {
-                head: self.resolve_datatypes(*head, atoms, datatypes)?.boxed(),
-                fst_ident: left_ident,
-                fst_term: self
-                    .resolve_datatypes(*left_term, atoms, datatypes)?
-                    .boxed(),
-                snd_ident: right_ident,
-                snd_term: self
-                    .resolve_datatypes(*right_term, atoms, datatypes)?
-                    .boxed(),
-            }),
-            ProofTerm::Function(Function {
-                param_ident,
-                param_type: None,
-                body,
-            }) => ProofTerm::Function(Function {
-                param_ident,
-                param_type: None,
-                body: self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            }),
-            ProofTerm::Function(Function {
-                param_ident,
-                param_type: Some(param_type),
-                body,
-            }) => ProofTerm::Function(Function {
-                param_ident,
-                param_type: Some(get_real_type(param_type)?),
-                body: self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            }),
-
-            ProofTerm::LetIn(LetIn {
-                fst_ident,
-                snd_ident,
-                head,
-                body,
-            }) => ProofTerm::LetIn(LetIn {
-                fst_ident,
-                snd_ident,
-                head: self.resolve_datatypes(*head, atoms, datatypes)?.boxed(),
-                body: self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            }),
-
-            ProofTerm::OrLeft(OrLeft(body)) => ProofTerm::OrLeft(OrLeft(
-                self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            )),
-            ProofTerm::OrRight(OrRight(body)) => ProofTerm::OrRight(OrRight(
-                self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            )),
-            ProofTerm::ProjectFst(ProjectFst(body)) => ProofTerm::ProjectFst(ProjectFst(
-                self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            )),
-            ProofTerm::ProjectSnd(ProjectSnd(body)) => ProofTerm::ProjectSnd(ProjectSnd(
-                self.resolve_datatypes(*body, atoms, datatypes)?.boxed(),
-            )),
-            ProofTerm::TypeAscription(TypeAscription {
-                ascription,
-                proof_term,
-            }) => ProofTerm::TypeAscription(TypeAscription {
-                ascription: get_real_type(ascription)?,
-                proof_term: self
-                    .resolve_datatypes(*proof_term, atoms, datatypes)?
-                    .boxed(),
-            }),
-        };
-
-        Ok(result)
-    }
 }
 
 impl ProofPipelineStage for ResolveDatatypes {
@@ -215,8 +62,7 @@ impl ProofPipelineStage for ResolveDatatypes {
 
         let atom_map = HashMap::from_iter(atoms.clone());
 
-        let new_proof_term = self
-            .resolve_datatypes(proof_term, &atom_map, &datatypes)
+        let new_proof_term = resolve_datatypes(proof_term, &atom_map, &datatypes)
             .map_err(StageError::ResolveDatatypesStageError)?;
 
         Ok(Proof {
@@ -228,11 +74,153 @@ impl ProofPipelineStage for ResolveDatatypes {
     }
 }
 
+fn has_datatype_identifier(prop: &Prop, datatypes: &Vec<String>) -> bool {
+    match prop {
+        Prop::Atom(ident, _) => datatypes.contains(ident),
+        Prop::And(fst, snd) => {
+            has_datatype_identifier(fst, datatypes) || has_datatype_identifier(snd, datatypes)
+        }
+        Prop::Or(fst, snd) => {
+            has_datatype_identifier(fst, datatypes) || has_datatype_identifier(snd, datatypes)
+        }
+        Prop::False => false,
+        Prop::True => false,
+        Prop::Impl(fst, snd) => {
+            has_datatype_identifier(fst, datatypes) || has_datatype_identifier(snd, datatypes)
+        }
+        Prop::Exists { body, .. } => has_datatype_identifier(body, datatypes),
+        Prop::ForAll { body, .. } => has_datatype_identifier(body, datatypes),
+    }
+}
+
+fn resolve_datatypes(
+    proof_term: ProofTerm,
+    atoms: &HashMap<String, usize>,
+    datatypes: &Vec<String>,
+) -> Result<ProofTerm, ResolveDatatypesStageError> {
+    let get_real_type = |_type: Type| match _type {
+        // Atom that is in fact a datatype
+        Type::Prop(Prop::Atom(ident, params))
+            if params.is_empty() && datatypes.contains(&ident) =>
+        {
+            Ok(Type::Datatype(ident.clone()))
+        }
+
+        // Prop that includes datatype
+        Type::Prop(prop) if has_datatype_identifier(&prop, datatypes) => {
+            Err(ResolveDatatypesStageError::PropContainsDatatypeIdentifier)
+        }
+
+        // Actual Atom
+        Type::Prop(Prop::Atom(ref ident, ref params)) => {
+            if let Some(expected_arity) = atoms.get(ident) {
+                if *expected_arity != params.len() {
+                    return Err(ResolveDatatypesStageError::ArityWrong {
+                        ident: ident.clone(),
+                        expected: *expected_arity,
+                        actual: params.len(),
+                    });
+                }
+            } else {
+                return Err(ResolveDatatypesStageError::AtomUnknown(ident.clone()));
+            }
+
+            Ok(_type)
+        }
+        _ => Ok(_type),
+    };
+
+    let result = match proof_term {
+        ProofTerm::Unit => ProofTerm::Unit,
+        ProofTerm::Ident(ident) => ProofTerm::Ident(ident),
+        ProofTerm::Pair(Pair(fst, snd)) => ProofTerm::Pair(Pair(
+            resolve_datatypes(*fst, atoms, datatypes)?.boxed(),
+            resolve_datatypes(*snd, atoms, datatypes)?.boxed(),
+        )),
+        ProofTerm::Abort(Abort(body)) => {
+            ProofTerm::Abort(Abort(resolve_datatypes(*body, atoms, datatypes)?.boxed()))
+        }
+        ProofTerm::Application(Application {
+            function,
+            applicant,
+        }) => ProofTerm::Application(Application {
+            function: resolve_datatypes(*function, atoms, datatypes)?.boxed(),
+            applicant: resolve_datatypes(*applicant, atoms, datatypes)?.boxed(),
+        }),
+        ProofTerm::Case(Case {
+            head,
+            fst_ident: left_ident,
+            fst_term: left_term,
+            snd_ident: right_ident,
+            snd_term: right_term,
+        }) => ProofTerm::Case(Case {
+            head: resolve_datatypes(*head, atoms, datatypes)?.boxed(),
+            fst_ident: left_ident,
+            fst_term: resolve_datatypes(*left_term, atoms, datatypes)?.boxed(),
+            snd_ident: right_ident,
+            snd_term: resolve_datatypes(*right_term, atoms, datatypes)?.boxed(),
+        }),
+        ProofTerm::Function(Function {
+            param_ident,
+            param_type: None,
+            body,
+        }) => ProofTerm::Function(Function {
+            param_ident,
+            param_type: None,
+            body: resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+        }),
+        ProofTerm::Function(Function {
+            param_ident,
+            param_type: Some(param_type),
+            body,
+        }) => ProofTerm::Function(Function {
+            param_ident,
+            param_type: Some(get_real_type(param_type)?),
+            body: resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+        }),
+
+        ProofTerm::LetIn(LetIn {
+            fst_ident,
+            snd_ident,
+            head,
+            body,
+        }) => ProofTerm::LetIn(LetIn {
+            fst_ident,
+            snd_ident,
+            head: resolve_datatypes(*head, atoms, datatypes)?.boxed(),
+            body: resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+        }),
+
+        ProofTerm::OrLeft(OrLeft(body)) => {
+            ProofTerm::OrLeft(OrLeft(resolve_datatypes(*body, atoms, datatypes)?.boxed()))
+        }
+        ProofTerm::OrRight(OrRight(body)) => {
+            ProofTerm::OrRight(OrRight(resolve_datatypes(*body, atoms, datatypes)?.boxed()))
+        }
+        ProofTerm::ProjectFst(ProjectFst(body)) => ProofTerm::ProjectFst(ProjectFst(
+            resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+        )),
+        ProofTerm::ProjectSnd(ProjectSnd(body)) => ProofTerm::ProjectSnd(ProjectSnd(
+            resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+        )),
+        ProofTerm::TypeAscription(TypeAscription {
+            ascription,
+            proof_term,
+        }) => ProofTerm::TypeAscription(TypeAscription {
+            ascription: get_real_type(ascription)?,
+            proof_term: resolve_datatypes(*proof_term, atoms, datatypes)?.boxed(),
+        }),
+    };
+
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use crate::kernel::{
+        process::stages::resolve_datatypes::resolve_datatypes,
         proof_term::{Function, Pair, ProofTerm, Type},
         prop::{Prop, PropParameter},
     };
@@ -241,17 +229,14 @@ mod tests {
 
     #[test]
     fn test_simple_resolve() {
-        let resolver = ResolveDatatypes::new();
-
         let mut proof_term = ProofTerm::Function(Function {
             param_ident: "u".to_string(),
             param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
             body: ProofTerm::Unit.boxed(),
         });
 
-        proof_term = resolver
-            .resolve_datatypes(proof_term, &HashMap::new(), &vec!["nat".to_string()])
-            .unwrap();
+        proof_term =
+            resolve_datatypes(proof_term, &HashMap::new(), &vec!["nat".to_string()]).unwrap();
 
         assert_eq!(
             proof_term,
@@ -265,8 +250,6 @@ mod tests {
 
     #[test]
     fn test_resolve_nested() {
-        let resolver = ResolveDatatypes::new();
-
         let mut proof_term = ProofTerm::Function(Function {
             param_ident: "u".to_string(),
             param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
@@ -292,13 +275,12 @@ mod tests {
             .boxed(),
         });
 
-        proof_term = resolver
-            .resolve_datatypes(
-                proof_term,
-                &HashMap::from([("A".to_string(), 0)]),
-                &vec!["nat".to_string(), "list".to_string(), "t".to_string()],
-            )
-            .unwrap();
+        proof_term = resolve_datatypes(
+            proof_term,
+            &HashMap::from([("A".to_string(), 0)]),
+            &vec!["nat".to_string(), "list".to_string(), "t".to_string()],
+        )
+        .unwrap();
 
         assert_eq!(
             proof_term,
@@ -332,8 +314,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_no_nested_datatypes() {
-        let resolver = ResolveDatatypes::new();
-
         let proof_term = ProofTerm::Function(Function {
             param_ident: "u".to_string(),
             param_type: Some(Type::Prop(Prop::And(
@@ -343,20 +323,17 @@ mod tests {
             body: ProofTerm::Unit.boxed(),
         });
 
-        resolver
-            .resolve_datatypes(
-                proof_term,
-                &HashMap::from([("A".to_string(), 0)]),
-                &vec!["nat".to_string()],
-            )
-            .unwrap();
+        resolve_datatypes(
+            proof_term,
+            &HashMap::from([("A".to_string(), 0)]),
+            &vec!["nat".to_string()],
+        )
+        .unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_no_datatypes_with_params() {
-        let resolver = ResolveDatatypes::new();
-
         let proof_term = ProofTerm::Function(Function {
             param_ident: "u".to_string(),
             param_type: Some(Type::Prop(Prop::Atom(
@@ -369,16 +346,12 @@ mod tests {
             body: ProofTerm::Unit.boxed(),
         });
 
-        resolver
-            .resolve_datatypes(proof_term, &HashMap::new(), &vec!["nat".to_string()])
-            .unwrap();
+        resolve_datatypes(proof_term, &HashMap::new(), &vec!["nat".to_string()]).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_wrong_arity() {
-        let resolver = ResolveDatatypes::new();
-
         let proof_term = ProofTerm::Function(Function {
             param_ident: "u".to_string(),
             param_type: Some(Type::Prop(Prop::Atom(
@@ -391,8 +364,6 @@ mod tests {
             body: ProofTerm::Unit.boxed(),
         });
 
-        resolver
-            .resolve_datatypes(proof_term, &HashMap::from([("A".to_string(), 3)]), &vec![])
-            .unwrap();
+        resolve_datatypes(proof_term, &HashMap::from([("A".to_string(), 3)]), &vec![]).unwrap();
     }
 }
