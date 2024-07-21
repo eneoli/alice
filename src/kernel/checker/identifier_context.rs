@@ -7,6 +7,12 @@ pub struct IdentifierContext {
     ctx: Vec<(Identifier, Type)>,
 }
 
+impl Default for IdentifierContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl IdentifierContext {
     pub fn new() -> Self {
         Self { ctx: Vec::new() }
@@ -14,6 +20,10 @@ impl IdentifierContext {
 
     pub fn len(&self) -> usize {
         self.ctx.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     pub fn insert(&mut self, ident: Identifier, identifer_type: Type) {

@@ -49,10 +49,8 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
                     DeclarationType::Datatype(datatype) => Either::Right(datatype),
                 });
 
-            let idents = vec![
-                atoms.iter().map(|s| s.0.as_str()).collect::<Vec<&str>>(),
-                datatypes.iter().map(|s| s.as_str()).collect(),
-            ]
+            let idents = [atoms.iter().map(|s| s.0.as_str()).collect::<Vec<&str>>(),
+                datatypes.iter().map(|s| s.as_str()).collect()]
             .concat();
 
             // check that each identifier is unique

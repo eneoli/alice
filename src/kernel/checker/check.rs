@@ -118,7 +118,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let (_type, proof_tree) = synthesize(
             &ProofTerm::Ident(ident.clone()),
             self.ctx,
-            &mut self.identifier_factory,
+            self.identifier_factory,
         )?;
 
         if Type::alpha_eq(&_type, &self.expected_type) {
@@ -163,7 +163,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                     .get_by_name(&substitution)
                     .ok_or(CheckError::UnknownIdentifier(substitution.clone()))?;
                 let mut substitued_body = *body.clone();
-                substitued_body.instantiate_free_parameter(&object_ident, &identifier);
+                substitued_body.instantiate_free_parameter(object_ident, identifier);
 
                 (
                     Type::Datatype(object_type_ident.clone()),
@@ -184,14 +184,14 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let fst_proof_tree = check_allowing_free_params(
             fst_term,
             &expected_fst_type,
-            &self.ctx,
-            &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )?;
         let snd_proof_tree = check_allowing_free_params(
             snd_term,
             &expected_snd_type,
-            &self.ctx,
-            &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )?;
 
         Ok(ProofTree {
@@ -207,8 +207,8 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
 
         let (projection_type, projection_proof_tree) = synthesize(
             &ProofTerm::ProjectFst(projection.clone()),
-            &self.ctx,
-            &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )?;
 
         if Type::alpha_eq(&self.expected_type, &projection_type) {
@@ -227,8 +227,8 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
 
         let (projection_type, projection_proof_tree) = synthesize(
             &ProofTerm::ProjectSnd(projection.clone()),
-            &self.ctx,
-            &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )?;
 
         if Type::alpha_eq(&self.expected_type, &projection_type) {
@@ -303,7 +303,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             body,
             &Type::Prop(expected_body_prop),
             &body_ctx,
-            &mut self.identifier_factory,
+            self.identifier_factory,
         )?;
 
         Ok(ProofTree {
@@ -326,7 +326,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
 
         // synthesize applicant
         let applicant_synthesize_result =
-            synthesize(&applicant, self.ctx, &mut self.identifier_factory);
+            synthesize(applicant, self.ctx, self.identifier_factory);
 
         // use  ⊃ E<= rule
         if let Ok((Type::Prop(applicant_prop), applicant_proof_tree)) = applicant_synthesize_result
@@ -341,7 +341,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                 function,
                 &expected_function_type,
                 self.ctx,
-                &mut self.identifier_factory,
+                self.identifier_factory,
             )?;
 
             return Ok(ProofTree {
@@ -358,7 +358,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let (application_type, application_proof_tree) = synthesize(
             &ProofTerm::Application(application.clone()),
             self.ctx,
-            &mut self.identifier_factory,
+            self.identifier_factory,
         )?;
 
         // test for alpha-equivalence
@@ -381,7 +381,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         } = let_in;
 
         let (head_type, head_proof_tree) =
-            synthesize(head, &self.ctx, &mut self.identifier_factory)?;
+            synthesize(head, self.ctx, self.identifier_factory)?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -403,7 +403,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                 body,
                 &self.expected_type,
                 &body_ctx,
-                &mut self.identifier_factory,
+                self.identifier_factory,
             )?;
 
             if let Type::Prop(prop) = &self.expected_type {
@@ -421,7 +421,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                     conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
                 })
             } else {
-                return Err(CheckError::CannotReturnDatatype);
+                Err(CheckError::CannotReturnDatatype)
             }
         } else {
             Err(CheckError::UnexpectedProofTermKind {
@@ -450,8 +450,8 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let body_proof_tree = check_allowing_free_params(
             body,
             &expected_body_type,
-            &self.ctx,
-            &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )?;
 
         Ok(ProofTree {
@@ -480,8 +480,8 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let body_proof_tree = check_allowing_free_params(
             body,
             &expected_body_type,
-            &self.ctx,
-            &mut &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )?;
 
         Ok(ProofTree {
@@ -501,7 +501,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         } = case;
 
         let (proof_term_type, proof_term_tree) =
-            synthesize(head, &self.ctx, &mut self.identifier_factory)?;
+            synthesize(head, self.ctx, self.identifier_factory)?;
 
         let (fst, snd) = match proof_term_type {
             Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
@@ -521,7 +521,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             fst_term,
             &self.expected_type,
             &fst_ctx,
-            &mut &mut self.identifier_factory,
+            self.identifier_factory,
         )?;
 
         // check snd case arm
@@ -532,7 +532,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             snd_term,
             &self.expected_type,
             &snd_ctx,
-            &mut self.identifier_factory,
+            self.identifier_factory,
         )?;
 
         // check whether datatype returned
@@ -554,8 +554,8 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let body_proof_tree = check_allowing_free_params(
             body,
             &Type::Prop(Prop::False),
-            &self.ctx,
-            &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )?;
 
         let conclusion = match self.expected_type {
@@ -594,7 +594,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             proof_term,
         } = type_ascription;
 
-        if !Type::alpha_eq(&self.expected_type, &ascription) {
+        if !Type::alpha_eq(&self.expected_type, ascription) {
             return Err(CheckError::UnexpectedTypeAscription {
                 expected: self.expected_type.clone(),
                 ascription: ascription.clone(),
@@ -602,10 +602,10 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         }
 
         check_allowing_free_params(
-            &proof_term,
+            proof_term,
             &self.expected_type,
-            &self.ctx,
-            &mut self.identifier_factory,
+            self.ctx,
+            self.identifier_factory,
         )
     }
 }

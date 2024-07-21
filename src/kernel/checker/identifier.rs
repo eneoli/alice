@@ -36,6 +36,6 @@ impl IdentifierFactory {
     }
 
     pub fn create(&mut self, name: String) -> Identifier {
-        Identifier::new(name, self.counter.next())
+        Identifier::new(name, self.counter.next_value())
     }
 }

@@ -78,8 +78,21 @@ impl Prop {
         Box::new(self.clone())
     }
 
+    pub fn has_quantifiers(&self) -> bool {
+        match self {
+            Prop::Atom(_, _) => false,
+            Prop::True => false,
+            Prop::False => false,
+            Prop::And(fst, snd) => fst.has_quantifiers() || snd.has_quantifiers(),
+            Prop::Or(fst, snd) => fst.has_quantifiers() || snd.has_quantifiers(),
+            Prop::Impl(fst, snd) => fst.has_quantifiers() || snd.has_quantifiers(),
+            Prop::ForAll { .. } => true,
+            Prop::Exists { .. } => true,
+        }
+    }
+
     pub fn has_free_parameters(&self) -> bool {
-        self.get_free_parameters().len() > 0
+        !self.get_free_parameters().is_empty()
     }
 
     pub fn get_free_parameters(&self) -> Vec<PropParameter> {
@@ -136,7 +149,7 @@ impl Prop {
         _get_free_parameters(self, &mut binded_idents)
     }
 
-    pub fn get_free_parameters_mut<'a>(&'a mut self) -> Vec<&'a mut PropParameter> {
+    pub fn get_free_parameters_mut(&mut self) -> Vec<&mut PropParameter> {
         fn _get_free_parameters<'a>(
             prop: &'a mut Prop,
             binded_idents: &mut Vec<String>,
@@ -327,16 +340,16 @@ impl Prop {
                     }
                 }
 
-                return true;
+                true
             }
             _ => false,
         }
     }
 }
 
-impl Into<Type> for Prop {
-    fn into(self) -> Type {
-        Type::Prop(self)
+impl From<Prop> for Type {
+    fn from(val: Prop) -> Self {
+        Type::Prop(val)
     }
 }
 
@@ -344,53 +357,26 @@ impl Debug for Prop {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Prop::Atom(ident, params) => {
-                if params.len() > 0 {
-                    write!(f, "{}({})", format!("{:?}", ident), format!("{:?}", params))
+                if !params.is_empty() {
+                    write!(f, "{:?}({:?})", ident, params)
                 } else {
-                    write!(f, "{}", format!("{:?}", ident))
+                    write!(f, "{:?}", ident)
                 }
             }
 
-            Prop::And(left, right) => write!(
-                f,
-                "({}) ∧ ({})",
-                format!("{:?}", left),
-                format!("{:?}", right)
-            ),
-            Prop::Or(left, right) => write!(
-                f,
-                "({}) ∨ ({})",
-                format!("{:?}", left),
-                format!("{:?}", right)
-            ),
-            Prop::Impl(left, right) => write!(
-                f,
-                "({}) => ({})",
-                format!("{:?}", left),
-                format!("{:?}", right)
-            ),
+            Prop::And(left, right) => write!(f, "({:?}) ∧ ({:?})", left, right),
+            Prop::Or(left, right) => write!(f, "({:?}) ∨ ({:?})", left, right),
+            Prop::Impl(left, right) => write!(f, "({:?}) => ({:?})", left, right),
             Prop::ForAll {
                 object_ident,
                 object_type_ident,
                 body,
-            } => write!(
-                f,
-                "∀{}:{}. ({})",
-                object_ident,
-                object_type_ident,
-                format!("{:?}", body)
-            ),
+            } => write!(f, "∀{}:{}. ({:?})", object_ident, object_type_ident, body),
             Prop::Exists {
                 object_ident,
                 object_type_ident,
                 body,
-            } => write!(
-                f,
-                "∃{}:{}. ({})",
-                object_ident,
-                object_type_ident,
-                format!("{:?}", body)
-            ),
+            } => write!(f, "∃{}:{}. ({:?})", object_ident, object_type_ident, body),
 
             Prop::True => write!(f, "T"),
             Prop::False => write!(f, "⊥"),
@@ -1085,7 +1071,7 @@ mod tests {
     fn test_not_alpha_eq_atom_no_params() {
         assert!(!parse_prop("A").alpha_eq(&parse_prop("B")))
     }
-    
+
     #[test]
     #[should_panic]
     fn test_no_free_uninstantiated_params() {
