@@ -8,11 +8,10 @@ interface CodeEditorProps {
     onChange: (value: string) => void;
 }
 
-
 function handleEditorWillMount(monaco: Monaco) {
     monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
-    const keywords = ['fn', 'case', 'of', 'let', 'in', 'datatype', 'inl', 'inr', 'fst', 'snd'];
+    const keywords = ['fn', 'case', 'of', 'let', 'in', 'datatype', 'inl', 'inr', 'fst', 'snd', 'sorry'];
 
     monaco.languages.register({ id: 'alice' });
     monaco.languages.setMonarchTokensProvider('alice', {
