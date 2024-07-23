@@ -1,13 +1,15 @@
 import { css } from '@emotion/css';
+import { Button } from 'antd';
 import React, { useRef, useState } from 'react';
-import { Button, Input, Label, SearchField } from 'react-aria-components';
+import { Button as AriaButton, Input, Label, SearchField } from 'react-aria-components';
 
 interface HeaderProps {
     onPropChange: (prop: string) => void;
     onVerify: (prop: string) => void;
+    onExportAsOcaml: () => void;
 }
 
-export function Header({ onPropChange, onVerify }: HeaderProps) {
+export function Header({ onPropChange, onVerify, onExportAsOcaml }: HeaderProps) {
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -62,12 +64,13 @@ export function Header({ onPropChange, onVerify }: HeaderProps) {
                     <Label>Proposition</Label>
                     <Input ref={inputRef} spellCheck={false} width={1000} value={prop} onChange={(v) => onInputChange(v.currentTarget.value)} />
 
-                    <Button onPressEnd={() => onInputChange('')}>✕</Button>
+                    <AriaButton onPressEnd={() => onInputChange('')}>✕</AriaButton>
                 </SearchField>
 
-                <Button style={{ marginTop: 18, marginLeft: 10 }}
-                    onPressEnd={() => onVerify(prop)}
-                >Verify</Button>
+                <div className={cssButtonContainer}>
+                    <Button type={'primary'} onClick={() => onVerify(prop)}>Verify</Button>
+                    <Button type={'primary'} onClick={onExportAsOcaml} className={cssOcamlButton}>🐫 Export as OCaml</Button>
+                </div>
             </div>
         </div>
     );
@@ -99,3 +102,20 @@ const cssHeaderContainer = css`
     color: white;
 `;
 
+const cssButtonContainer = css`
+    margin-top: 20px;
+    margin-left: 10px;
+    display: flex;
+    flex-direction: row;
+    gap: 5px;
+`;
+
+const cssOcamlButton = css`
+    background-color: #d45304;
+    :hover {
+        background-color: #db7537 !important;
+    }
+    :active {
+        background-color: #a64002 !important;
+    }
+`;
