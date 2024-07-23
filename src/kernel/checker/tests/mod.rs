@@ -4,16 +4,22 @@ mod tests {
 
     use chumsky::{primitive::end, Parser, Stream};
 
-    use crate::{kernel::{
-        checker::{
-            check::check, identifier::IdentifierFactory, identifier_context::IdentifierContext, synthesize::{synthesize, SynthesizeError}
+    use crate::{
+        kernel::{
+            checker::{
+                check::check,
+                identifier::IdentifierFactory,
+                identifier_context::IdentifierContext,
+                synthesize::{synthesize, SynthesizeError},
+            },
+            parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
+            process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
+            proof_term::ProofTerm,
+            proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
+            prop::Prop,
         },
-        parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
-        process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
-        proof_term::ProofTerm,
-        proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
-        prop::Prop,
-    }, util::counter::Counter};
+        util::counter::Counter,
+    };
 
     // HELPER
 
@@ -520,16 +526,21 @@ mod tests {
     }
 
     #[test]
-        fn test_do_not_allow_exists_quant_escape() {
-        let proof_term =
-            parse_proof("
+    fn test_do_not_allow_exists_quant_escape() {
+        let proof_term = parse_proof(
+            "
                 datatype t;
                 atom C(1);
 
                 fn u: \\exists x:t. C(x) => let (a, proof) = u in proof
-            ");
+            ",
+        );
 
-        let _type = synthesize(&proof_term, &IdentifierContext::new(), &mut IdentifierFactory::new(Counter::new()));
+        let _type = synthesize(
+            &proof_term,
+            &IdentifierContext::new(),
+            &mut IdentifierFactory::new(Counter::new()),
+        );
 
         assert_eq!(_type, Err(SynthesizeError::QuantifiedObjectEscapesScope))
     }
@@ -537,21 +548,27 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_do_not_allow_free_params_function_annotations() {
-        check_proof_term("
+        check_proof_term(
+            "
             atom A(1);
 
             fn u => snd (fn u: A(a) => (), ())
-        ", "B -> \\top");
+        ",
+            "B -> \\top",
+        );
     }
 
     #[test]
     #[should_panic]
     fn test_do_not_allow_free_params_type_ascription() {
-        check_proof_term("
+        check_proof_term(
+            "
             atom A(1);
 
             fn u => snd (abort u : A(a), ())
-        ", "\\bot -> \\top");
+        ",
+            "\\bot -> \\top",
+        );
     }
 
     #[test]
@@ -579,7 +596,7 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn test_exists_does_not_imply_forall()  {
+    fn test_exists_does_not_imply_forall() {
         check_proof_term(
             "
                 atom A(1);
@@ -587,7 +604,50 @@ mod tests {
 
                 fn u: (\\exists x:t. A(x)) => let (a, proof) = u in fn a => proof
             ",
-            "(\\forall x:t. A(x)) -> (\\exists x:t. A(x))"
+            "(\\forall x:t. A(x)) -> (\\exists x:t. A(x))",
+        );
+    }
+
+    #[test]
+    fn test_root_sorry() {
+        check_proof_term("sorry", "A");
+    }
+
+    #[test]
+    fn test_sorry_in_function_body() {
+        check_proof_term("fn u => sorry", "A -> B");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_sorry_in_function_body_invalid() {
+        check_proof_term("fn u => sorry", "\\top");
+    }
+
+    #[test]
+    fn test_sorry_in_pair() {
+        check_proof_term("(sorry, sorry)", "A & B");
+    }
+
+    #[test]
+    fn test_sorry_in_application_as_applicant() {
+        check_proof_term(
+            "
+            atom A;
+            (fn u: A => u) sorry
+        ",
+            "A",
+        );
+    }
+
+    #[test]
+    fn test_sorry_in_application_as_function() {
+        check_proof_term(
+            "
+            atom A;
+            sorry ()
+        ",
+            "A",
         );
     }
 }

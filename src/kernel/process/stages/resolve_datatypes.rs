@@ -210,6 +210,7 @@ fn resolve_datatypes(
             ascription: get_real_type(ascription)?,
             proof_term: resolve_datatypes(*proof_term, atoms, datatypes)?.boxed(),
         }),
+        ProofTerm::Sorry => ProofTerm::Sorry,
     };
 
     Ok(result)
@@ -224,8 +225,6 @@ mod tests {
         proof_term::{Function, Pair, ProofTerm, Type},
         prop::{Prop, PropParameter},
     };
-
-    use super::ResolveDatatypes;
 
     #[test]
     fn test_simple_resolve() {

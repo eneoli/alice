@@ -33,6 +33,8 @@ pub enum Token {
     EQUAL,
     ATOM,
     DATATYPE,
+
+    SORRY,
 }
 
 impl fmt::Display for Token {
@@ -64,6 +66,8 @@ impl fmt::Display for Token {
             Token::EQUAL => write!(f, "="),
             Token::ATOM => write!(f, "atom"),
             Token::DATATYPE => write!(f, "datatype"),
+
+            Token::SORRY => write!(f, "sorry"),
         }
     }
 }

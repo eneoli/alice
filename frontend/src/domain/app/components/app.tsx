@@ -3,14 +3,15 @@ import { Header } from './header';
 import { CodeEditor } from '../../code-editor/components/code-editor';
 import { VisualProofEditor, VisualProofEditorProofTree } from '../../visual-proof-editor/components/visual-proof-editor';
 import { ConfigProvider, ThemeConfig } from 'antd';
-import { Prop, parse_prop, verify } from 'alice';
+import { Prop, export_as_ocaml, parse_prop, verify } from 'alice';
 import { debounce, isEqual } from 'lodash';
+import { CodeModal } from './code-modal';
 
 export function App() {
 
     const [proofTerm, setProofTerm] = useState('');
-    const [_analyzedProofTerm, setAnalyzedProofTerm] = useState('');
     const [prop, setProp] = useState<Prop | null>(null);
+    const [showCodeExport, setShowCodeExport] = useState(false);
 
     const handlePropChange = debounce((propString: string) => {
         try {
@@ -20,7 +21,7 @@ export function App() {
                 setProp(newProp);
             }
 
-            setAnalyzedProofTerm('');
+            setProofTerm('sorry');
         } catch (e) {
             setProp(null);
             console.error(e);
@@ -46,9 +47,17 @@ export function App() {
         console.log(isProof);
     };
 
+    const handleOcamlExport = () => {
+        if (!prop) {
+            return;
+        }
+
+        setShowCodeExport(true);
+    };
+
     return (
         <ConfigProvider theme={theme}>
-            <Header onPropChange={handlePropChange} onVerify={handleVerify} />
+            <Header onPropChange={handlePropChange} onVerify={handleVerify} onExportAsOcaml={handleOcamlExport} />
 
             {prop && (
                 <>
@@ -66,13 +75,24 @@ export function App() {
                     <h2>Please enter a proposition to begin.</h2>
                 </div>
             )}
+
+            {
+                showCodeExport && (
+                    <CodeModal
+                        title='🐫 OCaml Export'
+                        code={export_as_ocaml(proofTerm)}
+                        language='ocaml'
+                        onClose={() => { setShowCodeExport(false) }}
+                    />
+                )
+            }
         </ConfigProvider>
     );
 }
 
 const theme: ThemeConfig = {
     token: {
-        colorPrimary: '#006af5;',
+    colorPrimary: '#006af5',
     },
 };
 
@@ -100,5 +120,6 @@ const generateCode: (proofTree: VisualProofEditorProofTree) => string = (proofTr
         case 'ForAllElim': return `(${generateCode(proofTree.premisses[0])}) (${generateCode(proofTree.premisses[1])})`;
         case 'ExistsIntro': return `(${generateCode(proofTree.premisses[0])}, ${generateCode(proofTree.premisses[1])})`;
         case 'ExistsElim': return `let (${rule.value[0]}, ${rule.value[1]}) = ${generateCode(proofTree.premisses[0])} in ${generateCode(proofTree.premisses[1])}`;
+        case 'Sorry': return 'sorry';
     }
 };

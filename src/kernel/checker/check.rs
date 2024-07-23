@@ -325,8 +325,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         };
 
         // synthesize applicant
-        let applicant_synthesize_result =
-            synthesize(applicant, self.ctx, self.identifier_factory);
+        let applicant_synthesize_result = synthesize(applicant, self.ctx, self.identifier_factory);
 
         // use  ⊃ E<= rule
         if let Ok((Type::Prop(applicant_prop), applicant_proof_tree)) = applicant_synthesize_result
@@ -380,8 +379,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             body,
         } = let_in;
 
-        let (head_type, head_proof_tree) =
-            synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, head_proof_tree) = synthesize(head, self.ctx, self.identifier_factory)?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -607,5 +605,20 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             self.ctx,
             self.identifier_factory,
         )
+    }
+
+    fn visit_sorry(&mut self) -> Result<ProofTree, CheckError> {
+        let conclusion = match self.expected_type {
+            Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+            Type::Datatype(ref datatype) => {
+                ProofTreeConclusion::TypeJudgement("sorry".to_string(), datatype.clone())
+            }
+        };
+
+        Ok(ProofTree {
+            premisses: vec![],
+            rule: ProofTreeRule::Sorry,
+            conclusion,
+        })
     }
 }

@@ -522,4 +522,8 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         .map(|proof_tree| (ascription.clone(), proof_tree))
         .map_err(|check_err| SynthesizeError::CheckError(Box::new(check_err)))
     }
+    
+    fn visit_sorry(&mut self) -> Result<(Type, ProofTree), SynthesizeError> {
+        Err(SynthesizeError::NotSynthesizing(ProofTermKind::Sorry))
+    }
 }
