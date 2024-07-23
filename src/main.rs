@@ -1,6 +1,5 @@
 use alice::kernel::{
-    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
-    process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline}, prove::prove,
+    checker::{check::check, identifier_context::IdentifierContext}, export::{ocaml_exporter::OcamlExporter, ProofExporter}, parse::{fol::fol_parser, lexer::lexer, proof::proof_parser}, process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline}, prove::prove
 };
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{Parser, Stream};
@@ -53,7 +52,7 @@ fn main() {
     // Step 3: Preprocess ProofTerm
 
     println!("{:#?}", processed_proof);
-    let fol = "~~(A || ~A)";
+    let fol = "A | B -> B | A";
     let fol_tokens = lexer().parse(fol).unwrap();
     let fol_len = fol.chars().count();
 
@@ -66,13 +65,17 @@ fn main() {
 
     // println!("{:#?}", prop.get_free_parameters());
 
-    // let _type = check(
-    //     &processed_proof.proof_term,
-    //     &prop,
-    //     &IdentifierContext::new(),
-    // );
+    let _type = check(
+        &processed_proof.proof_term,
+        &prop,
+        &IdentifierContext::new(),
+    );
 
-    // println!("{:#?}", _type);
+    println!("{:#?}", _type);
 
     println!("{}", prove(&prop).unwrap());
+
+    let ocaml_exporter = OcamlExporter::new();
+
+    println!("{}", ocaml_exporter.export(&processed_proof.proof_term));
 }

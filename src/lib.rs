@@ -2,12 +2,19 @@ use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{error::Simple, Parser, Stream};
 use kernel::{
     checker::{
-        check::{check, CheckError}, identifier::Identifier, identifier_context::IdentifierContext
+        check::{check, CheckError},
+        identifier::Identifier,
+        identifier_context::IdentifierContext,
     },
-    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
+    export::{
+        ocaml_exporter::{self, OcamlExporter},
+        ProofExporter,
+    },
+    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser, proof_term},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline, ProofPipelineError},
     proof::Proof,
-    proof_tree::ProofTree, prop::Prop,
+    proof_tree::ProofTree,
+    prop::Prop,
 };
 
 use wasm_bindgen::prelude::*;
@@ -136,7 +143,22 @@ pub fn parse_proof_term(proof_term: &str) -> Result<Proof, BackendError> {
 }
 
 #[wasm_bindgen]
-pub fn instantiate_free_parameter(mut prop: Prop, substituent: String, substitutor: &Identifier) -> Prop {
+pub fn instantiate_free_parameter(
+    mut prop: Prop,
+    substituent: String,
+    substitutor: &Identifier,
+) -> Prop {
     prop.instantiate_free_parameter(&substituent, substitutor);
     prop
+}
+
+#[wasm_bindgen]
+pub fn export_as_ocaml(proof_term: &str) -> String {
+    let ocaml_exporter = OcamlExporter::new();
+
+    if let Ok(proof) = parse_proof_term(proof_term) {
+        ocaml_exporter.export(&proof.proof_term)
+    } else {
+        "Invalid proof term".to_string()
+    }
 }
