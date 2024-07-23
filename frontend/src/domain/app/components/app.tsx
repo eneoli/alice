@@ -77,10 +77,10 @@ export function App() {
             )}
 
             {
-                showCodeExport && (
+                (showCodeExport && prop) && (
                     <CodeModal
                         title='🐫 OCaml Export'
-                        code={export_as_ocaml(proofTerm)}
+                        code={export_as_ocaml(prop, proofTerm)}
                         language='ocaml'
                         onClose={() => { setShowCodeExport(false) }}
                     />
@@ -92,7 +92,7 @@ export function App() {
 
 const theme: ThemeConfig = {
     token: {
-    colorPrimary: '#006af5',
+        colorPrimary: '#006af5',
     },
 };
 

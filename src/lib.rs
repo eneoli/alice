@@ -153,7 +153,11 @@ pub fn instantiate_free_parameter(
 }
 
 #[wasm_bindgen]
-pub fn export_as_ocaml(proof_term: &str) -> String {
+pub fn export_as_ocaml(prop: &Prop, proof_term: &str) -> String {
+    if prop.has_quantifiers() {
+        return "OCaml does not support dependent types.".to_string();
+    }
+
     let ocaml_exporter = OcamlExporter::new();
 
     if let Ok(proof) = parse_proof_term(proof_term) {
