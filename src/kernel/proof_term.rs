@@ -28,6 +28,13 @@ impl Type {
         }
     }
 
+    pub fn has_quantifiers(&self) -> bool {
+        match self {
+            Type::Prop(prop) => prop.has_quantifiers(),
+            Type::Datatype(_) => false,
+        }
+    }
+
     pub fn has_free_parameters(&self) -> bool {
         match self {
             Type::Prop(prop) => prop.has_free_parameters(),
@@ -243,6 +250,63 @@ pub enum ProofTerm {
 impl ProofTerm {
     pub fn boxed(&self) -> Box<Self> {
         Box::new(self.clone())
+    }
+
+    pub fn precedence(&self) -> usize {
+        match self {
+            ProofTerm::Unit => 999,
+            ProofTerm::Ident(_) => 999,
+            ProofTerm::Sorry => 999,
+            ProofTerm::Abort(_) => 3,
+            ProofTerm::Pair(_) => 999,
+            ProofTerm::ProjectFst(_) => 3,
+            ProofTerm::ProjectSnd(_) => 3,
+            ProofTerm::OrLeft(_) => 3,
+            ProofTerm::OrRight(_) => 3,
+            ProofTerm::Case(_) => 999,
+            ProofTerm::Function(_) => 1,
+            ProofTerm::Application(_) => 3,
+            ProofTerm::LetIn(_) => 999,
+            ProofTerm::TypeAscription(_) => 2,
+        }
+    }
+
+    pub fn right_associative(&self) -> bool {
+        match self {
+            ProofTerm::Unit => false,
+            ProofTerm::Ident(_) => false,
+            ProofTerm::Sorry => false,
+            ProofTerm::Abort(_) => false,
+            ProofTerm::Pair(_) => false,
+            ProofTerm::ProjectFst(_) => false,
+            ProofTerm::ProjectSnd(_) => false,
+            ProofTerm::OrLeft(_) => false,
+            ProofTerm::OrRight(_) => false,
+            ProofTerm::Case(_) => false,
+            ProofTerm::Function(_) => true,
+            ProofTerm::Application(_) => false,
+            ProofTerm::LetIn(_) => false,
+            ProofTerm::TypeAscription(_) => false,
+        }
+    }
+
+    pub fn left_associative(&self) -> bool {
+        match self {
+            ProofTerm::Unit => false,
+            ProofTerm::Ident(_) => false,
+            ProofTerm::Sorry => false,
+            ProofTerm::Abort(_) => true,
+            ProofTerm::Pair(_) => false,
+            ProofTerm::ProjectFst(_) => true,
+            ProofTerm::ProjectSnd(_) => true,
+            ProofTerm::OrLeft(_) => true,
+            ProofTerm::OrRight(_) => true,
+            ProofTerm::Case(_) => false,
+            ProofTerm::Function(_) => false,
+            ProofTerm::Application(_) => true,
+            ProofTerm::LetIn(_) => false,
+            ProofTerm::TypeAscription(_) => true,
+        }
     }
 
     pub fn visit<R>(&self, visitor: &mut impl ProofTermVisitor<R>) -> R {
