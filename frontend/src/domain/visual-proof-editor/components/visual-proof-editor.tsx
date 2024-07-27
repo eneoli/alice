@@ -62,7 +62,6 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
         setSelectedNode(null);
         setAssumptions([]);
         generateIdentifier.reset();
-        console.log('primary', ctxId);
     };
 
     // setup new tree when prop changes
@@ -92,24 +91,29 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
 
         const rule = getProofRule(ruleId);
 
-        if (rule.reasoning === 'BottomUp' && !isLeaf) {
-            throw new Error('Cannot reason bottom-up on this node');
-        }
-
-        if (rule.reasoning === 'TopDown' && !isRoot) {
-            throw new Error('Cannot reason top-down on this node');
-        }
+        const handlerParams = {
+            proofTree: { ...selectedTree },
+            isRoot,
+            isLeaf,
+            generateIdentifier,
+            reasoningContextId: context.id,
+        };
 
         const isPrimary = context.id === primaryReasoningCtxId;
-        if (isPrimary && isRoot && rule.reasoning === 'TopDown') {
+        if (isPrimary && rule.handler.willReasonDownwards(handlerParams)) {
             throw new Error('Cannot destruct conclusion as that\'s what you want to show');
         }
 
-        const { newProofTree, additionalAssumptions } = await rule.handler({
-            proofTree: { ...selectedTree },
-            generateIdentifier,
-            reasoningContextId: context.id,
-        });
+        const { newProofTree, additionalAssumptions } = await rule.handler.handleRule(handlerParams);
+
+        setAssumptions([
+            ...assumptions,
+            ...additionalAssumptions,
+        ]);
+
+        if (!newProofTree) {
+            return;
+        }
 
         replaceTreeNodeById(parentProofTree, selectedTree.id, newProofTree);
 
@@ -119,11 +123,6 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
                 ...context,
                 proofTree: parentProofTree,
             }
-        ]);
-
-        setAssumptions([
-            ...assumptions,
-            ...additionalAssumptions,
         ]);
 
         if (isPrimary) {
