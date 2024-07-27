@@ -125,7 +125,7 @@ export const NaturalDeductionRules: VisualProofEditorRule[] = [
     {
         id: 'ForAllElim',
         name: 'Universal quantification Elimination',
-        reasoning: 'BottomUp',
+        reasoning: 'TopDown',
         handler: handleForAllElimRule,
     },
     {
@@ -137,7 +137,7 @@ export const NaturalDeductionRules: VisualProofEditorRule[] = [
     {
         id: 'ExistsElim',
         name: 'Existential quantification Elimination',
-        reasoning: 'BottomUp',
+        reasoning: 'TopDown',
         handler: handleExistsElimRule,
     },
 ];
