@@ -15,20 +15,40 @@ export abstract class ProofRuleHandler {
     }
 
     protected createEmptyProofRuleHandlerResult(): ProofRuleHandlerResult {
-        return { additionalAssumptions: [] };
+        return {
+            additionalAssumptions: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [],
+            removedReasoingContextIds: []
+        };
+    }
+
+    protected allNodesAreLeafs(params: VisualProofEditorRuleHandlerParams): boolean {
+        return params.selectedProofTreeNodes.every((node) => node.isLeaf);
+    }
+
+    protected allNodesAreRoots(params: VisualProofEditorRuleHandlerParams): boolean {
+        return params.selectedProofTreeNodes.every((node) => node.isRoot);
+    }
+
+    protected allNodesHaveRules(params: VisualProofEditorRuleHandlerParams): boolean {
+        return params.selectedProofTreeNodes.every((node) => node.proofTree.rule !== null);
+    }
+
+    protected isSingleNodeSelected(params: VisualProofEditorRuleHandlerParams): boolean {
+        return params.selectedProofTreeNodes.length === 1;
     }
 
     public willReasonDownwards(params: VisualProofEditorRuleHandlerParams): boolean {
-        const { isRoot, proofTree } = params;
-        const hasRule = proofTree.rule !== null;
-
-        return isRoot && hasRule;
+        return this.allNodesAreRoots(params) && this.allNodesHaveRules(params);
     }
 
     public willReasonUpwards(params: VisualProofEditorRuleHandlerParams): boolean {
-        const { isLeaf } = params;
-
-        return !this.willReasonDownwards(params) && isLeaf;
+        return (
+            !this.willReasonDownwards(params) &&
+            this.isSingleNodeSelected(params) &&
+            this.allNodesAreLeafs(params)
+        );
     }
 
     public async handleRule(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
