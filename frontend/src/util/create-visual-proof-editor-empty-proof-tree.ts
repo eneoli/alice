@@ -1,6 +1,14 @@
-import { Prop } from 'alice';
+import { ProofTreeConclusion, Prop } from 'alice';
 import { v4 } from 'uuid';
-import { VisualProofEditorProofTree } from '../domain/visual-proof-editor/components/visual-proof-editor';
+import { VisualProofEditorProofTree } from '../domain/visual-proof-editor/lib/visual-proof-editor-proof-tree';
+
+export function createEmptyVisualProofEditorProofTreeFromConclusion(conclusion: ProofTreeConclusion) {
+    switch (conclusion.kind) {
+        case 'PropIsTrue': return createEmptyVisualProofEditorProofTreeFromProp(conclusion.value);
+        case 'TypeJudgement': return createEmptyVisualProofEditorProofTreeFromTypeJudgment(conclusion.value[0], conclusion.value[1]);
+        default: throw new Error('Cannot handle this kind of conclusion');
+    }
+}
 
 export function createEmptyVisualProofEditorProofTreeFromProp(conclusion: Prop): VisualProofEditorProofTree {
     return {
