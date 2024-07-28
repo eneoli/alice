@@ -7,7 +7,13 @@ import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/
 
 export class AndElimFstRuleHandler extends ProofRuleHandler {
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -32,17 +38,28 @@ export class AndElimFstRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                ...proofTree,
-                rule: { kind: 'AndElimFst' },
-                premisses: [createEmptyVisualProofEditorProofTreeFromProp(conjunction)],
-            },
+            removedReasoingContextIds: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    ...proofTree,
+                    rule: { kind: 'AndElimFst' },
+                    premisses: [createEmptyVisualProofEditorProofTreeFromProp(conjunction)],
+                },
+                reasoningContextId,
+                nodeId: proofTree.id,
+            }]
         };
-
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -59,12 +76,18 @@ export class AndElimFstRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                id: v4(),
-                premisses: [proofTree],
-                rule: { kind: 'AndElimFst' },
-                conclusion: { kind: 'PropIsTrue', value: fst },
-            }
+            removedReasoingContextIds: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    id: v4(),
+                    premisses: [proofTree],
+                    rule: { kind: 'AndElimFst' },
+                    conclusion: { kind: 'PropIsTrue', value: fst },
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }],
         };
     }
 }

@@ -8,7 +8,13 @@ export class TrueIntroRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes } = params;
+
+        if (selectedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -23,10 +29,16 @@ export class TrueIntroRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                ...proofTree,
-                rule: { kind: 'TrueIntro' },
-            },
+            removedReasoingContextIds: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    ...proofTree,
+                    rule: { kind: 'TrueIntro' },
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }]
         };
     }
 

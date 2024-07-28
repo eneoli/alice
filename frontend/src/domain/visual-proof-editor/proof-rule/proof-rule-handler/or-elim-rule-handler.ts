@@ -7,7 +7,13 @@ import { ProofRuleHandler } from './proof-rule-handler';
 
 export class OrElimRuleHandler extends ProofRuleHandler {
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree, reasoningContextId, generateIdentifier } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes, generateIdentifier } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -44,21 +50,33 @@ export class OrElimRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions,
-            newProofTree: {
-                ...proofTree,
-                premisses: [
-                    createEmptyVisualProofEditorProofTreeFromProp(disjunction),
-                    createEmptyVisualProofEditorProofTreeFromProp(conclusion.value),
-                    createEmptyVisualProofEditorProofTreeFromProp(conclusion.value),
-                ],
-                rule: { kind: 'OrElim', value: [fstIdent, sndIdent] },
-            }
+            newReasoningContexts: [],
+            removedReasoingContextIds: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    ...proofTree,
+                    premisses: [
+                        createEmptyVisualProofEditorProofTreeFromProp(disjunction),
+                        createEmptyVisualProofEditorProofTreeFromProp(conclusion.value),
+                        createEmptyVisualProofEditorProofTreeFromProp(conclusion.value),
+                    ],
+                    rule: { kind: 'OrElim', value: [fstIdent, sndIdent] },
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }],
         };
 
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree, reasoningContextId, generateIdentifier } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes, generateIdentifier } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -86,7 +104,7 @@ export class OrElimRuleHandler extends ProofRuleHandler {
         const newConclusion = this.parseProp(newConclusionPromptResult.value);
 
         const nodeId = v4();
-        
+
         const additionalAssumptions = createProofRuleHandlerResultAssumptionContexts({
             head: conclusion.value,
             nodeId,
@@ -99,16 +117,22 @@ export class OrElimRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions,
-            newProofTree: {
-                id: nodeId,
-                premisses: [
-                    { ...proofTree },
-                    createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
-                    createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
-                ],
-                rule: { kind: 'OrElim', value: [fstIdent, sndIdent] },
-                conclusion: { kind: 'PropIsTrue', value: newConclusion },
-            }
+            newReasoningContexts: [],
+            removedReasoingContextIds: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    id: nodeId,
+                    premisses: [
+                        { ...proofTree },
+                        createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
+                        createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
+                    ],
+                    rule: { kind: 'OrElim', value: [fstIdent, sndIdent] },
+                    conclusion: { kind: 'PropIsTrue', value: newConclusion },
+                },
+                reasoningContextId,
+                nodeId: proofTree.id,
+            }],
         };
     }
 }

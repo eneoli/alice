@@ -6,20 +6,38 @@ import { v4 } from 'uuid';
 
 export class FalseElimRuleHandler extends ProofRuleHandler {
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                ...proofTree,
-                premisses: [createEmptyVisualProofEditorProofTreeFromProp({ kind: 'False' })],
-                rule: { kind: 'FalsumElim' },
-            },
+            removedReasoingContextIds: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    ...proofTree,
+                    premisses: [createEmptyVisualProofEditorProofTreeFromProp({ kind: 'False' })],
+                    rule: { kind: 'FalsumElim' },
+                },
+                reasoningContextId,
+                nodeId: proofTree.id
+            }]
         };
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -49,12 +67,18 @@ export class FalseElimRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                id: v4(),
-                premisses: [proofTree],
-                rule: { kind: 'FalsumElim' },
-                conclusion: { kind: 'PropIsTrue', value: newConclusion },
-            },
+            removedReasoingContextIds: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    id: v4(),
+                    premisses: [proofTree],
+                    rule: { kind: 'FalsumElim' },
+                    conclusion: { kind: 'PropIsTrue', value: newConclusion },
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }],
         };
     }
 }

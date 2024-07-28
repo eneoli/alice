@@ -6,7 +6,13 @@ import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/
 
 export class ImplElimRuleHandler extends ProofRuleHandler {
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply rule on this node.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -28,19 +34,31 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                ...proofTree,
-                premisses: [
-                    createEmptyVisualProofEditorProofTreeFromProp({ kind: 'Impl', value: [implAntecedent, conclusion.value] }),
-                    createEmptyVisualProofEditorProofTreeFromProp(implAntecedent),
-                ],
-                rule: { kind: 'ImplElim' },
-            },
+            removedReasoingContextIds: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    ...proofTree,
+                    premisses: [
+                        createEmptyVisualProofEditorProofTreeFromProp({ kind: 'Impl', value: [implAntecedent, conclusion.value] }),
+                        createEmptyVisualProofEditorProofTreeFromProp(implAntecedent),
+                    ],
+                    rule: { kind: 'ImplElim' },
+                },
+                reasoningContextId,
+                nodeId: proofTree.id,
+            }],
         };
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply rule on this node.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -57,17 +75,23 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                id: v4(),
-                premisses: [{ ...proofTree }, {
+            newReasoningContexts: [],
+            removedReasoingContextIds: [],
+            proofTreeChanges: [{
+                newProofTree: {
                     id: v4(),
-                    premisses: [],
-                    rule: null,
-                    conclusion: { kind: 'PropIsTrue', value: fst },
-                }],
-                rule: { kind: 'ImplElim' },
-                conclusion: { kind: 'PropIsTrue', value: snd },
-            }
+                    premisses: [{ ...proofTree }, {
+                        id: v4(),
+                        premisses: [],
+                        rule: null,
+                        conclusion: { kind: 'PropIsTrue', value: fst },
+                    }],
+                    rule: { kind: 'ImplElim' },
+                    conclusion: { kind: 'PropIsTrue', value: snd },
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }],
         };
     }
 }

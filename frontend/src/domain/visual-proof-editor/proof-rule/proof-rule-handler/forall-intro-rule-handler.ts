@@ -10,7 +10,13 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree, reasoningContextId, generateIdentifier } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes, generateIdentifier } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -29,16 +35,22 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
         const intantiated_body = instantiate_free_parameter(body, object_ident, { name: paramIdent, unique_id: 0 });
 
         return {
+            newReasoningContexts: [],
+            removedReasoingContextIds: [],
             additionalAssumptions: [
                 {
                     assumption: { kind: 'Datatype', ident: paramIdent, datatype: object_type_ident }, owningReasoningCtxId: reasoningContextId, owningNodeId: proofTree.id
                 }
             ],
-            newProofTree: {
-                ...proofTree,
-                premisses: [createEmptyVisualProofEditorProofTreeFromProp(intantiated_body)],
-                rule: { kind: 'ForAllIntro', value: paramIdent },
-            },
+            proofTreeChanges: [{
+                newProofTree: {
+                    ...proofTree,
+                    premisses: [createEmptyVisualProofEditorProofTreeFromProp(intantiated_body)],
+                    rule: { kind: 'ForAllIntro', value: paramIdent },
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }]
         };
     }
 

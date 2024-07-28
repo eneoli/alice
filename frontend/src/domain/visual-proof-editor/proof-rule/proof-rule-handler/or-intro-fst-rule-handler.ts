@@ -6,7 +6,13 @@ import { v4 } from 'uuid';
 
 export class OrIntroFstRuleHandler extends ProofRuleHandler {
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply rule on this node.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { id, conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -23,17 +29,29 @@ export class OrIntroFstRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                id,
-                premisses: [createEmptyVisualProofEditorProofTreeFromProp(fst)],
-                rule: { kind: 'OrIntroFst' },
-                conclusion,
-            },
+            removedReasoingContextIds: [],
+            newReasoningContexts: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    id,
+                    premisses: [createEmptyVisualProofEditorProofTreeFromProp(fst)],
+                    rule: { kind: 'OrIntroFst' },
+                    conclusion,
+                },
+                reasoningContextId,
+                nodeId: proofTree.id,
+            }],
         };
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -57,14 +75,18 @@ export class OrIntroFstRuleHandler extends ProofRuleHandler {
 
         return {
             additionalAssumptions: [],
-            newProofTree: {
-                id: v4(),
-                premisses: [proofTree],
-                rule: { kind: 'OrIntroFst' },
-                conclusion: { kind: 'PropIsTrue', value: { kind: 'Or', value: [conclusion.value, secondComponent] } },
-            }
+            newReasoningContexts: [],
+            removedReasoingContextIds: [],
+            proofTreeChanges: [{
+                newProofTree: {
+                    id: v4(),
+                    premisses: [proofTree],
+                    rule: { kind: 'OrIntroFst' },
+                    conclusion: { kind: 'PropIsTrue', value: { kind: 'Or', value: [conclusion.value, secondComponent] } },
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }]
         };
-
     }
-
 }

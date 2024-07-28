@@ -9,7 +9,13 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { proofTree, reasoningContextId, generateIdentifier } = params;
+        const { selectedProofTreeNodes: selecteedProofTreeNodes, generateIdentifier } = params;
+
+        if (selecteedProofTreeNodes.length !== 1) {
+            throw new Error('Cannot apply this rule on multiple nodes.');
+        }
+
+        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -27,12 +33,16 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
         const ident = generateIdentifier();
 
         return {
-            newProofTree: {
-                id: proofTree.id,
-                premisses: [createEmptyVisualProofEditorProofTreeFromProp(snd)],
-                rule: { kind: 'ImplIntro', value: ident },
-                conclusion,
-            },
+            proofTreeChanges: [{
+                newProofTree: {
+                    id: proofTree.id,
+                    premisses: [createEmptyVisualProofEditorProofTreeFromProp(snd)],
+                    rule: { kind: 'ImplIntro', value: ident },
+                    conclusion,
+                },
+                nodeId: proofTree.id,
+                reasoningContextId,
+            }],
             additionalAssumptions: [
                 {
                     assumption: {
@@ -44,6 +54,8 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
                     owningNodeId: proofTree.id,
                 }
             ],
+            newReasoningContexts: [],
+            removedReasoingContextIds: [],
         };
     }
 
