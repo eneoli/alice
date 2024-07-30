@@ -26,7 +26,7 @@ impl Identifier {
     pub fn sorry() -> Self {
         Self {
             name: "sorry".to_string(),
-            unique_id: -1,
+            unique_id: 0,
         }
     }
 }
