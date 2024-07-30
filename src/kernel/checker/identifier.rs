@@ -22,6 +22,13 @@ impl Identifier {
     pub fn unique_id(&self) -> usize {
         self.unique_id
     }
+
+    pub fn sorry() -> Self {
+        Self {
+            name: "sorry".to_string(),
+            unique_id: -1,
+        }
+    }
 }
 
 pub struct IdentifierFactory {
@@ -30,9 +37,7 @@ pub struct IdentifierFactory {
 
 impl IdentifierFactory {
     pub fn new(counter: Counter) -> Self {
-        Self {
-            counter
-        }
+        Self { counter }
     }
 
     pub fn create(&mut self, name: String) -> Identifier {

@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    identifier::IdentifierFactory,
+    identifier::{Identifier, IdentifierFactory},
     identifier_context::IdentifierContext,
     synthesize::{synthesize, SynthesizeError},
 };
@@ -611,7 +611,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let conclusion = match self.expected_type {
             Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
             Type::Datatype(ref datatype) => {
-                ProofTreeConclusion::TypeJudgement("sorry".to_string(), datatype.clone())
+                ProofTreeConclusion::TypeJudgement(Identifier::sorry(), datatype.clone())
             }
         };
 

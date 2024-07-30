@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use tsify_next::Tsify;
 
-use super::prop::Prop;
+use super::{checker::identifier::Identifier, prop::Prop};
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Tsify, Debug)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -31,7 +31,7 @@ pub enum ProofTreeRule {
 #[serde(tag = "kind", content = "value")]
 pub enum ProofTreeConclusion {
     PropIsTrue(Prop),
-    TypeJudgement(String, String),
+    TypeJudgement(Identifier, String),
 }
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Tsify, Debug)]

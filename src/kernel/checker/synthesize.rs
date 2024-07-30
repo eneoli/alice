@@ -113,7 +113,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         let Ident(ident) = ident;
 
         // lookup identifier
-        let (_, ident_type) = match self.ctx.get_by_name(ident) {
+        let (identifier, ident_type) = match self.ctx.get_by_name(ident) {
             Some(ident_type) => ident_type,
             None => return Err(SynthesizeError::UnknownIdentifier(ident.clone())),
         };
@@ -122,7 +122,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         let conclusion = match ident_type {
             Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
             Type::Datatype(datatype) => {
-                ProofTreeConclusion::TypeJudgement(ident.clone(), datatype.clone())
+                ProofTreeConclusion::TypeJudgement(identifier.clone(), datatype.clone())
             }
         };
 
