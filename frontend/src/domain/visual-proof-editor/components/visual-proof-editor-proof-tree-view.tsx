@@ -87,6 +87,6 @@ const cssReasoningContextVisualizerContainer = css`
 
 const cssTrashOverlayContainer = css`
     position: absolute;
-    right: 0;
-    top: 0;
+    right: 10px;
+    top: 10px;
 `;
