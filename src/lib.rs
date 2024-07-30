@@ -7,10 +7,10 @@ use kernel::{
         identifier_context::IdentifierContext,
     },
     export::{
-        ocaml_exporter::{self, OcamlExporter},
+        ocaml_exporter::OcamlExporter,
         ProofExporter,
     },
-    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser, proof_term},
+    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline, ProofPipelineError},
     proof::Proof,
     proof_tree::ProofTree,
