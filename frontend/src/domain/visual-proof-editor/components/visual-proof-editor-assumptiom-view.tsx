@@ -43,8 +43,8 @@ export function VisualProofEditorAssumptionView(props: VisualProofEditorAssumpti
 
 function displayAssumption(assumption: Assumption) {
     switch (assumption.kind) {
-        case 'PropIsTrue': return assumption.ident + ': ' + printProp(assumption.prop);
-        case 'Datatype': return assumption.ident + ': ' + assumption.datatype;
+        case 'PropIsTrue': return assumption.ident.name + ': ' + printProp(assumption.prop);
+        case 'Datatype': return assumption.ident.name + ': ' + assumption.datatype;
     }
 }
 
