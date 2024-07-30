@@ -5,6 +5,17 @@ import { ProofRuleHandler } from './proof-rule-handler';
 import { v4 } from 'uuid';
 
 export class OrIntroSndRuleHandler extends ProofRuleHandler {
+
+    public getLatexCode(): string {
+        return `
+            \\begin{prooftree}
+                \\AxiomC{B}
+                \\RightLabel{$\\lor I_2$}
+                \\UnaryInfC{$A \\lor B$}
+            \\end{prooftree}
+        `;
+    }
+
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
         const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
 

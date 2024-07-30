@@ -2,6 +2,9 @@ import { parse_prop, Prop } from 'alice';
 import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
 
 export abstract class ProofRuleHandler {
+
+    public abstract getLatexCode(): string;
+
     protected abstract handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult>;
 
     protected abstract handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult>;

@@ -5,6 +5,17 @@ import { ProofRuleHandler } from './proof-rule-handler';
 import { v4 } from 'uuid';
 
 export class FalseElimRuleHandler extends ProofRuleHandler {
+
+    public getLatexCode(): string {
+        return `
+            \\begin{prooftree}
+                \\AxiomC{$\\bot$}
+                \\RightLabel{$\\bot E$}
+                \\UnaryInfC{$C$}
+            \\end{prooftree}
+        `;
+    }
+
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
         const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
 

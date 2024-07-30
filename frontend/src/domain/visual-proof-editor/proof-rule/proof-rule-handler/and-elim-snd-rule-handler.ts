@@ -6,6 +6,17 @@ import { Prop } from 'alice';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 
 export class AndElimSndRuleHandler extends ProofRuleHandler {
+
+    public getLatexCode(): string {
+        return `
+            \\begin{prooftree}
+                \\AxiomC{$A \\land B$}
+                \\RightLabel{$\\land E_2$}
+                \\UnaryInfC{$B$}
+            \\end{prooftree}
+        `;
+    }
+
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
         const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
 

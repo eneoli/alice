@@ -4,6 +4,18 @@ import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/
 import { ProofRuleHandler } from './proof-rule-handler';
 
 export class AndIntroRuleHandler extends ProofRuleHandler {
+
+    public getLatexCode(): string {
+        return `
+            \\begin{prooftree}
+                \\AxiomC{$A$}
+                \\AxiomC{$B$}
+                \\RightLabel{$\\land I$}
+                \\BinaryInfC{$A \\land B$}
+            \\end{prooftree}
+        `;
+    }
+
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
         const { selectedProofTreeNodes } = params;
 

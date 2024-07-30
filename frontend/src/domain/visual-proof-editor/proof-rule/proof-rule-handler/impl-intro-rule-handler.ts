@@ -4,6 +4,18 @@ import { ProofRuleHandler } from './proof-rule-handler';
 
 export class ImplIntroRuleHandler extends ProofRuleHandler {
 
+    public getLatexCode(): string {
+        return `
+            \\begin{prooftree}
+                \\AxiomC{[A]}
+                \\noLine
+                \\UnaryInfC{B}
+                \\RightLabel{$\\supset I$}
+                \\UnaryInfC{$A \\supset B$}
+            \\end{prooftree}
+        `;
+    }
+
     public willReasonDownwards(_params: VisualProofEditorRuleHandlerParams): boolean {
         return false;
     }

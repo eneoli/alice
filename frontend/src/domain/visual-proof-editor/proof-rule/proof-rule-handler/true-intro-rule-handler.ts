@@ -3,6 +3,16 @@ import { ProofRuleHandler } from './proof-rule-handler';
 
 export class TrueIntroRuleHandler extends ProofRuleHandler {
 
+    public getLatexCode(): string {
+        return `
+            \\begin{prooftree}
+                \\AxiomC{}
+                \\RightLabel{$\\top I$}
+                \\UnaryInfC{$\\top$}
+            \\end{prooftree}
+        `;
+    }
+
     public willReasonDownwards(_params: VisualProofEditorRuleHandlerParams): boolean {
         return false;
     }
