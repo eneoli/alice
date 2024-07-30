@@ -41,6 +41,11 @@ const cssProofRuleButton = css`
     :active {
         border: 3px solid #074ca6;
     }
+
+    user-select: none;
+    * {
+        user-select: none;
+    }
 `;
 
 const cssProofRuleButtonHeader = css`
