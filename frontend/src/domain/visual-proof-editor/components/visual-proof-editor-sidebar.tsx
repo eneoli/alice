@@ -1,8 +1,7 @@
 import React from 'react';
 import { css } from '@emotion/css';
-import { partition } from 'lodash';
-import { Button } from 'antd';
 import { VisualProofEditorRule } from '../proof-rule';
+import { VisualProofEditorProofRuleButton } from './visual-proof-editor-proof-rule-button';
 
 interface VisualProofEditorSidebarProps {
     rules: VisualProofEditorRule[];
@@ -13,30 +12,19 @@ export function VisualProofEditorSidebar(props: VisualProofEditorSidebarProps) {
 
     const { rules, onRuleSelect } = props;
 
-    const [topDownRules, bottomUpRules] = partition(rules, (rule) => rule.reasoning === 'TopDown');
-
     return (
         <div className={cssVisualProofEditorSidebar}>
-            <span>Top Down Reasoning</span>
-            <ul className={cssVisualProofEditorRuleList}>
-                {
-                    topDownRules.map((rule) => (
-                        <li key={rule.id}>
-                            <Button onClick={() => onRuleSelect(rule.id)}>{rule.name}</Button>
-                        </li>
-                    ))
-                }
-            </ul>
-            <span>Bottom Up Reasoning</span>
-            <ul className={cssVisualProofEditorRuleList}>
-                {
-                    bottomUpRules.map((rule) => (
-                        <li key={rule.id}>
-                            <Button onClick={() => onRuleSelect(rule.id)}>{rule.name}</Button>
-                        </li>
-                    ))
-                }
-            </ul>
+            <span className={cssSidebarTitle}>Inference rules</span>
+            {
+                rules.map((rule, i) => (
+                    <VisualProofEditorProofRuleButton
+                        key={i}
+                        title={rule.name}
+                        latex={rule.handler.getLatexCode()}
+                        onClick={() => onRuleSelect(rule.id)}
+                    />
+                ))
+            }
         </div>
     );
 }
@@ -44,11 +32,16 @@ export function VisualProofEditorSidebar(props: VisualProofEditorSidebarProps) {
 const cssVisualProofEditorSidebar = css`
     display: flex;
     flex-direction: column;
+    align-items: center;
+    padding: 20px;
     border: 2px solid #37485f;
     overflow-y: auto;
+    width: 400px;
+    gap: 20px;
 `;
 
-const cssVisualProofEditorRuleList = css`
-    padding: 0;
-    list-style: none;
+const cssSidebarTitle = css`
+    margin: 0;
+    font-size: 1.5em;
+    font-weight: bold;
 `;
