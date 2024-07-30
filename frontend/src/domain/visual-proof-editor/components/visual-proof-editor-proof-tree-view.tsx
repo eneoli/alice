@@ -78,6 +78,7 @@ const cssVisualProofEditorProofTreeView = css`
     position: relative;
     width: 100%;
     flex: 1;
+    overflow: hidden;
 `;
 
 const cssReasoningContextVisualizerContainer = css`
