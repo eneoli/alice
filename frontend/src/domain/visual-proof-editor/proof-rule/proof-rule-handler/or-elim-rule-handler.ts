@@ -1,19 +1,40 @@
 import Swal from 'sweetalert2';
-import { Prop } from 'alice';
+import { Identifier, Prop } from 'alice';
 import { v4 } from 'uuid';
-import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, AssumptionContext } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
 export class OrElimRuleHandler extends ProofRuleHandler {
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes, generateIdentifier } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
+    public getLatexCode(): string {
+        return `
+            \\begin{prooftree}
+                \\AxiomC{$A \\lor B$}
+                \\AxiomC{[$A$]}
+                \\noLine
+                \\UnaryInfC{$C$}
+                \\AxiomC{[$B$]}
+                \\noLine
+                \\UnaryInfC{$C$}
+                \\RightLabel{$\\lor E$}
+                \\TrinaryInfC{$C$}
+            \\end{prooftree}
+        `;
+    }
+
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+        const {
+            selectedProofTreeNodes,
+            generateIdentifier,
+            generateUniqueNumber,
+        } = params;
+
+        if (selectedProofTreeNodes.length !== 1) {
             throw new Error('Cannot apply this rule on multiple nodes.');
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -42,6 +63,7 @@ export class OrElimRuleHandler extends ProofRuleHandler {
             head: disjunction,
             nodeId: proofTree.id,
             generateIdentifier,
+            generateUniqueNumber,
             reasoningContextId,
         });
 
@@ -60,23 +82,26 @@ export class OrElimRuleHandler extends ProofRuleHandler {
                         createEmptyVisualProofEditorProofTreeFromProp(conclusion.value),
                         createEmptyVisualProofEditorProofTreeFromProp(conclusion.value),
                     ],
-                    rule: { kind: 'OrElim', value: [fstIdent, sndIdent] },
+                    rule: { kind: 'OrElim', value: [fstIdent.name, sndIdent.name] },
                 },
                 nodeId: proofTree.id,
                 reasoningContextId,
             }],
         };
-
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes, generateIdentifier } = params;
+        const {
+            selectedProofTreeNodes,
+            generateIdentifier,
+            generateUniqueNumber,
+        } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
+        if (selectedProofTreeNodes.length !== 1) {
             throw new Error('Cannot apply this rule on multiple nodes.');
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -109,6 +134,7 @@ export class OrElimRuleHandler extends ProofRuleHandler {
             head: conclusion.value,
             nodeId,
             generateIdentifier,
+            generateUniqueNumber,
             reasoningContextId,
         });
 
@@ -127,7 +153,7 @@ export class OrElimRuleHandler extends ProofRuleHandler {
                         createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
                         createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
                     ],
-                    rule: { kind: 'OrElim', value: [fstIdent, sndIdent] },
+                    rule: { kind: 'OrElim', value: [fstIdent.name, sndIdent.name] },
                     conclusion: { kind: 'PropIsTrue', value: newConclusion },
                 },
                 reasoningContextId,
@@ -142,12 +168,27 @@ interface CreateProofRuleHandlerResultAssumptionContextsParams {
     nodeId: string,
     reasoningContextId: string,
     generateIdentifier: () => string,
+    generateUniqueNumber: () => number,
 }
 
 function createProofRuleHandlerResultAssumptionContexts(params: CreateProofRuleHandlerResultAssumptionContextsParams): AssumptionContext[] {
-    const { head, nodeId, reasoningContextId, generateIdentifier } = params;
-    const fstIdent = generateIdentifier();
-    const sndIdent = generateIdentifier();
+    const {
+        head,
+        nodeId,
+        reasoningContextId,
+        generateIdentifier,
+        generateUniqueNumber,
+    } = params;
+
+    const fstIdent: Identifier = {
+        name: generateIdentifier(),
+        unique_id: generateUniqueNumber(),
+    };
+
+    const sndIdent: Identifier = {
+        name: generateIdentifier(),
+        unique_id: generateUniqueNumber(),
+    };
 
     if (head.kind !== 'Or') {
         throw new Error('Expected head to be disjunction.');

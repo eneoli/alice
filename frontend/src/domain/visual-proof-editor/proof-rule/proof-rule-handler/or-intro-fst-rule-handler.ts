@@ -1,8 +1,8 @@
 import Swal from 'sweetalert2';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
-import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { v4 } from 'uuid';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
 export class OrIntroFstRuleHandler extends ProofRuleHandler {
 

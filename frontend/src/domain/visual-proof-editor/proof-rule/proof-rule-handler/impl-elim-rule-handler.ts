@@ -2,8 +2,8 @@ import { v4 } from 'uuid';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import Swal from 'sweetalert2';
-import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 import { isEqual } from 'lodash';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
 export class ImplElimRuleHandler extends ProofRuleHandler {
 

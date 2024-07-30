@@ -1,7 +1,7 @@
 import { v4 } from 'uuid';
 import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
-import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
 import { ProofRuleHandler } from './proof-rule-handler';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
 export class AndIntroRuleHandler extends ProofRuleHandler {
 
@@ -94,7 +94,7 @@ export class AndIntroRuleHandler extends ProofRuleHandler {
                     premisses: [fst.proofTree, snd.proofTree],
                     rule: { kind: 'AndIntro' },
                     conclusion: { kind: 'PropIsTrue', value: { kind: 'And', value: [fstProp, sndProp] } }
-                }
+                },
             }],
         };
     }

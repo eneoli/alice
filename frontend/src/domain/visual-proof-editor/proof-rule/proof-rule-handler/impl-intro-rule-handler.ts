@@ -1,5 +1,6 @@
+import { Identifier } from 'alice';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
-import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 import { ProofRuleHandler } from './proof-rule-handler';
 
 export class ImplIntroRuleHandler extends ProofRuleHandler {
@@ -21,13 +22,17 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes, generateIdentifier } = params;
+        const {
+            selectedProofTreeNodes,
+            generateIdentifier,
+            generateUniqueNumber,
+        } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
+        if (selectedProofTreeNodes.length !== 1) {
             throw new Error('Cannot apply this rule on multiple nodes.');
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
@@ -42,15 +47,17 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
 
         const [fst, snd] = propConclusion.value;
 
-        const ident = generateIdentifier();
+        const ident: Identifier = {
+            name: generateIdentifier(),
+            unique_id: generateUniqueNumber(),
+        };
 
         return {
             proofTreeChanges: [{
                 newProofTree: {
-                    id: proofTree.id,
+                    ...proofTree,
                     premisses: [createEmptyVisualProofEditorProofTreeFromProp(snd)],
-                    rule: { kind: 'ImplIntro', value: ident },
-                    conclusion,
+                    rule: { kind: 'ImplIntro', value: ident.name },
                 },
                 nodeId: proofTree.id,
                 reasoningContextId,

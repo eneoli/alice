@@ -3,7 +3,7 @@ import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
 import Swal from 'sweetalert2';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { Prop } from 'alice';
-import { createEmptyVisualProofEditorProofTreeFromProp } from '../../../../util/create-visual-proof-editor-empty-proof-tree';
+import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
 export class AndElimFstRuleHandler extends ProofRuleHandler {
 
