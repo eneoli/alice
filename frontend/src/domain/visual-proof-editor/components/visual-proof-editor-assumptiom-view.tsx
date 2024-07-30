@@ -52,7 +52,10 @@ const cssAssumptionContainer = css`
     display: flex;
     flex-direction: row;
     justify-content: space-between;
+    align-items: center;
     width: 100%;
+    padding: 5px;
+    box-sizing: border-box;
 `;
 
 const cssAssumptionList = css`
@@ -71,7 +74,6 @@ const cssAssumptionListElement = css`
 
 const cssButtonContainer = css`
     display: flex;
-    margin-top: 20px;
     * {
         margin-right: 5px;
     }
