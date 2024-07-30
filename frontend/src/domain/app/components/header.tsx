@@ -7,9 +7,10 @@ interface HeaderProps {
     onPropChange: (prop: string) => void;
     onVerify: (prop: string) => void;
     onExportAsOcaml: () => void;
+    onTutorClick: () => void;
 }
 
-export function Header({ onPropChange, onVerify, onExportAsOcaml }: HeaderProps) {
+export function Header({ onPropChange, onVerify, onExportAsOcaml, onTutorClick }: HeaderProps) {
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -56,9 +57,14 @@ export function Header({ onPropChange, onVerify, onExportAsOcaml }: HeaderProps)
 
     return (
         <div className={cssHeader}>
-            <span className={cssHeaderTitle} style={{ fontSize: 40 }}>🔍 Alice</span>
-            <br />
-            <span className={cssHeaderSubtitle}>A constructive logic proof checker</span>
+            <div style={{ display: 'flex' }}>
+                <div className={cssHeaderTitleContainer}>
+                    <span className={cssHeaderTitle}>🔍 Alice</span>
+                    <br />
+                    <span className={cssHeaderSubtitle}>A constructive logic proof checker</span>
+                </div>
+                <Button onClick={onTutorClick} type={'default'}>💡 Tutor</Button>
+            </div>
             <div className={cssHeaderContainer}>
                 <SearchField style={{ width: 1000 }}>
                     <Label>Proposition</Label>
@@ -84,12 +90,23 @@ const cssHeader = css`
     padding: 10px;
 `;
 
+const cssHeaderTitleContainer = css`
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-items: center;
+`;
+
 const cssHeaderTitle = css`
+    font-size: 35px;
     color: white;
     text-align: center;
 `;
 
 const cssHeaderSubtitle = css`
+    text-align: center;
+    margin-left: 50px;
+    margin-top: -15px;
     color: #dfdfdf;
 `;
 
@@ -103,11 +120,11 @@ const cssHeaderContainer = css`
 `;
 
 const cssButtonContainer = css`
-    margin-top: 20px;
+    margin-top: 17.5px;
     margin-left: 10px;
     display: flex;
     flex-direction: row;
-    gap: 5px;
+    gap: 10px;
 `;
 
 const cssOcamlButton = css`
