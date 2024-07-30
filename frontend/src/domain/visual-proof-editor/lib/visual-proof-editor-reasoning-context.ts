@@ -1,6 +1,5 @@
 import { ProofTreeConclusion, Prop } from 'alice';
-import { VisualProofEditorProofTree } from './visual-proof-editor-proof-tree';
-import { createEmptyVisualProofEditorProofTreeFromConclusion, createEmptyVisualProofEditorProofTreeFromProp } from '../../../util/create-visual-proof-editor-empty-proof-tree';
+import { createEmptyVisualProofEditorProofTreeFromConclusion, createEmptyVisualProofEditorProofTreeFromProp, VisualProofEditorProofTree } from './visual-proof-editor-proof-tree';
 import { v4 } from 'uuid';
 
 export interface VisualProofEditorReasoningContext {
