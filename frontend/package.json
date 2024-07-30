@@ -47,6 +47,7 @@
         "@react-aria/example-theme": "^1.0.3",
         "alice": "file:../pkg",
         "antd": "^5.19.0",
+        "better-react-mathjax": "^2.0.3",
         "core-js": "^3.37.0",
         "katex": "^0.16.10",
         "lodash": "^4.17.21",
