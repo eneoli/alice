@@ -1,7 +1,7 @@
-import { Prop, PropParameter } from 'alice';
+import { Identifier, Prop, PropParameter } from 'alice';
 
-export function printTypeJudgment([ident, datatype]: [string, string]): string {
-    return `${ident} : ${datatype}`;
+export function printTypeJudgment([ident, datatype]: [Identifier, string]): string {
+    return `${ident.name} : ${datatype}`;
 }
 
 export function printProp(prop: Prop): string {
