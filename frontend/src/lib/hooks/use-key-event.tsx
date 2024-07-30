@@ -31,6 +31,6 @@ function createKeyHook(eventName: 'keyup' | 'keydown') {
             return () => {
                 window.removeEventListener(eventName, handleKey);
             };
-        }, []);
+        }, [onKey, keyCodesListenedFor]);
     }
 }
