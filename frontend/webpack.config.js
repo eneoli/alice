@@ -43,6 +43,11 @@ const config = {
                 test: /\.(png|svg|jpg|jpeg|gif)$/i,
                 type: 'asset/resource',
             },
+            // Serve Mathjax library as file
+            {
+                test: /node_modules\/mathjax\/es5\//i,
+                type: 'asset/resource',
+            },
         ],
     },
     resolve: {
