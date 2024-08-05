@@ -1,8 +1,10 @@
 use std::fmt::{self, Debug};
+use std::vec;
 
 use super::{checker::identifier::Identifier, proof_term::Type};
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
+use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Tsify, PartialEq, Eq)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
