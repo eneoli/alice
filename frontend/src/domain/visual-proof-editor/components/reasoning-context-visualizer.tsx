@@ -137,7 +137,7 @@ const cssSelectableProofTreeConclusionContainer = css`
 `;
 
 const cssSelectedProofTreeConclusionContainer = css`
-    border-color: green;
+    background-color: #d0e7ff;
 `;
 
 const cssDraggedOverProofTreeConclusionContainer = css`
