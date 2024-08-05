@@ -1,27 +1,44 @@
-import { Prop } from 'alice';
-import { VisualProofEditorProofTree } from '../components/visual-proof-editor';
-import { handleAndElimFstRule } from './proof-rule-handler/handle-and-elim-fst-rule';
-import { handleAndElimSndRule } from './proof-rule-handler/handle-and-elim-snd-rule';
-import { handleAndIntroRule } from './proof-rule-handler/handle-and-intro-rule';
-import { handleExistsElimRule } from './proof-rule-handler/handle-exists-elim-rule';
-import { handleExistsIntroRule } from './proof-rule-handler/handle-exists-intro-rule';
-import { handleFalsumElimRule } from './proof-rule-handler/handle-falsum-elim-rule';
-import { handleForAllElimRule } from './proof-rule-handler/handle-forall-elim-rule';
-import { handleForAllIntroRule } from './proof-rule-handler/handle-forall-intro-rule';
-import { handleImplElimRule } from './proof-rule-handler/handle-impl-elim-rule';
-import { handleImplIntroRule } from './proof-rule-handler/handle-impl-intro-rule';
-import { handleOrElimRule } from './proof-rule-handler/handle-or-elim-rule';
-import { handleOrIntroFstRule } from './proof-rule-handler/handle-or-intro-fst-rule';
-import { handleOrIntroSndRule } from './proof-rule-handler/handle-or-intro-snd-rule';
-import { handleTrueIntroRule } from './proof-rule-handler/handle-true-intro-rule';
+import { Identifier, ProofTreeConclusion, Prop } from 'alice';
+import { ProofRuleHandler } from './proof-rule-handler/proof-rule-handler';
+import { AndElimFstRuleHandler } from './proof-rule-handler/and-elim-fst-rule-handler';
+import { AndElimSndRuleHandler } from './proof-rule-handler/and-elim-snd-rule-handler';
+import { OrIntroFstRuleHandler } from './proof-rule-handler/or-intro-fst-rule-handler';
+import { ImplIntroRuleHandler } from './proof-rule-handler/impl-intro-rule-handler';
+import { TrueIntroRuleHandler } from './proof-rule-handler/true-intro-rule-handler';
+import { FalseElimRuleHandler } from './proof-rule-handler/false-elim-rule-handler';
+import { ForallIntroRuleHandler } from './proof-rule-handler/forall-intro-rule-handler';
+import { OrElimRuleHandler } from './proof-rule-handler/or-elim-rule-handler';
+import { ImplElimRuleHandler } from './proof-rule-handler/impl-elim-rule-handler';
+import { ExistsElimRuleHandler } from './proof-rule-handler/exists-elim-rule-handler';
+import { OrIntroSndRuleHandler } from './proof-rule-handler/or-intro-snd-rule-handler';
+import { AndIntroRuleHandler } from './proof-rule-handler/and-intro-rule-handler';
+import { VisualProofEditorProofTree } from '../lib/visual-proof-editor-proof-tree';
+import { VisualProofEditorReasoningContext } from '../lib/visual-proof-editor-reasoning-context';
+import { ExistsIntroRuleHandler } from './proof-rule-handler/exists-intro-rule-handler';
+import { ForAllElimRuleHandler } from './proof-rule-handler/forall-elim-rule-handler';
 
-export interface VisualProofEditorRuleHandlerParams {
-    proofTree: VisualProofEditorProofTree,
+interface SelectedProofTreeNode {
     reasoningContextId: string,
-    generateIdentifier: () => string,
+    proofTree: VisualProofEditorProofTree,
+    isRoot: boolean,
+    isLeaf: boolean,
 }
 
-export type Assumption = { kind: 'PropIsTrue', prop: Prop, ident: string } | { kind: 'Datatype', datatype: string, ident: string };
+export interface VisualProofEditorRuleHandlerParams {
+    selectedProofTreeNodes: SelectedProofTreeNode[],
+    assumptions: AssumptionContext[],
+    generateIdentifier: () => string,
+    generateUniqueNumber: () => number,
+}
+
+export interface ProofRuleHandlerProofTreeChange {
+    reasoningContextId: string;
+    nodeId: string,
+    newProofTree: VisualProofEditorProofTree,
+}
+
+export type Assumption = { kind: 'PropIsTrue', prop: Prop, ident: Identifier }
+    | { kind: 'Datatype', datatype: string, ident: Identifier };
 
 export interface AssumptionContext {
     assumption: Assumption;
@@ -30,19 +47,47 @@ export interface AssumptionContext {
 }
 
 export interface ProofRuleHandlerResult {
-    newProofTree: VisualProofEditorProofTree,
+    proofTreeChanges: ProofRuleHandlerProofTreeChange[],
+    removedReasoingContextIds: string[],
+    newReasoningContexts: VisualProofEditorReasoningContext[],
     additionalAssumptions: AssumptionContext[],
 }
 
-type VisualProofEditorRuleHandler = (params: VisualProofEditorRuleHandlerParams) => Promise<ProofRuleHandlerResult>;
-
-export type NaturalDeductionRule = 'TrueIntro' | 'AndIntro' | 'AndElimFst' | 'AndElimSnd' | 'ImplIntro' | 'ImplElim' | 'OrIntroFst' | 'OrIntroSnd' | 'OrElim' | 'FalsumElim' | 'ForAllIntro' | 'ForAllElim' | 'ExistsIntro' | 'ExistsElim' | 'Hypothesis';
+export type NaturalDeductionRule = 'TrueIntro'
+    | 'AndIntro'
+    | 'AndElimFst'
+    | 'AndElimSnd'
+    | 'ImplIntro'
+    | 'ImplElim'
+    | 'OrIntroFst'
+    | 'OrIntroSnd'
+    | 'OrElim'
+    | 'FalsumElim'
+    | 'ForAllIntro'
+    | 'ForAllElim'
+    | 'ExistsIntro'
+    | 'ExistsElim'
+    | 'Hypothesis';
 
 export interface VisualProofEditorRule {
     id: NaturalDeductionRule;
     name: string;
-    reasoning: 'TopDown' | 'BottomUp';
-    handler: VisualProofEditorRuleHandler;
+    handler: ProofRuleHandler;
+}
+
+export function createProofTreeConclusionFromAssumption(assumption: Assumption): ProofTreeConclusion {
+    let conclusion: ProofTreeConclusion;
+    switch (assumption.kind) {
+        case 'PropIsTrue':
+            conclusion = { kind: 'PropIsTrue', value: assumption.prop };
+            break;
+        case 'Datatype':
+            conclusion = { kind: 'TypeJudgement', value: [assumption.ident, assumption.datatype] };
+            break;
+        default: throw new Error('Cannot handle this assumption kind.');
+    }
+
+    return conclusion;
 }
 
 export function getProofRule(id: string): VisualProofEditorRule {
@@ -59,85 +104,71 @@ export const NaturalDeductionRules: VisualProofEditorRule[] = [
     {
         id: 'TrueIntro',
         name: 'Truth Introduction',
-        reasoning: 'BottomUp',
-        handler: handleTrueIntroRule,
+        handler: new TrueIntroRuleHandler(),
     },
     {
         id: 'FalsumElim',
-        name: 'Falsum Elim',
-        reasoning: 'BottomUp',
-        handler: handleFalsumElimRule,
+        name: 'Falsum Elimination',
+        handler: new FalseElimRuleHandler(),
     },
     {
         id: 'AndIntro',
-        name: 'And Intro',
-        reasoning: 'BottomUp',
-        handler: handleAndIntroRule,
+        name: 'And Introduction',
+        handler: new AndIntroRuleHandler(),
     },
     {
         id: 'AndElimFst',
-        name: 'And Elim Fst',
-        reasoning: 'TopDown',
-        handler: handleAndElimFstRule,
+        name: 'And Elimination',
+        handler: new AndElimFstRuleHandler(),
     },
     {
         id: 'AndElimSnd',
-        name: 'And Elim Snd',
-        reasoning: 'TopDown',
-        handler: handleAndElimSndRule,
+        name: 'And Elimination',
+        handler: new AndElimSndRuleHandler(),
     },
     {
         id: 'ImplIntro',
         name: 'Implication Introduction',
-        reasoning: 'BottomUp',
-        handler: handleImplIntroRule,
+        handler: new ImplIntroRuleHandler(),
     },
     {
         id: 'ImplElim',
         name: 'Implication Elimination',
-        reasoning: 'TopDown',
-        handler: handleImplElimRule,
+        handler: new ImplElimRuleHandler(),
     },
     {
         id: 'OrIntroFst',
-        name: 'Or Introduction Fst',
-        reasoning: 'BottomUp',
-        handler: handleOrIntroFstRule,
+        name: 'Or Introduction',
+        handler: new OrIntroFstRuleHandler(),
     },
     {
         id: 'OrIntroSnd',
-        name: 'Or Introduction Snd',
-        reasoning: 'BottomUp',
-        handler: handleOrIntroSndRule,
+        name: 'Or Introduction',
+        handler: new OrIntroSndRuleHandler(),
     },
     {
         id: 'OrElim',
         name: 'Or Elimination',
-        reasoning: 'TopDown',
-        handler: handleOrElimRule,
+        handler: new OrElimRuleHandler(),
     },
     {
         id: 'ForAllIntro',
-        name: 'Universal quantification Introduction',
-        reasoning: 'BottomUp',
-        handler: handleForAllIntroRule,
+        name: 'Universal Quantification Introduction',
+        handler: new ForallIntroRuleHandler(),
     },
     {
         id: 'ForAllElim',
-        name: 'Universal quantification Elimination',
-        reasoning: 'TopDown',
-        handler: handleForAllElimRule,
+        name: 'Universal Quantification Elimination',
+        handler: new ForAllElimRuleHandler(),
     },
     {
         id: 'ExistsIntro',
-        name: 'Existential quantification Introduction',
-        reasoning: 'BottomUp',
-        handler: handleExistsIntroRule,
+        name: 'Existential Quantification Introduction',
+        handler: new ExistsIntroRuleHandler(),
     },
     {
         id: 'ExistsElim',
-        name: 'Existential quantification Elimination',
-        reasoning: 'TopDown',
-        handler: handleExistsElimRule,
+        name: 'Existential Quantification Elimination',
+        handler: new ExistsElimRuleHandler(),
     },
 ];
