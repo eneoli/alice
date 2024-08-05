@@ -57,7 +57,8 @@
         "react-code-blocks": "^0.1.6",
         "react-dom": "^18.3.1",
         "react-merge-refs": "^2.1.1",
-        "sweetalert2": "^11.6.13",
+        "sweetalert2": "^11.12.3",
+        "sweetalert2-react-content": "^5.0.7",
         "uuid": "^10.0.0"
     }
 }
