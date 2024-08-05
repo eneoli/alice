@@ -1,12 +1,12 @@
 import { css, cx } from '@emotion/css';
-import { Identifier, Prop } from 'alice';
+import { Identifier, Prop, PropParameter } from 'alice';
 import { isEqual } from 'lodash';
-import React, { ReactNode, useCallback, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 
 interface VisualProofEditorParameterBindingSelectorProps {
     prop: Prop;
-    identifier: Identifier;
-    onSelect: (selectedParameterIndices: number[]) => void;
+    identifier?: Identifier;
+    onSelect: (identifier: Identifier, selectedParameterIndices: number[]) => void;
 }
 
 interface RenderPropResult {
@@ -18,9 +18,22 @@ type RenderProp = (prop: Prop, currentIndex: number, bindedIdentifiers: string[]
 
 export function VisualProofEditorParameterBindingSelector(props: VisualProofEditorParameterBindingSelectorProps) {
 
-    const { prop, identifier, onSelect } = props;
+    const { prop, onSelect } = props;
 
     const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
+
+    const [identifier, setIdentifier] = useState<Identifier | null>(null);
+
+    useEffect(() => {
+        setIdentifier(props.identifier || null);
+        setSelectedIndices([]);
+    }, [props.identifier]);
+
+    useEffect(() => {
+        if (selectedIndices.length === 0 && props.identifier === undefined) {
+            setIdentifier(null);
+        }
+    }, [selectedIndices]);
 
     const renderProp: RenderProp = (prop: Prop, currentIndex: number, bindedIdentifiers: string[]) => {
 
@@ -80,7 +93,44 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
             for (const param of params) {
                 const paramName = param.kind === 'Instantiated' ? param.value.name : param.value;
 
-                if (paramName !== identifier.name) {
+                // allow to select any parameter as identifier
+                if (!identifier) {
+                    if (param.kind === 'Uninstantiated') {
+                        paramNodes.push(
+                            <span title={'This parameter is already bound.'}>
+                                {paramName}
+                            </span>
+                        );
+
+                        currentIndex++;
+                        continue;
+                    }
+
+                    const handleIdentifierSelect = () => {
+                        setIdentifier(param.value);
+
+                        // get relative index
+                        const allParams = getAllParameters(props.prop);
+                        const relativeIndex = allParams
+                            .slice(0, currentIndex + 1)
+                            .filter(isEqual.bind(param.value))
+                            .length;
+
+                        setSelectedIndices([relativeIndex]);
+                        onSelect(param.value, [relativeIndex]);
+                    };
+
+                    paramNodes.push(
+                        <span onClick={handleIdentifierSelect} className={cssSelectableParameter}>
+                            {paramName}
+                        </span>
+                    );
+
+                    currentIndex++;
+                    continue;
+                }
+
+                if (paramName !== identifier.name.toString()) {
                     paramNodes.push(<span>{paramName}</span>);
                     continue;
                 }
@@ -126,7 +176,7 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
 
                     newIndices.sort();
                     setSelectedIndices(newIndices);
-                    onSelect(newIndices);
+                    onSelect(identifier, newIndices);
                 };
 
                 const node = (
@@ -185,6 +235,21 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
             {node}
         </div>
     );
+}
+
+function getAllParameters(prop: Prop): PropParameter[] {
+    switch (prop.kind) {
+        case 'Atom': return [...prop.value[1]];
+        case 'And':
+        case 'Or':
+        case 'Impl':
+            return [...getAllParameters(prop.value[0]), ...getAllParameters(prop.value[1])];
+        case 'ForAll':
+        case 'Exists':
+            return getAllParameters(prop.value.body);
+        case 'True': return [];
+        case 'False': return [];
+    }
 }
 
 const cssParameterBindingSelectorContainer = css`
