@@ -6,15 +6,12 @@ use kernel::{
         identifier::Identifier,
         identifier_context::IdentifierContext,
     },
-    export::{
-        ocaml_exporter::OcamlExporter,
-        ProofExporter,
-    },
+    export::{ocaml_exporter::OcamlExporter, ProofExporter},
     parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline, ProofPipelineError},
     proof::Proof,
     proof_tree::ProofTree,
-    prop::Prop,
+    prop::{Prop, PropParameter, QuantifierKind},
 };
 
 use wasm_bindgen::prelude::*;
@@ -143,6 +140,11 @@ pub fn parse_proof_term(proof_term: &str) -> Result<Proof, BackendError> {
 }
 
 #[wasm_bindgen]
+pub fn get_free_parameters(prop: &Prop) -> Vec<PropParameter> {
+    prop.get_free_parameters()
+}
+
+#[wasm_bindgen]
 pub fn instantiate_free_parameter(
     mut prop: Prop,
     substituent: String,
@@ -150,6 +152,24 @@ pub fn instantiate_free_parameter(
 ) -> Prop {
     prop.instantiate_free_parameter(&substituent, substitutor);
     prop
+}
+
+#[wasm_bindgen]
+pub fn bind_identifier(
+    prop: &Prop,
+    quantifier_kind: QuantifierKind,
+    identifier: Identifier,
+    mut identifier_indices: Vec<usize>,
+    bind_name: &str,
+    type_name: &str,
+) -> Prop {
+    prop.bind_identifier(
+        quantifier_kind,
+        identifier,
+        &mut identifier_indices,
+        bind_name,
+        type_name,
+    )
 }
 
 #[wasm_bindgen]
