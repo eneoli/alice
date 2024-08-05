@@ -1,8 +1,6 @@
-import { reverse } from 'lodash';
-
-export function createIdentifierGenerator() {
+export function createIdentifierGenerator(givenAlphabet: string[] = []) {
     const fn = function generator() {
-        const alphabet = 'abcdefghijklmnopqrstuvwxyz'.split('');
+        const alphabet = givenAlphabet.length > 0 ? givenAlphabet : 'abcdefghijklmnopqrstuvwxyz'.split('');
         const alphabetLength = alphabet.length;
 
         const numDigits = Math.floor(generator.idx / alphabetLength) + 1;
@@ -14,7 +12,15 @@ export function createIdentifierGenerator() {
 
         generator.idx = generator.idx + 1;
 
-        return reverse(identifier);
+        console.log(identifier
+            .split('')
+            .reverse()
+            .join(''));
+
+        return identifier
+            .split('')
+            .reverse()
+            .join('');
     }
 
     fn.idx = 0;
