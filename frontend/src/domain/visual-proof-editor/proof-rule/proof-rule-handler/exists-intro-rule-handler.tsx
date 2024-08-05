@@ -24,7 +24,7 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes } = params;
+        const { selectedProofTreeNodes, assumptions } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
             throw new Error('Cannot apply this rule on multiple nodes.');
@@ -43,19 +43,36 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
             throw new Error('Conclusion is not an existential quantification');
         }
 
-        // ask for instantiation identifier
-        const instantiationIdentifier = await Swal.fire({
-            title: 'Enter instantiation identifier',
-            input: 'text',
-            inputLabel: 'Identifier',
-            inputPlaceholder: 'a',
-            showCloseButton: true,
-        });
+        // Ask for assumption
 
-        const { object_ident, object_type_ident, body } = propConclusion.value;
+        const options = assumptions
+            .reduce((accu, current, i) => {
+                if (current.assumption.kind !== 'Datatype') {
+                    return accu;
+                }
 
-        // TODO
-        const instantiated_body = instantiate_free_parameter(body, object_ident, { name: instantiationIdentifier.value, unique_id: 0 });
+                accu.set(i, `${current.assumption.ident.name} : ${current.assumption.datatype}`);
+
+                return accu;
+            }, new Map<number, string>());
+
+        if (options.size == 0) {
+            throw new Error('There are no witnesses you can select.');
+        }
+
+        let assumption = (await Swal.fire({
+            title: 'Select the witness of the existential quantification.',
+            input: 'select',
+            inputOptions: Object.fromEntries(options.entries()),
+        })).value;
+
+        if (!assumption) {
+            return this.createEmptyProofRuleHandlerResult();
+        }
+        assumption = assumptions[assumption];
+
+        const { body, object_ident, object_type_ident } = propConclusion.value;
+        const instantiated_body = instantiate_free_parameter(body, object_ident, assumption.assumption.ident);
 
         return {
             additionalAssumptions: [],
@@ -65,7 +82,10 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
                 newProofTree: {
                     id: proofTree.id,
                     premisses: [
-                        createEmptyVisualProofEditorProofTreeFromTypeJudgment(instantiationIdentifier.value, object_type_ident),
+                        createEmptyVisualProofEditorProofTreeFromTypeJudgment(
+                            assumption.assumption.ident,
+                            object_type_ident,
+                        ),
                         createEmptyVisualProofEditorProofTreeFromProp(instantiated_body),
                     ],
                     rule: { kind: 'ExistsIntro' },
@@ -114,7 +134,7 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
                 <VisualProofEditorParameterBindingSelector
                     prop={prop}
                     identifier={identifier}
-                    onSelect={(s) => { parameterIndices = new Uint32Array(s); }}
+                    onSelect={(_, indices) => { parameterIndices = new Uint32Array(indices); }}
                 />
             )
         });
@@ -125,17 +145,16 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
 
         const freeParams = get_free_parameters(prop);
         const freeParamNames = freeParams
-            .map((ident) => ident.kind === 'Instantiated' ? ident.value.name : ident.value)
+            .map((ident) => ident.kind === 'Instantiated' ? ident.value.name : ident.value);
 
         const generateLocalIdentifier = createIdentifierGenerator('xyzuvwabcdefghijklmnopqrst'.split(''));
 
         let bindIdentifier = generateLocalIdentifier();
-
         while (freeParamNames.includes(bindIdentifier)) {
             bindIdentifier = generateLocalIdentifier();
         }
 
-        const bindedProp = bind_identifier(
+        const boundProp = bind_identifier(
             prop,
             { kind: 'Exists' },
             identifier,
@@ -158,7 +177,7 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
                     id: v4(),
                     premisses: [typeJudgmentNode.proofTree, propJudgmentNode.proofTree],
                     rule: { kind: 'ExistsIntro' },
-                    conclusion: { kind: 'PropIsTrue', value: bindedProp },
+                    conclusion: { kind: 'PropIsTrue', value: boundProp },
                 }
             }],
         };
