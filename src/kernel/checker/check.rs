@@ -3,13 +3,12 @@ use thiserror::Error;
 
 use crate::{
     kernel::{
-        proof::Proof,
         proof_term::{
             Abort, Application, Case, Function, Ident, LetIn, OrLeft, OrRight, Pair, ProjectFst,
             ProjectSnd, ProofTerm, ProofTermKind, ProofTermVisitor, Type, TypeAscription,
         },
         proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
-        prop::{Prop, PropKind, PropParameter},
+        prop::{InstatiationError, Prop, PropKind, PropParameter},
     },
     util::counter::Counter,
 };
@@ -314,12 +313,27 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             }
         };
 
-        // fail if type annotation is not expected type
         if let Some(unboxed_param_type) = param_type {
-            if !Type::alpha_eq(unboxed_param_type, &expected_param_type) {
+            // instantiate uninstantiated params with current context
+            let mut instantiated_param_type = unboxed_param_type.clone();
+
+            instantiated_param_type
+                .instantiate_parameters_with_context(&self.ctx)
+                .map_err(|err| match err {
+                    InstatiationError::UnknownIdentifier(ident) => {
+                        CheckError::UnknownIdentifier(ident)
+                    }
+                })?;
+
+            // fail if type annotation is not expected type
+            if !Type::alpha_eq(&instantiated_param_type, &expected_param_type) {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
-                    proof_term: ProofTerm::Function(function.clone()),
+                    proof_term: Function::create(
+                        function.param_ident.clone(),
+                        Some(instantiated_param_type),
+                        function.body.clone(),
+                    ),
                 });
             }
         }
@@ -628,10 +642,17 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             proof_term,
         } = type_ascription;
 
-        if !Type::alpha_eq(&self.expected_type, ascription) {
+        let mut instantiated_ascription = ascription.clone();
+        instantiated_ascription
+            .instantiate_parameters_with_context(&self.ctx)
+            .map_err(|err| match err {
+                InstatiationError::UnknownIdentifier(ident) => CheckError::UnknownIdentifier(ident),
+            })?;
+
+        if !Type::alpha_eq(&self.expected_type, &instantiated_ascription) {
             return Err(CheckError::UnexpectedTypeAscription {
                 expected: self.expected_type.clone(),
-                ascription: ascription.clone(),
+                ascription: instantiated_ascription.clone(),
             });
         }
 

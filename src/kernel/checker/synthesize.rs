@@ -7,7 +7,7 @@ use crate::kernel::{
         ProjectSnd, ProofTerm, ProofTermKind, ProofTermVisitor, Type, TypeAscription,
     },
     proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
-    prop::{Prop, PropKind, PropParameter},
+    prop::{InstatiationError, Prop, PropKind, PropParameter},
 };
 
 use super::{
@@ -80,32 +80,6 @@ impl<'a> SynthesizeVisitor<'a> {
             identifier_factory,
         }
     }
-
-    fn bind_free_params_to_ctx(&self, _type: &mut Type) -> Result<(), SynthesizeError> {
-        if let Type::Prop(ref mut prop) = _type {
-            let free_params = prop.get_free_parameters_mut();
-
-            for free_param in free_params {
-                match free_param {
-                    PropParameter::Uninstantiated(name) => {
-                        let (identifier, _) = self
-                            .ctx
-                            .get_by_name(name)
-                            .ok_or(SynthesizeError::UnknownIdentifier(name.clone()))?;
-                        *free_param = PropParameter::Instantiated(identifier.clone())
-                    }
-                    PropParameter::Instantiated(identifier) => {
-                        // sanity check
-                        if self.ctx.get(identifier).is_none() {
-                            panic!("Instantiated parameter does not exist: {:#?}", identifier);
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
 }
 
 impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for SynthesizeVisitor<'a> {
@@ -144,9 +118,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
         match (&fst_type, &snd_type) {
             // Exists
-            (Type::Datatype(_), Type::Prop(_)) => {
-                Err(SynthesizeError::TypeAnnotationsNeeded)
-            }
+            (Type::Datatype(_), Type::Prop(_)) => Err(SynthesizeError::TypeAnnotationsNeeded),
 
             // And
             (Type::Prop(fst_prop), Type::Prop(snd_prop)) => {
@@ -175,8 +147,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     ) -> Result<(Type, ProofTree), SynthesizeError> {
         let ProjectFst(body) = projection;
 
-        let (body_type, body_proof_tree) =
-            synthesize(body, self.ctx, self.identifier_factory)?;
+        let (body_type, body_proof_tree) = synthesize(body, self.ctx, self.identifier_factory)?;
 
         let fst = match body_type {
             Type::Prop(Prop::And(fst, _)) => fst,
@@ -204,8 +175,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     ) -> Result<(Type, ProofTree), SynthesizeError> {
         let ProjectSnd(body) = projection;
 
-        let (body_type, body_proof_tree) =
-            synthesize(body, self.ctx, self.identifier_factory)?;
+        let (body_type, body_proof_tree) = synthesize(body, self.ctx, self.identifier_factory)?;
 
         let snd = match body_type {
             Type::Prop(Prop::And(_, snd)) => snd,
@@ -243,18 +213,23 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             None => return Err(SynthesizeError::TypeAnnotationsNeeded),
         };
 
-        // check that  if parameter is Prop, it only has known identifiers as free occurences
-        let mut binded_param_type = param_type.clone();
-        self.bind_free_params_to_ctx(&mut binded_param_type)?;
+        // check that if parameter is Prop, it only has known identifiers as free occurrences
+        let mut bound_param_type = param_type.clone();
+        bound_param_type
+            .instantiate_parameters_with_context(&self.ctx)
+            .map_err(|err| match err {
+                InstatiationError::UnknownIdentifier(ident) => {
+                    SynthesizeError::UnknownIdentifier(ident)
+                }
+            })?;
 
         // add param to context
         let param_identifier = self.identifier_factory.create(param_ident.clone());
         let mut body_ctx = self.ctx.clone();
-        body_ctx.insert(param_identifier, binded_param_type);
-        let (body_type, body_proof_tree) =
-            synthesize(body, &body_ctx, self.identifier_factory)?;
+        body_ctx.insert(param_identifier, bound_param_type.clone());
+        let (body_type, body_proof_tree) = synthesize(body, &body_ctx, self.identifier_factory)?;
 
-        match (&param_type, &body_type) {
+        match (&bound_param_type, &body_type) {
             // Forall
             (Type::Datatype(ident), Type::Prop(body_type)) => {
                 let _type = Prop::ForAll {
@@ -454,15 +429,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         let fst_identifier = self.identifier_factory.create(fst_ident.clone());
         let mut fst_ctx = self.ctx.clone();
         fst_ctx.insert(fst_identifier, Type::Prop(*fst));
-        let (fst_type, fst_proof_tree) =
-            synthesize(fst_term, &fst_ctx, self.identifier_factory)?;
+        let (fst_type, fst_proof_tree) = synthesize(fst_term, &fst_ctx, self.identifier_factory)?;
 
         // snythesize snd arm
         let snd_identifier = self.identifier_factory.create(snd_ident.clone());
         let mut snd_ctx = self.ctx.clone();
         snd_ctx.insert(snd_identifier, Type::Prop(*snd));
-        let (snd_type, snd_proof_tree) =
-            synthesize(snd_term, &snd_ctx, self.identifier_factory)?;
+        let (snd_type, snd_proof_tree) = synthesize(snd_term, &snd_ctx, self.identifier_factory)?;
 
         // check for alpha-equivalence
         if !Type::alpha_eq(&fst_type, &snd_type) {
@@ -510,19 +483,25 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         } = type_ascription;
 
         // check that  if ascription is Prop, it only has known identifiers as free occurences
-        let mut binded_ascription = ascription.clone();
-        self.bind_free_params_to_ctx(&mut binded_ascription)?;
+        let mut instantiated_ascription = ascription.clone();
+        instantiated_ascription
+            .instantiate_parameters_with_context(&self.ctx)
+            .map_err(|err| match err {
+                InstatiationError::UnknownIdentifier(ident) => {
+                    SynthesizeError::UnknownIdentifier(ident)
+                }
+            })?;
 
         check_allowing_free_params(
             proof_term,
-            &binded_ascription,
+            &instantiated_ascription,
             self.ctx,
             self.identifier_factory,
         )
-        .map(|proof_tree| (ascription.clone(), proof_tree))
+        .map(|proof_tree| (instantiated_ascription.clone(), proof_tree))
         .map_err(|check_err| SynthesizeError::CheckError(Box::new(check_err)))
     }
-    
+
     fn visit_sorry(&mut self) -> Result<(Type, ProofTree), SynthesizeError> {
         Err(SynthesizeError::NotSynthesizing(ProofTermKind::Sorry))
     }
