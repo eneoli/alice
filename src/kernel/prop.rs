@@ -1,8 +1,10 @@
 use std::fmt::{self, Debug};
+use std::vec;
 
 use super::{checker::identifier::Identifier, proof_term::Type};
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
+use wasm_bindgen::prelude::*;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Tsify, PartialEq, Eq)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
@@ -16,6 +18,14 @@ pub enum PropKind {
     Exists,
     True,
     False,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
+pub enum QuantifierKind {
+    ForAll,
+    Exists,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Tsify)]
@@ -38,6 +48,13 @@ impl PropParameter {
         match self {
             Self::Uninstantiated(_) => None,
             Self::Instantiated(ident) => Some(ident.unique_id()),
+        }
+    }
+
+    pub fn is_instantiated(&self) -> bool {
+        match self {
+            Self::Uninstantiated(_) => false,
+            Self::Instantiated(_) => true,
         }
     }
 
@@ -251,6 +268,175 @@ impl Prop {
         }
     }
 
+    // Warning: This might bind free (uninstantiated) parameters.
+    // Choose bind name with care.
+    pub fn bind_identifier(
+        &self,
+        quantifier_kind: QuantifierKind,
+        identifier: Identifier,
+        identifier_indices: &mut Vec<usize>,
+        bind_name: &str,
+        type_name: &str,
+    ) -> Prop {
+        fn _bind_identifier<'a>(
+            prop: &'a Prop,
+            identifier: &Identifier,
+            identifier_indices: &Vec<usize>,
+            bind_name: &str,
+            binded_identifiers: &mut Vec<&'a str>,
+            current_index: &mut usize,
+        ) -> Prop {
+            match prop {
+                Prop::True => Prop::True,
+                Prop::False => Prop::False,
+                Prop::And(fst, snd) => Prop::And(
+                    _bind_identifier(
+                        fst,
+                        identifier,
+                        identifier_indices,
+                        bind_name,
+                        &mut binded_identifiers.clone(),
+                        current_index,
+                    )
+                    .boxed(),
+                    _bind_identifier(
+                        snd,
+                        identifier,
+                        identifier_indices,
+                        bind_name,
+                        binded_identifiers,
+                        current_index,
+                    )
+                    .boxed(),
+                ),
+                Prop::Or(fst, snd) => Prop::Or(
+                    _bind_identifier(
+                        fst,
+                        identifier,
+                        identifier_indices,
+                        bind_name,
+                        &mut binded_identifiers.clone(),
+                        current_index,
+                    )
+                    .boxed(),
+                    _bind_identifier(
+                        snd,
+                        identifier,
+                        identifier_indices,
+                        bind_name,
+                        binded_identifiers,
+                        current_index,
+                    )
+                    .boxed(),
+                ),
+                Prop::Impl(fst, snd) => Prop::Impl(
+                    _bind_identifier(
+                        fst,
+                        identifier,
+                        identifier_indices,
+                        bind_name,
+                        &mut binded_identifiers.clone(),
+                        current_index,
+                    )
+                    .boxed(),
+                    _bind_identifier(
+                        snd,
+                        identifier,
+                        identifier_indices,
+                        bind_name,
+                        binded_identifiers,
+                        current_index,
+                    )
+                    .boxed(),
+                ),
+                Prop::Exists {
+                    object_ident,
+                    object_type_ident,
+                    body,
+                } => {
+                    binded_identifiers.push(object_ident.as_str());
+                    Prop::Exists {
+                        object_ident: object_ident.clone(),
+                        object_type_ident: object_type_ident.clone(),
+                        body: _bind_identifier(
+                            body,
+                            identifier,
+                            identifier_indices,
+                            bind_name,
+                            binded_identifiers,
+                            current_index,
+                        )
+                        .boxed(),
+                    }
+                }
+                Prop::ForAll {
+                    object_ident,
+                    object_type_ident,
+                    body,
+                } => {
+                    binded_identifiers.push(object_ident.as_str());
+                    Prop::ForAll {
+                        object_ident: object_ident.clone(),
+                        object_type_ident: object_type_ident.clone(),
+                        body: _bind_identifier(
+                            body,
+                            identifier,
+                            identifier_indices,
+                            bind_name,
+                            binded_identifiers,
+                            current_index,
+                        )
+                        .boxed(),
+                    }
+                }
+                Prop::Atom(atom_ident, params) => {
+                    let new_params = params
+                        .iter()
+                        .map(|param| {
+                            if param.is_instantiated()
+                                && param.name() == identifier.name()
+                                && param.unique_id().unwrap() == identifier.unique_id()
+                            {
+                                if identifier_indices.contains(&current_index) {
+                                    *current_index += 1;
+                                    return PropParameter::Uninstantiated(bind_name.to_string());
+                                }
+
+                                *current_index += 1;
+                            }
+
+                            param.clone()
+                        })
+                        .collect();
+
+                    Prop::Atom(atom_ident.clone(), new_params)
+                }
+            }
+        }
+
+        let bound_body = _bind_identifier(
+            self,
+            &identifier,
+            &identifier_indices,
+            &bind_name,
+            &mut vec![],
+            &mut 0,
+        );
+
+        match quantifier_kind {
+            QuantifierKind::Exists => Prop::Exists {
+                object_ident: bind_name.to_string(),
+                object_type_ident: type_name.to_string(),
+                body: bound_body.boxed(),
+            },
+            QuantifierKind::ForAll => Prop::ForAll {
+                object_ident: bind_name.to_string(),
+                object_type_ident: type_name.to_string(),
+                body: bound_body.boxed(),
+            },
+        }
+    }
+
     pub fn alpha_eq(&self, other: &Prop) -> bool {
         let env = vec![];
 
@@ -388,7 +574,7 @@ impl Debug for Prop {
 
 #[cfg(test)]
 mod tests {
-    use std::vec;
+    use std::{any::type_name, vec};
 
     use super::Prop;
 
@@ -399,7 +585,7 @@ mod tests {
     use crate::kernel::{
         checker::identifier::Identifier,
         parse::{fol::fol_parser, lexer::lexer},
-        prop::PropParameter,
+        prop::{PropParameter, QuantifierKind},
     };
 
     fn parse_prop(prop: &str) -> Prop {
@@ -1131,5 +1317,207 @@ mod tests {
             &parse_prop("\\exists x:t. A(x)"),
             &parse_prop("\\exists w:t. A(w)")
         ));
+    }
+
+    #[test]
+    fn test_bind_atom_without_parameters() {
+        assert_eq!(
+            &parse_prop("A").bind_identifier(
+                QuantifierKind::ForAll,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![],
+                "x",
+                "t"
+            ),
+            &parse_prop("\\forall x:t. A"),
+        )
+    }
+
+    #[test]
+    fn test_bind_atom_with_one_parameter_replacement() {
+        let prop = Prop::Atom(
+            "A".to_string(),
+            vec![PropParameter::Instantiated(Identifier::new(
+                "a".to_string(),
+                42,
+            ))],
+        );
+
+        assert_eq!(
+            &prop.bind_identifier(
+                QuantifierKind::ForAll,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![0],
+                "x",
+                "t"
+            ),
+            &parse_prop("\\forall x:t. A(x)"),
+        )
+    }
+
+    #[test]
+    fn test_bind_atom_with_two_parameter_replacement() {
+        let prop = Prop::Atom(
+            "A".to_string(),
+            vec![
+                PropParameter::Instantiated(Identifier::new("a".to_string(), 42)),
+                PropParameter::Instantiated(Identifier::new("a".to_string(), 42)),
+            ],
+        );
+
+        assert_eq!(
+            &prop.bind_identifier(
+                QuantifierKind::ForAll,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![0, 1],
+                "x",
+                "t"
+            ),
+            &parse_prop("\\forall x:t. A(x, x)"),
+        )
+    }
+
+    #[test]
+    fn test_bind_atom_with_two_parameter_one_replacement() {
+        let prop = Prop::Atom(
+            "A".to_string(),
+            vec![
+                PropParameter::Instantiated(Identifier::new("a".to_string(), 0)),
+                PropParameter::Instantiated(Identifier::new("a".to_string(), 42)),
+            ],
+        );
+
+        assert_eq!(
+            prop.bind_identifier(
+                QuantifierKind::ForAll,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![0],
+                "x",
+                "t",
+            ),
+            Prop::ForAll {
+                object_ident: "x".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Prop::Atom(
+                    "A".to_string(),
+                    vec![
+                        PropParameter::Instantiated(Identifier::new("a".to_string(), 0)),
+                        PropParameter::Uninstantiated("x".to_string()),
+                    ]
+                )
+                .boxed(),
+            }
+        )
+    }
+
+    #[test]
+    fn test_bind_instantiated_parameter_that_is_under_quantifier() {
+        // The Test tests for the right behaviour.
+        // An instantiated parameter was instantiated through a quantor elimintation (ForAll) and
+        // introdutciont (Exists) respectively.
+
+        let prop = Prop::Exists {
+            object_ident: "a".to_string(),
+            object_type_ident: "t".to_string(),
+            body: Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Instantiated(Identifier::new(
+                    "a".to_string(),
+                    42,
+                ))],
+            )
+            .boxed(),
+        };
+
+        assert_eq!(
+            prop.bind_identifier(
+                QuantifierKind::Exists,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![0],
+                "x",
+                "t",
+            ),
+            parse_prop("\\exists x:t. \\exists a:t. A(x)"),
+        )
+    }
+
+    #[test]
+    fn test_do_not_bind_already_binded_identifier() {
+        assert_eq!(
+            parse_prop("\\forall a:t. A(a)").bind_identifier(
+                QuantifierKind::ForAll,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![0],
+                "x",
+                "t",
+            ),
+            parse_prop("\\forall x:t. \\forall a:t. A(a)"),
+        );
+    }
+
+    #[test]
+    fn test_identifier_indices_atom() {
+        assert_eq!(
+            Prop::Atom(
+                "A".to_string(),
+                vec![
+                    PropParameter::Instantiated(Identifier::new("a".to_string(), 42)),
+                    PropParameter::Instantiated(Identifier::new("a".to_string(), 42)),
+                    PropParameter::Instantiated(Identifier::new("a".to_string(), 42)),
+                ],
+            )
+            .bind_identifier(
+                QuantifierKind::ForAll,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![0, 2],
+                "x",
+                "t",
+            ),
+            Prop::ForAll {
+                object_ident: "x".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Prop::Atom(
+                    "A".to_string(),
+                    vec![
+                        PropParameter::Uninstantiated("x".to_string()),
+                        PropParameter::Instantiated(Identifier::new("a".to_string(), 42)),
+                        PropParameter::Uninstantiated("x".to_string()),
+                    ],
+                )
+                .boxed()
+            },
+        )
+    }
+
+    #[test]
+    fn test_identifier_indices_binary_connective() {
+        assert_eq!(
+            Prop::And(
+                Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "a".to_string(),
+                        42
+                    ))]
+                )
+                .boxed(),
+                Prop::Atom(
+                    "B".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "a".to_string(),
+                        42
+                    ))]
+                )
+                .boxed()
+            )
+            .bind_identifier(
+                QuantifierKind::ForAll,
+                Identifier::new("a".to_string(), 42),
+                &mut vec![0, 1],
+                "x",
+                "t",
+            ),
+            parse_prop("\\forall x:t. A(x) & B (x)")
+        )
     }
 }

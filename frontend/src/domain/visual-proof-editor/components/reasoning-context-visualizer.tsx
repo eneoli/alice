@@ -1,13 +1,12 @@
-import React, { Fragment, MouseEvent, useState } from 'react';
+import React, { Fragment, MouseEvent } from 'react';
 import { css, cx } from '@emotion/css';
-import { ReasoningContext, VisualProofEditorProofTree } from './visual-proof-editor';
 import { ProofNode } from '../../proof-tree/components/proof-node';
 import { printProp, printTypeJudgment } from '../../../util/print-prop';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { ProofTreeConclusion } from 'alice';
 import { printProofRule } from '../../../util/print-proof-rule';
-import { useOutsideClick } from '../../../lib/hooks/use-outside-click';
-import { mergeRefs } from 'react-merge-refs';
+import { VisualProofEditorReasoningContext } from '../lib/visual-proof-editor-reasoning-context';
+import { VisualProofEditorProofTree } from '../lib/visual-proof-editor-proof-tree';
 
 export interface ReasoningContextNodeSelection {
     nodeId: string;
@@ -16,19 +15,13 @@ export interface ReasoningContextNodeSelection {
 }
 
 interface ReasoningContextVisualizerProps {
-    context: ReasoningContext;
+    context: VisualProofEditorReasoningContext;
     onNodeSelect: (nodeSelection: ReasoningContextNodeSelection) => void;
 }
 
 export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProps) {
     const { context, onNodeSelect } = props;
     const { proofTree } = context;
-
-    const [activeNode, setActiveNode] = useState<string | null>(null);
-
-    const containerRef = useOutsideClick(() => {
-        setActiveNode(null);
-    });
 
     const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: context.id });
     const style = transform ? {
@@ -38,18 +31,16 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
     const renderTree = (proofTree: VisualProofEditorProofTree, isRoot: boolean) => {
         const isLeaf = proofTree.premisses.length == 0;
         const isSelectable = isRoot || (isLeaf && proofTree.rule === null);
-        const isSelected = isSelectable && proofTree.id === activeNode;
+        const isSelected = isSelectable && proofTree.id === context.selectedNodeId;
 
         const onNodeClick = (e: MouseEvent) => {
             if (isSelectable) {
-                setActiveNode(proofTree.id);
+                onNodeSelect({
+                    nodeId: proofTree.id,
+                    isLeaf,
+                    isRoot,
+                });
             }
-
-            onNodeSelect({
-                nodeId: proofTree.id,
-                isLeaf,
-                isRoot,
-            });
 
             e.stopPropagation();
         };
@@ -80,7 +71,7 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
     };
 
     return (
-        <div ref={mergeRefs([setNodeRef, containerRef])} className={cssProofTreeContainer} style={style} {...listeners} {...attributes}>
+        <div ref={setNodeRef} className={cssProofTreeContainer} style={style} {...listeners} {...attributes}>
             {renderTree(proofTree, true)}
         </div>
     );
@@ -146,7 +137,7 @@ const cssSelectableProofTreeConclusionContainer = css`
 `;
 
 const cssSelectedProofTreeConclusionContainer = css`
-    border-color: green;
+    background-color: #d0e7ff;
 `;
 
 const cssDraggedOverProofTreeConclusionContainer = css`

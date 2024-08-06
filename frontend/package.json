@@ -47,15 +47,18 @@
         "@react-aria/example-theme": "^1.0.3",
         "alice": "file:../pkg",
         "antd": "^5.19.0",
+        "better-react-mathjax": "^2.0.3",
         "core-js": "^3.37.0",
         "katex": "^0.16.10",
         "lodash": "^4.17.21",
+        "mathjax": "^3.2.2",
         "react": "^18.3.1",
         "react-aria-components": "^1.2.1",
         "react-code-blocks": "^0.1.6",
         "react-dom": "^18.3.1",
         "react-merge-refs": "^2.1.1",
-        "sweetalert2": "^11.6.13",
+        "sweetalert2": "^11.12.3",
+        "sweetalert2-react-content": "^5.0.7",
         "uuid": "^10.0.0"
     }
 }

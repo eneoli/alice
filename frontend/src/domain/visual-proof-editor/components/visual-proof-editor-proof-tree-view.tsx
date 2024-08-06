@@ -1,10 +1,10 @@
 import React from 'react';
 import { DragOverlay, useDroppable } from '@dnd-kit/core';
 import { css } from '@emotion/css';
-import { ReasoningContext } from './visual-proof-editor';
 import { ReasoningContextNodeSelection, ReasoningContextVisualizer } from './reasoning-context-visualizer';
 import { createPortal } from 'react-dom';
 import { TrashOverlay } from './trash-overlay';
+import { VisualProofEditorReasoningContext } from '../lib/visual-proof-editor-reasoning-context';
 
 export const VisualProofEditorProofTreeViewId = 'visual-proof-editor-proof-tree-view';
 
@@ -16,26 +16,29 @@ export interface SelectedProofTreeNode {
 }
 
 interface VisualProofEditorProofTreeViewProps {
-    contexts: ReasoningContext[],
-    handleNodeSelect: (selection: SelectedProofTreeNode) => void;
+    contexts: VisualProofEditorReasoningContext[],
+    onNodeSelect: (selection: SelectedProofTreeNode) => void;
+    onCanvasClick: () => void;
 }
 
 export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTreeViewProps) {
-    const { contexts, handleNodeSelect } = props;
+    const { contexts, onNodeSelect, onCanvasClick } = props;
 
     const { setNodeRef } = useDroppable({
         id: VisualProofEditorProofTreeViewId,
     });
 
-    const onNodeSelect = (contextId: string, selection: ReasoningContextNodeSelection) => {
-        handleNodeSelect({
+    const handleNodeSelect = (contextId: string, selection: ReasoningContextNodeSelection) => {
+        onNodeSelect({
             reasoningContextId: contextId,
             ...selection,
         });
     };
 
     return (
-        <div className={cssVisualProofEditorProofTreeView} ref={setNodeRef}>
+        <div className={cssVisualProofEditorProofTreeView}
+            ref={setNodeRef}
+            onClick={onCanvasClick}>
             {
                 contexts.filter((ctx) => !ctx.isDragging).map((ctx) => (
                     <div key={ctx.id}
@@ -43,7 +46,8 @@ export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTree
                         style={{ left: ctx.x, top: ctx.y }}>
                         <ReasoningContextVisualizer
                             context={ctx}
-                            onNodeSelect={(result) => onNodeSelect(ctx.id, result)} />
+                            onNodeSelect={(result) => handleNodeSelect(ctx.id, result)}
+                        />
                     </div>
                 ))
             }
@@ -55,11 +59,12 @@ export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTree
             {createPortal(
                 <DragOverlay>
                     {
-                        contexts.filter((ctx) => ctx.isDragging).map((context) => (
+                        contexts.filter((ctx) => ctx.isDragging).map((ctx) => (
                             <ReasoningContextVisualizer
-                                key={context.id}
-                                context={context}
-                                onNodeSelect={(result) => onNodeSelect(context.id, result)} />
+                                key={ctx.id}
+                                context={ctx}
+                                onNodeSelect={(selection) => handleNodeSelect(ctx.id, selection)}
+                            />
                         ))
                     }
                 </DragOverlay>,
@@ -73,6 +78,7 @@ const cssVisualProofEditorProofTreeView = css`
     position: relative;
     width: 100%;
     flex: 1;
+    overflow: hidden;
 `;
 
 const cssReasoningContextVisualizerContainer = css`
@@ -81,6 +87,6 @@ const cssReasoningContextVisualizerContainer = css`
 
 const cssTrashOverlayContainer = css`
     position: absolute;
-    right: 0;
-    top: 0;
+    right: 10px;
+    top: 10px;
 `;
