@@ -10,7 +10,7 @@ use kernel::{
     parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
     process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline, ProofPipelineError},
     proof::Proof,
-    proof_tree::ProofTree,
+    proof_tree::{ProofTree, ProofTreeConclusion},
     prop::{Prop, PropParameter, QuantifierKind},
 };
 
@@ -170,6 +170,21 @@ pub fn bind_identifier(
         bind_name,
         type_name,
     )
+}
+
+#[wasm_bindgen]
+pub fn proof_tree_conclusion_alpha_eq(fst: ProofTreeConclusion, snd: ProofTreeConclusion) -> bool {
+    match (fst, snd) {
+        (
+            ProofTreeConclusion::PropIsTrue(ref fst_prop),
+            ProofTreeConclusion::PropIsTrue(ref snd_prop),
+        ) => Prop::alpha_eq(fst_prop, snd_prop),
+        (
+            ProofTreeConclusion::TypeJudgement(fst_ident, fst_datatype),
+            ProofTreeConclusion::TypeJudgement(snd_ident, snd_datatype),
+        ) => (fst_ident == snd_ident) && (fst_datatype == snd_datatype),
+        _ => false,
+    }
 }
 
 #[wasm_bindgen]

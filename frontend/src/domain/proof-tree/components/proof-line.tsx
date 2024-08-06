@@ -1,12 +1,14 @@
 import { css } from '@emotion/css';
 import React, { useEffect, useRef } from 'react';
 import Katex from 'katex';
+import { ProofTreeRule } from 'alice';
+import { printProofRule } from '../../../util/print-proof-rule';
 
 interface ProofLineProps {
-    label: string;
+    rule: ProofTreeRule;
 }
 
-export function ProofLine({ label }: ProofLineProps) {
+export function ProofLine({ rule }: ProofLineProps) {
 
     const labelRef = useRef<HTMLDivElement>(null);
 
@@ -16,15 +18,18 @@ export function ProofLine({ label }: ProofLineProps) {
             return;
         }
 
-        Katex.render(label, labelRef.current, {
+        Katex.render(printProofRule(rule), labelRef.current, {
             throwOnError: false,
 
         });
-    }, [labelRef.current, label]);
+    }, [labelRef.current, rule]);
 
     return (
         <div className={cssLineContainer}>
-            <div className={cssLine} />
+            <div
+                className={cssLine}
+                style={{ borderStyle: rule.kind === 'AlphaEquivalent' ? 'dashed' : undefined }}
+            />
             <div className={cssLabelContainer}>
                 <div className={cssLabel}>
                     <div ref={labelRef} />
@@ -43,10 +48,8 @@ const cssLineContainer = css`
 const cssLine = css`
     width: 100%;
     color: #002D62;
-    background-color: #002D62;
-    height: 3px;
+    border: 2px solid #002D62;
     margin: 0;
-    border: 0;
 `;
 
 const cssLabelContainer = css`

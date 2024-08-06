@@ -3,6 +3,7 @@ use thiserror::Error;
 
 use crate::{
     kernel::{
+        proof::Proof,
         proof_term::{
             Abort, Application, Case, Function, Ident, LetIn, OrLeft, OrRight, Pair, ProjectFst,
             ProjectSnd, ProofTerm, ProofTermKind, ProofTermVisitor, Type, TypeAscription,
@@ -121,14 +122,23 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             self.identifier_factory,
         )?;
 
-        if Type::alpha_eq(&_type, &self.expected_type) {
-            Ok(proof_tree)
-        } else {
-            Err(CheckError::UnexpectedType {
-                expected: self.expected_type.clone(),
-                received: _type,
-            })
+        if Type::eq(&_type, &self.expected_type) {
+            return Ok(proof_tree);
         }
+
+        if Type::alpha_eq(&_type, &self.expected_type) {
+            let conclusion = match &self.expected_type {
+                Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+                Type::Datatype(_) => proof_tree.conclusion.clone(),
+            };
+
+            return Ok(proof_tree.create_alphq_eq_tree(conclusion));
+        }
+
+        Err(CheckError::UnexpectedType {
+            expected: self.expected_type.clone(),
+            received: _type,
+        })
     }
 
     fn visit_pair(&mut self, pair: &Pair) -> Result<ProofTree, CheckError> {
@@ -211,14 +221,23 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             self.identifier_factory,
         )?;
 
-        if Type::alpha_eq(&self.expected_type, &projection_type) {
-            Ok(projection_proof_tree)
-        } else {
-            Err(CheckError::UnexpectedType {
-                expected: self.expected_type.clone(),
-                received: projection_type,
-            })
+        if Type::eq(&self.expected_type, &projection_type) {
+            return Ok(projection_proof_tree);
         }
+
+        if Type::alpha_eq(&self.expected_type, &projection_type) {
+            let conclusion = match self.expected_type {
+                Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+                Type::Datatype(_) => projection_proof_tree.conclusion.clone(),
+            };
+
+            return Ok(projection_proof_tree.create_alphq_eq_tree(conclusion));
+        }
+
+        Err(CheckError::UnexpectedType {
+            expected: self.expected_type.clone(),
+            received: projection_type,
+        })
     }
 
     fn visit_project_snd(&mut self, projection: &ProjectSnd) -> Result<ProofTree, CheckError> {
@@ -231,14 +250,23 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             self.identifier_factory,
         )?;
 
-        if Type::alpha_eq(&self.expected_type, &projection_type) {
-            Ok(projection_proof_tree)
-        } else {
-            Err(CheckError::UnexpectedType {
-                expected: self.expected_type.clone(),
-                received: projection_type,
-            })
+        if Type::eq(&self.expected_type, &projection_type) {
+            return Ok(projection_proof_tree);
         }
+
+        if Type::alpha_eq(&self.expected_type, &projection_type) {
+            let conclusion = match &self.expected_type {
+                Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+                Type::Datatype(_) => projection_proof_tree.conclusion.clone(),
+            };
+
+            return Ok(projection_proof_tree.create_alphq_eq_tree(conclusion));
+        }
+
+        Err(CheckError::UnexpectedType {
+            expected: self.expected_type.clone(),
+            received: projection_type,
+        })
     }
 
     fn visit_function(&mut self, function: &Function) -> Result<ProofTree, CheckError> {
@@ -360,15 +388,23 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             self.identifier_factory,
         )?;
 
-        // test for alpha-equivalence
-        if !Type::alpha_eq(&application_type, &self.expected_type) {
-            return Err(CheckError::UnexpectedType {
-                expected: self.expected_type.clone(),
-                received: application_type,
-            });
+        if Type::eq(&application_type, &self.expected_type) {
+            return Ok(application_proof_tree);
         }
 
-        Ok(application_proof_tree)
+        if Type::alpha_eq(&application_type, &self.expected_type) {
+            let conclusion = match &self.expected_type {
+                Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
+                Type::Datatype(_) => application_proof_tree.conclusion.clone(),
+            };
+
+            return Ok(application_proof_tree.create_alphq_eq_tree(conclusion));
+        }
+
+        Err(CheckError::UnexpectedType {
+            expected: self.expected_type.clone(),
+            received: application_type,
+        })
     }
 
     fn visit_let_in(&mut self, let_in: &LetIn) -> Result<ProofTree, CheckError> {
