@@ -260,6 +260,7 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
             generateUniqueNumber,
             selectedProofTreeNodes: selectedNodes.map(mapSelectedNodesToProofRuleParams),
             assumptions,
+            error: (message: string) => notificationApi.error({ message }),
         };
 
         const rule = getProofRule(ruleId);
@@ -269,12 +270,18 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
             return;
         }
 
+        const ruleHandlerResult = await rule.handler.handleRule(handlerParams);
+
+        if (!ruleHandlerResult) {
+            return;
+        }
+
         const {
             removedReasoingContextIds,
             newReasoningContexts,
             proofTreeChanges,
             additionalAssumptions
-        } = await rule.handler.handleRule(handlerParams);
+        } = ruleHandlerResult;
 
         setAssumptions([
             ...assumptions,
