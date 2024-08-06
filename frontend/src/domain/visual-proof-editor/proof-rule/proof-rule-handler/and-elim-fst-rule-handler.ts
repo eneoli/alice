@@ -17,18 +17,20 @@ export class AndElimFstRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+        if (selectedProofTreeNodes.length !== 1) {
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Cannot apply rule on this node.');
+            error('Cannot apply rule on this node.');
+            return;
         }
 
         const secondComponentResult = await Swal.fire({
@@ -40,7 +42,7 @@ export class AndElimFstRuleHandler extends ProofRuleHandler {
 
         let secondComponent = secondComponentResult.value;
         if (!secondComponent) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         secondComponent = this.parseProp(secondComponent);
@@ -63,24 +65,27 @@ export class AndElimFstRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+        if (selectedProofTreeNodes.length !== 1) {
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not a conjunction');
+            error('Conclusion is not a conjunction');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind != 'And') {
-            throw new Error('Conclusion is not a conjunction');
+            error('Conclusion is not a conjunction');
+            return;
         }
 
         const [fst, _snd] = propConclusion.value;

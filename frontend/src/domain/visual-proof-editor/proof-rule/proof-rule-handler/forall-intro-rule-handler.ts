@@ -19,28 +19,32 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
         return false;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         const {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            error,
         } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not universal quantified');
+            error('Conclusion is not universal quantified');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'ForAll') {
-            throw new Error('Conclusion is not universal quantified');
+            error('Conclusion is not universal quantified');
+            return;
         }
 
         const { object_ident, object_type_ident, body } = propConclusion.value;
@@ -71,7 +75,8 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected handleRuleDownards(_params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        throw new Error('Cannot reason downwards with this rule.');
+    protected async handleRuleDownards({ error }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        error('Cannot reason downwards with this rule.');
+        return;
     }
 }

@@ -17,24 +17,27 @@ export class TrueIntroRuleHandler extends ProofRuleHandler {
         return false;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not truth.');
+            error('Conclusion is not truth.');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'True') {
-            throw new Error('Conclusion is not truth.');
+            error('Conclusion is not truth.');
+            return;
         }
 
         return {
@@ -52,7 +55,8 @@ export class TrueIntroRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected handleRuleDownards(_params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        throw new Error('Cannot reason downwards with this rule.');
+    protected async handleRuleDownards({ error }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        error('Cannot reason downwards with this rule.');
+        return;
     }
 }

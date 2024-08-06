@@ -23,22 +23,25 @@ export class OrElimRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         const {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            error,
         } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Cannot apply rule on this node.');
+            error('Cannot apply rule on this node.');
+            return;
         }
 
         // ask for disjunction
@@ -50,13 +53,14 @@ export class OrElimRuleHandler extends ProofRuleHandler {
         })).value;
 
         if (!disjunction) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         disjunction = this.parseProp(disjunction);
 
         if (disjunction.kind !== 'Or') {
-            throw new Error('Your input is not a disjunction.');
+            error('Your input is not a disjunction.');
+            return;
         }
 
         const additionalAssumptions = createProofRuleHandlerResultAssumptionContexts({
@@ -90,28 +94,32 @@ export class OrElimRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         const {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            error,
         } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not a disjunction.');
+            error('Conclusion is not a disjunction.');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'Or') {
-            throw new Error('Conclusion is not a disjunction.');
+            error('Conclusion is not a disjunction.');
+            return;
         }
 
         // ask for new conclusion
@@ -123,7 +131,7 @@ export class OrElimRuleHandler extends ProofRuleHandler {
         });
 
         if (!newConclusionPromptResult.isConfirmed) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         const newConclusion = this.parseProp(newConclusionPromptResult.value);

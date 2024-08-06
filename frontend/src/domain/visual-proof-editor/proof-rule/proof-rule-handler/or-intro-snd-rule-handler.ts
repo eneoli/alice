@@ -16,24 +16,27 @@ export class OrIntroSndRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+        if (selectedProofTreeNodes.length !== 1) {
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { id, conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not a disjunction.');
+            error('Conclusion is not a disjunction.');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'Or') {
-            throw new Error('Conclusion is not a disjunction.');
+            error('Conclusion is not a disjunction.');
+            return;
         }
 
         const [_fst, snd] = propConclusion.value;
@@ -55,18 +58,20 @@ export class OrIntroSndRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes } = params;
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply rule on this node.');
+            error('Cannot apply rule on this node.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Cannot apply rule on this node.');
+            error('Cannot apply rule on this node.');
+            return;
         }
 
         const firstComponentResult = await Swal.fire({
@@ -79,7 +84,7 @@ export class OrIntroSndRuleHandler extends ProofRuleHandler {
         let firstComponent = firstComponentResult.value;
 
         if (!firstComponent) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         firstComponent = this.parseProp(firstComponent);

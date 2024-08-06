@@ -25,18 +25,20 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes, assumptions } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, assumptions, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Cannot apply rule on this node.');
+            error('Cannot apply rule on this node.');
+            return;
         }
 
         const prop = conclusion.value;
@@ -58,7 +60,7 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
         });
 
         if (prompt.isDismissed || prompt.isDenied || !identifier) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         const freeParams = get_free_parameters(prop);
@@ -113,11 +115,12 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes } = params;
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
         if (selectedProofTreeNodes.length !== 2) {
-            throw new Error('Can apply this rule only when both premisses are given.');
+            error('Can apply this rule only when both premisses are given.');
+            return;
         }
 
         const [fst, snd] = selectedProofTreeNodes;
@@ -126,11 +129,13 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
         const sndIsProp = snd.proofTree.conclusion.kind === 'PropIsTrue';
 
         if (fstIsProp && sndIsProp) {
-            throw new Error('One of the premisses has to be a datatype.');
+            error('One of the premisses has to be a datatype.');
+            return;
         }
 
         if (!fstIsProp && !sndIsProp) {
-            throw new Error('One of the premisses has to be an universal quantification');
+            error('One of the premisses has to be an universal quantification');
+            return;
         }
 
         const propPremisse = fstIsProp ? fst : snd;
@@ -140,7 +145,8 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
         const datatype = datatypePremisse.proofTree.conclusion.value as [Identifier, string];
 
         if (prop.kind !== 'ForAll') {
-            throw new Error('One of the premisses has to be an universal quantification');
+            error('One of the premisses has to be an universal quantification');
+            return;
         }
 
         const { object_ident, body } = prop.value;

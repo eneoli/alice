@@ -21,22 +21,25 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         const {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            error,
         } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Cannot apply rule on this node.');
+            error('Cannot apply rule on this node.');
+            return;
         }
 
         let existsProp = (await Swal.fire({
@@ -47,13 +50,14 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
         })).value;
 
         if (!existsProp) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         existsProp = this.parseProp(existsProp);
 
         if (existsProp.kind !== 'Exists') {
-            throw new Error('You did not enter an existential quantification.');
+            error('You did not enter an existential quantification.');
+            return;
         }
 
         const instantiatedObjectIdent = {
@@ -92,35 +96,38 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
 
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         const {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            error,
         } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not an existential quantification');
+            error('Conclusion is not an existential quantification');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'Exists') {
-            throw new Error('Conclusion is not an existential quantification');
+            error('Conclusion is not an existential quantification');
+            return;
         }
 
         // ask for new conclusion
         let newConclusion = (await Swal.fire({
             title: 'Enter new conclusion',
             input: 'text',
-            inputLabel: 'Conclusion',
             inputPlaceholder: 'C',
             showCloseButton: true,
         })).value;
@@ -130,6 +137,10 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
         }
 
         newConclusion = this.parseProp(newConclusion);
+
+
+        // TODO check that free parameter does not escape scope
+
 
         const { object_ident, object_type_ident, body } = propConclusion.value;
 

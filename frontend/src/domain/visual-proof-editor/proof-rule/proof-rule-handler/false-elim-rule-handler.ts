@@ -16,14 +16,15 @@ export class FalseElimRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+        if (selectedProofTreeNodes.length !== 1) {
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
 
         return {
             additionalAssumptions: [],
@@ -41,24 +42,27 @@ export class FalseElimRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+        if (selectedProofTreeNodes.length !== 1) {
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not ⊥.');
+            error('Conclusion is not ⊥.');
+            return;
         }
 
         const conclusionProp = conclusion.value;
 
         if (conclusionProp.kind !== 'False') {
-            throw new Error('Conclusion is not ⊥.');
+            error('Conclusion is not ⊥.');
+            return;
         }
 
         const newConclusionResult = await Swal.fire({
@@ -71,7 +75,7 @@ export class FalseElimRuleHandler extends ProofRuleHandler {
         let newConclusion = newConclusionResult.value;
 
         if (!newConclusion) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         newConclusion = this.parseProp(newConclusion);

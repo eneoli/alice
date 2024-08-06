@@ -23,24 +23,27 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes, assumptions } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, assumptions, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not an existential quantification');
+            error('Conclusion is not an existential quantification');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'Exists') {
-            throw new Error('Conclusion is not an existential quantification');
+            error('Conclusion is not an existential quantification');
+            return;
         }
 
         // Ask for assumption
@@ -57,7 +60,8 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
             }, new Map<number, string>());
 
         if (options.size == 0) {
-            throw new Error('There are no witnesses you can select.');
+            error('There are no witnesses you can select.');
+            return;
         }
 
         let assumption = (await Swal.fire({
@@ -67,7 +71,7 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
         })).value;
 
         if (!assumption) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
         assumption = assumptions[assumption];
 
@@ -97,11 +101,12 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes } = params;
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
         if (selectedProofTreeNodes.length !== 2) {
-            throw new Error('Need exactly two nodes to form an existential proposition.');
+            error('Need exactly two nodes to form an existential proposition.');
+            return;
         }
 
         const [fst, snd] = selectedProofTreeNodes;
@@ -110,11 +115,13 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
         const sndIsTypeJudgment = snd.proofTree.conclusion.kind === 'TypeJudgement';
 
         if (fstIsTypeJudgment && sndIsTypeJudgment) {
-            throw new Error('Cannot combine two type judgments to form an existential propositon.');
+            error('Cannot combine two type judgments to form an existential propositon.');
+            return;
         }
 
         if (!fstIsTypeJudgment && !sndIsTypeJudgment) {
-            throw new Error('Cannot combine two propositions to form an existential proposition.');
+            error('Cannot combine two propositions to form an existential proposition.');
+            return;
         }
 
         const typeJudgmentNode = fstIsTypeJudgment ? fst : snd;
@@ -140,7 +147,7 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
         });
 
         if (prompt.isDismissed || prompt.isDenied) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         const freeParams = get_free_parameters(prop);

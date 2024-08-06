@@ -5,9 +5,9 @@ export abstract class ProofRuleHandler {
 
     public abstract getLatexCode(): string;
 
-    protected abstract handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult>;
+    protected abstract handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined>;
 
-    protected abstract handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult>;
+    protected abstract handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined>;
 
     protected parseProp(prop: string): Prop {
         try {
@@ -54,7 +54,7 @@ export abstract class ProofRuleHandler {
         );
     }
 
-    public async handleRule(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    public async handleRule(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         if (this.willReasonDownwards(params)) {
             return this.handleRuleDownards(params);
         }

@@ -21,28 +21,32 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
         return false;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         const {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            error,
         } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            error('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not an implication.');
+            error('Conclusion is not an implication.');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind != 'Impl') {
-            throw new Error('Conclusion is not an implication.');
+            error('Conclusion is not an implication.');
+            return;
         }
 
         const [fst, snd] = propConclusion.value;
@@ -78,8 +82,9 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected handleRuleDownards(_params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        throw new Error('Cannot reason downards with this rule.');
+    protected async handleRuleDownards({ error }: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        error('Cannot reason downards with this rule.');
+        return;
     }
 
 }

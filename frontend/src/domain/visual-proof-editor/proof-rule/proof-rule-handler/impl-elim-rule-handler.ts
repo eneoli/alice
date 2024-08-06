@@ -18,18 +18,20 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply rule on this node.');
+        if (selectedProofTreeNodes.length !== 1) {
+            error('Cannot apply rule on this node.');
+            return;
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Cannot apply rule on this node.');
+            error('Cannot apply rule on this node.');
+            return;
         }
 
         let implAntecedent = (await Swal.fire({
@@ -40,7 +42,7 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
         })).value;
 
         if (!implAntecedent) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
         implAntecedent = this.parseProp(implAntecedent);
@@ -64,8 +66,9 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
         const selectedNodesLength = params.selectedProofTreeNodes.length;
+        const error = params.error;
 
         if (selectedNodesLength === 1) {
             return this.handleRuleDownwardsPrincipalConnectiveSelected(params);
@@ -75,27 +78,30 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
             return this.handleRuleDownwardsBothPremissesSelected(params);
         }
 
-        throw new Error('Cannot apply rule on this node.');
+        error('Cannot apply rule on this node.');
     }
 
-    private async handleRuleDownwardsPrincipalConnectiveSelected(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    private async handleRuleDownwardsPrincipalConnectiveSelected(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 1) {
-            throw new Error('Expected exactly one selected node. This is likely a bug.');
+        if (selectedProofTreeNodes.length !== 1) {
+            error('Expected exactly one selected node. This is likely a bug.');
+            return;
         }
 
-        const { proofTree, reasoningContextId } = selecteedProofTreeNodes[0];
+        const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not an implication');
+            error('Conclusion is not an implication');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'Impl') {
-            throw new Error('Conclusion is not an implication');
+            error('Conclusion is not an implication');
+            return;
         }
 
         const [fst, snd] = propConclusion.value;
@@ -122,14 +128,15 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
         };
     }
 
-    private async handleRuleDownwardsBothPremissesSelected(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes: selecteedProofTreeNodes } = params;
+    private async handleRuleDownwardsBothPremissesSelected(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
-        if (selecteedProofTreeNodes.length !== 2) {
-            throw new Error('Expected exactly two selected nodes. This is likely a bug.');
+        if (selectedProofTreeNodes.length !== 2) {
+            error('Expected exactly two selected nodes. This is likely a bug.');
+            return;
         }
 
-        const [fst, snd] = selecteedProofTreeNodes;
+        const [fst, snd] = selectedProofTreeNodes;
 
         const fstConclusion = fst.proofTree.conclusion;
         const sndConclusion = snd.proofTree.conclusion;
@@ -138,7 +145,8 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
         const sndIsProp = sndConclusion.kind === 'PropIsTrue';
 
         if (!fstIsProp || !sndIsProp) {
-            throw new Error('Both premisses have to be proposition judgments.');
+            error('Both premisses have to be proposition judgments.');
+            return;
         }
 
         const fstIsImpl = fstConclusion.value.kind === 'Impl';
@@ -185,7 +193,8 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
             principal?.proofTree.conclusion.value.kind !== 'Impl' ||
             !isEqual(principal?.proofTree.conclusion.value.value![0], applicant?.proofTree.conclusion.value)
         ) {
-            throw new Error('Premisses are not compatible.');
+            error('Premisses are not compatible.');
+            return;
         }
 
         return {

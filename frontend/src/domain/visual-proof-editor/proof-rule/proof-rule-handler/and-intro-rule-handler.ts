@@ -16,28 +16,32 @@ export class AndIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes } = params;
+    protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error: fail } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
-            throw new Error('Cannot apply this rule on multiple nodes.');
+            fail('Cannot apply this rule on multiple nodes.');
+            return;
         }
 
         const { proofTree, reasoningContextId } = selectedProofTreeNodes[0];
         const { rule, conclusion } = proofTree;
 
         if (conclusion.kind !== 'PropIsTrue') {
-            throw new Error('Conclusion is not a conjunction');
+            fail('Conclusion is not a conjunction');
+            return;
         }
 
         const propConclusion = conclusion.value;
 
         if (propConclusion.kind !== 'And') {
-            throw new Error('Conclusion is not a conjunction');
+            fail('Conclusion is not a conjunction');
+            return;
         }
 
         if (rule !== null) {
-            throw new Error('Cannot reason upwards.');
+            fail('Cannot reason upwards.');
+            return;
         }
 
         const [fst, snd] = propConclusion.value;
@@ -61,11 +65,12 @@ export class AndIntroRuleHandler extends ProofRuleHandler {
         };
     }
 
-    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult> {
-        const { selectedProofTreeNodes } = params;
+    protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
+        const { selectedProofTreeNodes, error } = params;
 
         if (selectedProofTreeNodes.length != 2) {
-            throw new Error('Need exactly two nodes to combine them to a conjunction.');
+            error('Need exactly two nodes to combine them to a conjunction.');
+            return;
         }
 
         const [fst, snd] = selectedProofTreeNodes;
@@ -73,7 +78,8 @@ export class AndIntroRuleHandler extends ProofRuleHandler {
         const sndConclusionKind = snd.proofTree.conclusion.kind;
 
         if (fstConclusionKind !== 'PropIsTrue' || sndConclusionKind !== 'PropIsTrue') {
-            throw new Error('Cannot combine datatype to conjunction.');
+            error('Cannot combine datatype to conjunction.');
+            return;
         }
 
         const fstProp = fst.proofTree.conclusion.value;
