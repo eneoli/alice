@@ -29,6 +29,7 @@ export interface VisualProofEditorRuleHandlerParams {
     assumptions: AssumptionContext[],
     generateIdentifier: () => string,
     generateUniqueNumber: () => number,
+    error: (msg: string) => void;
 }
 
 export interface ProofRuleHandlerProofTreeChange {
