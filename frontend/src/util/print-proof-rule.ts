@@ -18,5 +18,6 @@ export function printProofRule(proofTreeRule: ProofTreeRule): string {
         case 'ExistsIntro': return '\\exists I';
         case 'ExistsElim': return `\\exists E^{${proofTreeRule.value[0]}, ${proofTreeRule.value[1]}}`;
         case 'Sorry': return 'sorry';
+        case 'AlphaEquivalent': return ' \\alpha\\text{-Eq}'
     }
 }

@@ -162,5 +162,6 @@ const generateCode: (proofTree: VisualProofEditorProofTree) => string = (proofTr
         case 'ExistsIntro': return `(${generateCode(proofTree.premisses[0])}, ${generateCode(proofTree.premisses[1])})`;
         case 'ExistsElim': return `let (${rule.value[0]}, ${rule.value[1]}) = ${generateCode(proofTree.premisses[0])} in ${generateCode(proofTree.premisses[1])}`;
         case 'Sorry': return 'sorry';
+        case 'AlphaEquivalent': return generateCode(proofTree.premisses[0]);
     }
 };

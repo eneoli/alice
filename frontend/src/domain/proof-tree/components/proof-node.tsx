@@ -1,9 +1,10 @@
 import { css } from '@emotion/css';
 import React, { ReactNode } from 'react';
 import { ProofLine } from './proof-line';
+import { ProofTreeRule } from 'alice';
 
 interface ProofNodeProps {
-    rule: string | null;
+    rule: ProofTreeRule | null;
     content: ReactNode
     children?: ReactNode
 }
@@ -17,7 +18,7 @@ export function ProofNode({ children, content, rule }: ProofNodeProps) {
             </div>
 
             {rule && (
-                <ProofLine label={rule} />
+                <ProofLine rule={rule} />
             )}
 
             <div className={cssConclusion}>

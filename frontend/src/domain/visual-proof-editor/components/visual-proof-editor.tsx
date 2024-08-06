@@ -1,7 +1,7 @@
 import { css } from '@emotion/css';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { VisualProofEditorSidebar } from './visual-proof-editor-sidebar';
-import { Prop } from 'alice';
+import { proof_tree_conclusion_alpha_eq, Prop } from 'alice';
 import { notification } from 'antd';
 import { DndContext, DragCancelEvent, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SelectedProofTreeNode, VisualProofEditorProofTreeView, VisualProofEditorProofTreeViewId } from './visual-proof-editor-proof-tree-view';
@@ -17,6 +17,7 @@ import { createEmptyVisualProofEditorReasoningContextFromConclusion, createEmpty
 import { useReasoningContexts } from '../hooks/use-reasoning-contexts';
 import { useKeyPressed, useKeyUpEvent } from '../../../lib/hooks/use-key-event';
 import { createNumberGenerator } from '../proof-rule/proof-rule-handler/create-number-generator';
+import { v4 } from 'uuid';
 
 interface VisualProofEditorProps {
     prop: Prop;
@@ -146,17 +147,30 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
         const droppedConclusion = droppedContext.proofTree.conclusion;
 
         // check if proof trees are compatible
-        if (!isEqual(droppedOnPremisse?.conclusion, droppedConclusion)) {
+
+        if (!proof_tree_conclusion_alpha_eq(droppedOnPremisse?.conclusion, droppedConclusion)) {
             notificationApi.error({ message: 'Proof trees not compatible.' });
             restorePositions();
             return;
+        }
+
+        let replacementTree = droppedContext.proofTree;
+
+        // only alpha equivalent - add alpah-eq rule
+        if (!isEqual(droppedOnPremisse?.conclusion, droppedConclusion)) {
+            replacementTree = {
+                id: v4(),
+                premisses: [{ ...replacementTree }],
+                rule: { kind: 'AlphaEquivalent' },
+                conclusion: droppedOnPremisse.conclusion,
+            }
         }
 
         // FIXME: shall I check if all assumptions can be used?
 
         // Merge
 
-        replaceTreeNodeById(droppedOnContext.proofTree, droppedOnPremisse.id, droppedContext.proofTree);
+        replaceTreeNodeById(droppedOnContext.proofTree, droppedOnPremisse.id, replacementTree);
 
         updateReasoningContexts([
             ...reasoningContexts.filter((ctx) => ctx.id !== droppedContext.id && ctx.id !== droppedOnContext.id),
@@ -381,6 +395,6 @@ const cssVisualProofEditorProofTreeViewContainer = css`
 
 const cssDivider = css`
     border-bottom: 1px solid #233348;
-    width: '99%';
+    width: 99%;
     align-self: center;
 `;

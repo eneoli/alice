@@ -4,7 +4,6 @@ import { ProofNode } from '../../proof-tree/components/proof-node';
 import { printProp, printTypeJudgment } from '../../../util/print-prop';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { ProofTreeConclusion } from 'alice';
-import { printProofRule } from '../../../util/print-proof-rule';
 import { VisualProofEditorReasoningContext } from '../lib/visual-proof-editor-reasoning-context';
 import { VisualProofEditorProofTree } from '../lib/visual-proof-editor-proof-tree';
 
@@ -57,7 +56,7 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
 
         return (
             <div onClick={onNodeClick}>
-                <ProofNode rule={proofTree.rule ? printProofRule(proofTree.rule) : null} content={conclusion}>
+                <ProofNode rule={proofTree.rule} content={conclusion}>
                     {
                         proofTree.premisses.map((child: VisualProofEditorProofTree, i: number) => (
                             <Fragment key={i}>
