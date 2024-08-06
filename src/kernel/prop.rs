@@ -1,6 +1,7 @@
 use std::fmt::{self, Debug};
 use std::vec;
 
+use super::checker::identifier_context::IdentifierContext;
 use super::{checker::identifier::Identifier, proof_term::Type};
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
@@ -64,6 +65,10 @@ impl PropParameter {
             Self::Instantiated(_) => false,
         }
     }
+}
+
+pub enum InstatiationError {
+    UnknownIdentifier(String),
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
@@ -435,6 +440,75 @@ impl Prop {
                 body: bound_body.boxed(),
             },
         }
+    }
+
+    pub fn instantiate_parameters_with_context(
+        &mut self,
+        ctx: &IdentifierContext,
+    ) -> Result<(), InstatiationError> {
+        fn _instantiate_with_ctx<'a>(
+            prop: &'a mut Prop,
+            ctx: &IdentifierContext,
+            mut bound_idents: Vec<&'a str>,
+        ) -> Result<(), InstatiationError> {
+            match prop {
+                Prop::True => {}
+                Prop::False => {}
+                Prop::And(ref mut fst, ref mut snd)
+                | Prop::Or(ref mut fst, ref mut snd)
+                | Prop::Impl(ref mut fst, ref mut snd) => {
+                    _instantiate_with_ctx(fst, ctx, bound_idents.clone())?;
+                    _instantiate_with_ctx(snd, ctx, bound_idents)?;
+                }
+                Prop::ForAll {
+                    ref object_ident,
+                    body,
+                    ..
+                }
+                | Prop::Exists {
+                    ref object_ident,
+                    body,
+                    ..
+                } => {
+                    bound_idents.push(object_ident);
+
+                    _instantiate_with_ctx(body, ctx, bound_idents)?;
+                }
+                Prop::Atom(_, params) => {
+                    for param in params.iter_mut() {
+                        // sanity check
+                        if let PropParameter::Instantiated(identifier) = param {
+                            if ctx.get(identifier).is_none() {
+                                panic!("Instantiated parameter does not exist: {:#?}", identifier);
+                            }
+
+                            if let Some(Type::Prop(prop)) = ctx.get(&identifier) {
+                                panic!(
+                                    "Parameter is a proposition: {:#?}, {:#?}",
+                                    identifier, prop
+                                );
+                            }
+
+                            continue;
+                        }
+
+                        let PropParameter::Uninstantiated(name) = param else {
+                            continue;
+                        };
+
+                        let Some((identifier, _)) = ctx.get_by_name(&name) else {
+                            return Err(InstatiationError::UnknownIdentifier(name.clone()));
+                        };
+
+                        *param = PropParameter::Instantiated(identifier.clone());
+                    }
+                }
+            };
+
+            Ok(())
+        }
+
+        _instantiate_with_ctx(self, ctx, vec![])
     }
 
     pub fn alpha_eq(&self, other: &Prop) -> bool {
