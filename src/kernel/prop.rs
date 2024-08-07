@@ -67,6 +67,7 @@ impl PropParameter {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum InstatiationError {
     UnknownIdentifier(String),
 }
@@ -118,84 +119,81 @@ impl Prop {
     }
 
     pub fn get_free_parameters(&self) -> Vec<PropParameter> {
-        fn _get_free_parameters(
-            prop: &Prop,
-            binded_idents: &mut Vec<String>,
-        ) -> Vec<PropParameter> {
+        fn _get_free_parameters(prop: &Prop, bound_idents: &mut Vec<String>) -> Vec<PropParameter> {
             match prop {
                 Prop::True => vec![],
                 Prop::False => vec![],
                 Prop::And(fst, snd) => {
-                    let fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let snd_idents = _get_free_parameters(snd, binded_idents);
+                    let fst_idents = _get_free_parameters(fst, &mut bound_idents.clone());
+                    let snd_idents = _get_free_parameters(snd, bound_idents);
 
                     [fst_idents, snd_idents].concat()
                 }
                 Prop::Or(fst, snd) => {
-                    let fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let snd_idents = _get_free_parameters(snd, binded_idents);
+                    let fst_idents = _get_free_parameters(fst, &mut bound_idents.clone());
+                    let snd_idents = _get_free_parameters(snd, bound_idents);
 
                     [fst_idents, snd_idents].concat()
                 }
                 Prop::Impl(fst, snd) => {
-                    let fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let snd_idents = _get_free_parameters(snd, binded_idents);
+                    let fst_idents = _get_free_parameters(fst, &mut bound_idents.clone());
+                    let snd_idents = _get_free_parameters(snd, bound_idents);
 
                     [fst_idents, snd_idents].concat()
                 }
                 Prop::Exists {
                     object_ident, body, ..
                 } => {
-                    binded_idents.push(object_ident.to_string());
+                    bound_idents.push(object_ident.to_string());
 
-                    _get_free_parameters(body, binded_idents)
+                    _get_free_parameters(body, bound_idents)
                 }
                 Prop::ForAll {
                     object_ident, body, ..
                 } => {
-                    binded_idents.push(object_ident.to_string());
+                    bound_idents.push(object_ident.to_string());
 
-                    _get_free_parameters(body, binded_idents)
+                    _get_free_parameters(body, bound_idents)
                 }
                 Prop::Atom(_, params) => {
                     let mut free_params = params.clone();
-                    free_params.retain(|param| !binded_idents.contains(param.name()));
+                    free_params.retain(|param| !bound_idents.contains(param.name()));
 
                     free_params
                 }
             }
         }
 
-        let mut binded_idents = Vec::new();
+        let mut bound_idents = Vec::new();
 
-        _get_free_parameters(self, &mut binded_idents)
+        _get_free_parameters(self, &mut bound_idents)
     }
 
     pub fn get_free_parameters_mut(&mut self) -> Vec<&mut PropParameter> {
         fn _get_free_parameters<'a>(
             prop: &'a mut Prop,
-            binded_idents: &mut Vec<String>,
+            bound_idents: &mut Vec<String>,
         ) -> Vec<&'a mut PropParameter> {
             match prop {
                 Prop::True => vec![],
                 Prop::False => vec![],
                 Prop::And(fst, snd) => {
-                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+                    let mut fst_idents = _get_free_parameters(fst, &mut bound_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, bound_idents);
 
                     fst_idents.append(&mut snd_idents);
                     fst_idents
                 }
                 Prop::Or(fst, snd) => {
-                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+                    let mut fst_idents = _get_free_parameters(fst, &mut bound_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, bound_idents);
 
                     fst_idents.append(&mut snd_idents);
                     fst_idents
                 }
                 Prop::Impl(fst, snd) => {
-                    let mut fst_idents = _get_free_parameters(fst, &mut binded_idents.clone());
-                    let mut snd_idents = _get_free_parameters(snd, binded_idents);
+                    let mut fst_idents = _get_free_parameters(fst, &mut bound_idents.clone());
+                    let mut snd_idents = _get_free_parameters(snd, bound_idents);
 
                     fst_idents.append(&mut snd_idents);
                     fst_idents
@@ -203,29 +201,29 @@ impl Prop {
                 Prop::Exists {
                     object_ident, body, ..
                 } => {
-                    binded_idents.push(object_ident.to_string());
+                    bound_idents.push(object_ident.to_string());
 
-                    _get_free_parameters(body, binded_idents)
+                    _get_free_parameters(body, bound_idents)
                 }
                 Prop::ForAll {
                     object_ident, body, ..
                 } => {
-                    binded_idents.push(object_ident.to_string());
+                    bound_idents.push(object_ident.to_string());
 
-                    _get_free_parameters(body, binded_idents)
+                    _get_free_parameters(body, bound_idents)
                 }
                 Prop::Atom(_, ref mut params) => {
                     let mut free_params = params.iter_mut().collect::<Vec<&'a mut PropParameter>>();
-                    free_params.retain(|param| !binded_idents.contains(param.name()));
+                    free_params.retain(|param| !bound_idents.contains(param.name()));
 
                     free_params
                 }
             }
         }
 
-        let mut binded_idents = Vec::new();
+        let mut bound_idents = Vec::new();
 
-        _get_free_parameters(self, &mut binded_idents)
+        _get_free_parameters(self, &mut bound_idents)
     }
 
     // This can only replace with single identifiers, but that should be ok at the current state of the type checker.
@@ -288,7 +286,7 @@ impl Prop {
             identifier: &Identifier,
             identifier_indices: &Vec<usize>,
             bind_name: &str,
-            binded_identifiers: &mut Vec<&'a str>,
+            bound_identifiers: &mut Vec<&'a str>,
             current_index: &mut usize,
         ) -> Prop {
             match prop {
@@ -300,7 +298,7 @@ impl Prop {
                         identifier,
                         identifier_indices,
                         bind_name,
-                        &mut binded_identifiers.clone(),
+                        &mut bound_identifiers.clone(),
                         current_index,
                     )
                     .boxed(),
@@ -309,7 +307,7 @@ impl Prop {
                         identifier,
                         identifier_indices,
                         bind_name,
-                        binded_identifiers,
+                        bound_identifiers,
                         current_index,
                     )
                     .boxed(),
@@ -320,7 +318,7 @@ impl Prop {
                         identifier,
                         identifier_indices,
                         bind_name,
-                        &mut binded_identifiers.clone(),
+                        &mut bound_identifiers.clone(),
                         current_index,
                     )
                     .boxed(),
@@ -329,7 +327,7 @@ impl Prop {
                         identifier,
                         identifier_indices,
                         bind_name,
-                        binded_identifiers,
+                        bound_identifiers,
                         current_index,
                     )
                     .boxed(),
@@ -340,7 +338,7 @@ impl Prop {
                         identifier,
                         identifier_indices,
                         bind_name,
-                        &mut binded_identifiers.clone(),
+                        &mut bound_identifiers.clone(),
                         current_index,
                     )
                     .boxed(),
@@ -349,7 +347,7 @@ impl Prop {
                         identifier,
                         identifier_indices,
                         bind_name,
-                        binded_identifiers,
+                        bound_identifiers,
                         current_index,
                     )
                     .boxed(),
@@ -359,7 +357,7 @@ impl Prop {
                     object_type_ident,
                     body,
                 } => {
-                    binded_identifiers.push(object_ident.as_str());
+                    bound_identifiers.push(object_ident.as_str());
                     Prop::Exists {
                         object_ident: object_ident.clone(),
                         object_type_ident: object_type_ident.clone(),
@@ -368,7 +366,7 @@ impl Prop {
                             identifier,
                             identifier_indices,
                             bind_name,
-                            binded_identifiers,
+                            bound_identifiers,
                             current_index,
                         )
                         .boxed(),
@@ -379,7 +377,7 @@ impl Prop {
                     object_type_ident,
                     body,
                 } => {
-                    binded_identifiers.push(object_ident.as_str());
+                    bound_identifiers.push(object_ident.as_str());
                     Prop::ForAll {
                         object_ident: object_ident.clone(),
                         object_type_ident: object_type_ident.clone(),
@@ -388,7 +386,7 @@ impl Prop {
                             identifier,
                             identifier_indices,
                             bind_name,
-                            binded_identifiers,
+                            bound_identifiers,
                             current_index,
                         )
                         .boxed(),
@@ -496,6 +494,10 @@ impl Prop {
                             continue;
                         };
 
+                        if bound_idents.contains(&name.as_str()) {
+                            continue;
+                        }
+
                         let Some((identifier, _)) = ctx.get_by_name(&name) else {
                             return Err(InstatiationError::UnknownIdentifier(name.clone()));
                         };
@@ -593,7 +595,7 @@ impl Prop {
                                 return false;
                             }
                         } else {
-                            panic!("Found uninstantiated parameter that is not binded by a quantor. left: {:#?}, right: {:#?}", left, right);
+                            panic!("Found uninstantiated parameter that is not bound by a quantor. left: {:#?}, right: {:#?}", left, right);
                         }
                     } else if l_param != r_param {
                         return false;
@@ -648,7 +650,7 @@ impl Debug for Prop {
 
 #[cfg(test)]
 mod tests {
-    use std::{any::type_name, vec};
+    use std::vec;
 
     use super::Prop;
 
@@ -657,9 +659,10 @@ mod tests {
     use chumsky::{Parser, Stream};
 
     use crate::kernel::{
-        checker::identifier::Identifier,
+        checker::{identifier::Identifier, identifier_context::IdentifierContext},
         parse::{fol::fol_parser, lexer::lexer},
-        prop::{PropParameter, QuantifierKind},
+        proof_term::Type,
+        prop::{InstatiationError, PropParameter, QuantifierKind},
     };
 
     fn parse_prop(prop: &str) -> Prop {
@@ -1516,7 +1519,7 @@ mod tests {
     }
 
     #[test]
-    fn test_do_not_bind_already_binded_identifier() {
+    fn test_do_not_bind_already_bound_identifier() {
         assert_eq!(
             parse_prop("\\forall a:t. A(a)").bind_identifier(
                 QuantifierKind::ForAll,
@@ -1593,5 +1596,106 @@ mod tests {
             ),
             parse_prop("\\forall x:t. A(x) & B (x)")
         )
+    }
+
+    #[test]
+    fn test_instantiate_with_context_simple() {
+        let mut prop = Prop::True;
+        let ctx = IdentifierContext::new();
+
+        assert_eq!(prop.instantiate_parameters_with_context(&ctx), Ok(()));
+    }
+
+    #[test]
+    fn test_instantiate_with_context_atom() {
+        let mut prop = Prop::Atom(
+            "A".to_string(),
+            vec![PropParameter::Uninstantiated("x".to_string())],
+        );
+
+        let identifier = Identifier::new("x".to_string(), 42);
+        let mut ctx = IdentifierContext::new();
+        ctx.insert(identifier.clone(), Type::Datatype("t".to_string()));
+
+        assert_eq!(prop.instantiate_parameters_with_context(&ctx), Ok(()));
+        if let Prop::Atom(_, params) = prop {
+            assert_eq!(params[0], PropParameter::Instantiated(identifier));
+        } else {
+            panic!("Expected Prop::Atom");
+        }
+    }
+
+    #[test]
+    fn test_instantiate_with_context_nested() {
+        let mut prop = Prop::And(
+            Box::new(Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )),
+            Box::new(Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("y".to_string())],
+            )),
+        );
+        let mut ctx = IdentifierContext::new();
+        let fst_ident = Identifier::new("x".to_string(), 1);
+        let snd_ident = Identifier::new("y".to_string(), 2);
+
+        ctx.insert(fst_ident.clone(), Type::Datatype("t".to_string()));
+        ctx.insert(snd_ident.clone(), Type::Datatype("list".to_string()));
+
+        assert_eq!(prop.instantiate_parameters_with_context(&ctx), Ok(()));
+        if let Prop::And(prop1, prop2) = prop {
+            if let Prop::Atom(_, params1) = *prop1 {
+                assert_eq!(params1[0], PropParameter::Instantiated(fst_ident));
+            } else {
+                panic!("Expected Prop::Atom");
+            }
+            if let Prop::Atom(_, params2) = *prop2 {
+                assert_eq!(params2[0], PropParameter::Instantiated(snd_ident));
+            } else {
+                panic!("Expected Prop::Atom");
+            }
+        } else {
+            panic!("Expected Prop::And with Prop::Atom");
+        }
+    }
+
+    #[test]
+    fn test_instantiate_with_context_forall() {
+        let mut prop = Prop::ForAll {
+            object_ident: "a".to_string(),
+            object_type_ident: "t".to_string(),
+            body: Box::new(Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("a".to_string())],
+            )),
+        };
+        let ctx = IdentifierContext::new();
+
+        assert_eq!(prop.instantiate_parameters_with_context(&ctx), Ok(()));
+        if let Prop::ForAll { body, .. } = prop {
+            if let Prop::Atom(_, params) = *body {
+                assert_eq!(params[0], PropParameter::Uninstantiated("a".to_string()));
+            } else {
+                panic!("Expected Prop::Atom");
+            }
+        } else {
+            panic!("Expected Prop::ForAll");
+        }
+    }
+
+    #[test]
+    fn test_instantiate_with_context_unknown_identifier() {
+        let mut prop = Prop::Atom(
+            "A".to_string(),
+            vec![PropParameter::Uninstantiated("x".to_string())],
+        );
+        let ctx = IdentifierContext::new();
+
+        assert_eq!(
+            prop.instantiate_parameters_with_context(&ctx),
+            Err(InstatiationError::UnknownIdentifier("x".to_string()))
+        );
     }
 }
