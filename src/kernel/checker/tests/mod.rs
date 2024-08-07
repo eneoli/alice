@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn test_allow_binded_params_function_annotations() {
+    fn test_allow_bound_params_function_annotations() {
         check_proof_term(
             "
                 atom A(1);
@@ -584,7 +584,7 @@ mod tests {
     }
 
     #[test]
-    fn test_do_allow_binded_params_type_ascription() {
+    fn test_do_allow_bound_params_type_ascription() {
         check_proof_term(
             "
                 atom A(1);
