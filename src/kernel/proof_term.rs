@@ -1,7 +1,10 @@
 use core::fmt;
 use std::fmt::Display;
 
-use super::prop::Prop;
+use super::{
+    checker::identifier_context::IdentifierContext,
+    prop::{InstatiationError, Prop},
+};
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 
@@ -48,6 +51,17 @@ impl Type {
             (Type::Prop(lprop), Type::Prop(rprop)) => Prop::alpha_eq(lprop, rprop),
             _ => false,
         }
+    }
+
+    pub fn instantiate_parameters_with_context(
+        &mut self,
+        ctx: &IdentifierContext,
+    ) -> Result<(), InstatiationError> {
+        let Type::Prop(prop) = self else {
+            return Ok(());
+        };
+
+        prop.instantiate_parameters_with_context(ctx)
     }
 }
 

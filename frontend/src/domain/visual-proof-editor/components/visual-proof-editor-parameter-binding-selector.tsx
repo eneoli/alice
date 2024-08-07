@@ -14,7 +14,7 @@ interface RenderPropResult {
     newIndex: number,
 }
 
-type RenderProp = (prop: Prop, currentIndex: number, bindedIdentifiers: string[]) => RenderPropResult;
+type RenderProp = (prop: Prop, currentIndex: number, boundIdentifiers: string[]) => RenderPropResult;
 
 export function VisualProofEditorParameterBindingSelector(props: VisualProofEditorParameterBindingSelectorProps) {
 
@@ -35,7 +35,7 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
         }
     }, [selectedIndices]);
 
-    const renderProp: RenderProp = (prop: Prop, currentIndex: number, bindedIdentifiers: string[]) => {
+    const renderProp: RenderProp = (prop: Prop, currentIndex: number, boundIdentifiers: string[]) => {
 
         const handlePrimitive = useCallback((primitive: string) => {
             return {
@@ -45,8 +45,8 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
         }, [currentIndex]);
 
         const handleBinaryConnective = useCallback((connective: string, prop: Prop & { kind: 'And' | 'Or' | 'Impl' }) => {
-            const fst = renderProp(prop.value[0], currentIndex, [...bindedIdentifiers]);
-            const snd = renderProp(prop.value[1], fst.newIndex, [...bindedIdentifiers]);
+            const fst = renderProp(prop.value[0], currentIndex, [...boundIdentifiers]);
+            const snd = renderProp(prop.value[1], fst.newIndex, [...boundIdentifiers]);
 
             const node = (
                 <>
@@ -60,13 +60,13 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
                 node,
                 newIndex: snd.newIndex,
             };
-        }, [currentIndex, bindedIdentifiers]);
+        }, [currentIndex, boundIdentifiers]);
 
         const handleQuantifier = useCallback((quantifier: string, prop: Prop & { kind: 'ForAll' | 'Exists' }) => {
             const body = renderProp(
                 prop.value.body,
                 currentIndex,
-                [...bindedIdentifiers, prop.value.object_ident],
+                [...boundIdentifiers, prop.value.object_ident],
             );
 
             const node = (
@@ -84,7 +84,7 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
                 node,
                 newIndex: body.newIndex,
             };
-        }, [currentIndex, bindedIdentifiers]);
+        }, [currentIndex, boundIdentifiers]);
 
         const handleAtom = useCallback((prop: Prop & { kind: 'Atom' }) => {
             const params = prop.value[1];
@@ -135,7 +135,7 @@ export function VisualProofEditorParameterBindingSelector(props: VisualProofEdit
                     continue;
                 }
 
-                if (bindedIdentifiers.includes(paramName)) {
+                if (boundIdentifiers.includes(paramName)) {
                     paramNodes.push(
                         <span title={'This parameter is bound by a quantifier.'}>
                             {paramName}
