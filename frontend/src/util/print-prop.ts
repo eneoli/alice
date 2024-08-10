@@ -55,6 +55,11 @@ export function printProp(prop: Prop): string {
     const shouldWrapFst = (propPrecedence > fstPrecedence) || (propPrecedence === fstPrecedence && isRightAssociative(prop));
     const shouldWrapSnd = (propPrecedence > sndPrecedence) || (propPrecedence === sndPrecedence && isLeftAssociative(prop));
 
+    // Special rendering for A -> False
+    if (prop.kind === 'Impl' && snd.kind === 'False') {
+        const shoudlWrap = propPrecedence > fstPrecedence;
+        return `¬${wrap(fst, shoudlWrap)}`;
+    }
     return wrap(fst, shouldWrapFst) + ` ${connective} ` + wrap(snd, shouldWrapSnd);
 }
 
@@ -65,7 +70,13 @@ function getPrecedence(prop: Prop): number {
         case 'False': return 999;
         case 'And': return 4;
         case 'Or': return 3;
-        case 'Impl': return 2;
+        case 'Impl': {
+            if (prop.value[1].kind === 'False') {
+                return 999;
+            }
+
+            return 2;
+        }
         case 'ForAll': return 1;
         case 'Exists': return 1;
     }

@@ -155,6 +155,16 @@ pub fn instantiate_free_parameter(
 }
 
 #[wasm_bindgen]
+pub fn instantiate_free_parameter_by_index(
+    mut prop: Prop,
+    index: usize,
+    substitutor: &Identifier,
+) -> Prop {
+    prop.instantiate_free_parameter_by_index(index, substitutor);
+    prop
+}
+
+#[wasm_bindgen]
 pub fn bind_identifier(
     prop: &Prop,
     quantifier_kind: QuantifierKind,

@@ -1,4 +1,3 @@
-import Swal from 'sweetalert2';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { v4 } from 'uuid';
@@ -59,7 +58,7 @@ export class OrIntroFstRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
-        const { selectedProofTreeNodes, error } = params;
+        const { selectedProofTreeNodes, assumptions, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
             error('Cannot apply this rule on multiple nodes.');
@@ -74,20 +73,17 @@ export class OrIntroFstRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        const secondComponentResult = await Swal.fire({
+        // secondComponent = this.parseProp(secondComponent);
+        const secondComponent = await this.promptProp({
             title: 'Enter second component of disjunction.',
-            input: 'text',
             inputPlaceholder: 'B',
-            showCloseButton: true,
+            assumptions,
+            error,
         });
-
-        let secondComponent = secondComponentResult.value;
 
         if (!secondComponent) {
             return;
         }
-
-        secondComponent = this.parseProp(secondComponent);
 
         return {
             additionalAssumptions: [],

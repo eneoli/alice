@@ -1,4 +1,3 @@
-import Swal from 'sweetalert2';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { v4 } from 'uuid';
@@ -43,7 +42,7 @@ export class FalseElimRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
-        const { selectedProofTreeNodes, error } = params;
+        const { selectedProofTreeNodes, assumptions, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
             error('Cannot apply this rule on multiple nodes.');
@@ -65,20 +64,16 @@ export class FalseElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        const newConclusionResult = await Swal.fire({
+        const newConclusion = await this.promptProp({
             title: 'Enter new conclusion.',
-            input: 'text',
-            inputPlaceholder: 'A',
-            showCloseButton: true,
+            inputPlaceholder: 'C',
+            assumptions,
+            error,
         });
-
-        let newConclusion = newConclusionResult.value;
 
         if (!newConclusion) {
             return;
         }
-
-        newConclusion = this.parseProp(newConclusion);
 
         return {
             additionalAssumptions: [],

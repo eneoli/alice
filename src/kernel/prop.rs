@@ -271,6 +271,70 @@ impl Prop {
         }
     }
 
+    pub fn instantiate_free_parameter_by_index(&mut self, index: usize, substitutor: &Identifier) {
+        fn _instantiate<'a>(
+            prop: &'a mut Prop,
+            index: usize,
+            substitutor: &Identifier,
+            current_index: &mut usize,
+            bound_identifiers: &mut Vec<&'a str>,
+        ) {
+            match prop {
+                Prop::True => {}
+                Prop::False => {}
+                Prop::And(fst, snd) | Prop::Or(fst, snd) | Prop::Impl(fst, snd) => {
+                    _instantiate(
+                        fst,
+                        index,
+                        substitutor,
+                        current_index,
+                        &mut bound_identifiers.clone(),
+                    );
+
+                    if *current_index > index {
+                        return;
+                    }
+
+                    _instantiate(snd, index, substitutor, current_index, bound_identifiers);
+                }
+                Prop::ForAll {
+                    object_ident,
+                    ref mut body,
+                    ..
+                }
+                | Prop::Exists {
+                    object_ident,
+                    ref mut body,
+                    ..
+                } => {
+                    bound_identifiers.push(object_ident.as_str());
+
+                    _instantiate(body, index, substitutor, current_index, bound_identifiers);
+                }
+                Prop::Atom(_, params) => {
+                    let param_limit = index - *current_index + 1;
+                    if params.len() < param_limit {
+                        return;
+                    }
+
+                    let Some(param) = params.get_mut(index - *current_index) else {
+                        panic!("Invalid index.");
+                    };
+
+                    *param = PropParameter::Instantiated(substitutor.clone());
+                }
+            }
+        }
+
+        let mut current_index = 0;
+        _instantiate(self, index, substitutor, &mut current_index, &mut vec![]);
+
+        // sanity check
+        if current_index < index {
+            panic!("Proposition has not enough parameters.");
+        }
+    }
+
     // Warning: This might bind free (uninstantiated) parameters.
     // Choose bind name with care.
     pub fn bind_identifier(
@@ -1697,5 +1761,182 @@ mod tests {
             prop.instantiate_parameters_with_context(&ctx),
             Err(InstatiationError::UnknownIdentifier("x".to_string()))
         );
+    }
+
+    #[test]
+    fn test_instantiate_free_parameter_by_index_noop_on_true() {
+        let mut prop = Prop::True;
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(0, &subst);
+
+        assert_eq!(prop, Prop::True);
+    }
+
+    #[test]
+    fn test_instantiate_free_parameter_by_index_noop_on_false() {
+        let mut prop = Prop::False;
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(0, &subst);
+
+        assert_eq!(prop, Prop::False);
+    }
+
+    #[test]
+    fn test_instantiate_free_parameter_by_index_substitute_in_atom_single_param() {
+        let mut prop = Prop::Atom(
+            "A".to_string(),
+            vec![PropParameter::Uninstantiated("x".to_string())],
+        );
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(0, &subst);
+
+        assert_eq!(
+            prop,
+            Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Instantiated(Identifier::new(
+                    "sub".to_string(),
+                    42
+                ))]
+            )
+        );
+    }
+
+    #[test]
+    fn test_instantiate_free_parameter_by_index_substitute_in_atom_multi_params() {
+        let mut prop = Prop::Atom(
+            "A".to_string(),
+            vec![
+                PropParameter::Uninstantiated("x".to_string()),
+                PropParameter::Uninstantiated("y".to_string()),
+            ],
+        );
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(1, &subst);
+
+        assert_eq!(
+            prop,
+            Prop::Atom(
+                "A".to_string(),
+                vec![
+                    PropParameter::Uninstantiated("x".to_string()),
+                    PropParameter::Instantiated(Identifier::new("sub".to_string(), 42))
+                ]
+            )
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Proposition has not enough parameters.")]
+    fn test_instantiate_free_parameter_by_index_panic_on_invalid_index() {
+        let mut prop = Prop::Atom(
+            "A".to_string(),
+            vec![PropParameter::Uninstantiated("x".to_string())],
+        );
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(10, &subst);
+    }
+
+    #[test]
+    fn test_instantiate_free_parameter_by_index_substitute_in_nested_and() {
+        let mut prop = Prop::And(
+            Box::new(Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )),
+            Box::new(Prop::Atom(
+                "B".to_string(),
+                vec![PropParameter::Uninstantiated("y".to_string())],
+            )),
+        );
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(1, &subst);
+
+        assert_eq!(
+            prop,
+            Prop::And(
+                Box::new(Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Uninstantiated("x".to_string())],
+                )),
+                Box::new(Prop::Atom(
+                    "B".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "sub".to_string(),
+                        42
+                    ))],
+                )),
+            )
+        );
+    }
+
+    #[test]
+    fn test_instantiate_free_parameter_by_index_substitute_in_forall_body() {
+        let mut prop = Prop::ForAll {
+            object_ident: "x".to_string(),
+            object_type_ident: "t".to_string(),
+            body: Box::new(Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )),
+        };
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(0, &subst);
+
+        assert_eq!(
+            prop,
+            Prop::ForAll {
+                object_ident: "x".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Box::new(Prop::Atom(
+                    "A".to_string(),
+                    vec![PropParameter::Instantiated(Identifier::new(
+                        "sub".to_string(),
+                        42
+                    ))],
+                )),
+            }
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Proposition has not enough parameters.")]
+    fn test_instantiate_free_parameter_by_index_panic_when_index_too_large_for_atom() {
+        let mut prop = Prop::Atom(
+            "P".to_string(),
+            vec![PropParameter::Uninstantiated("x".to_string())],
+        );
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(5, &subst);
+    }
+
+    #[test]
+    #[should_panic(expected = "Proposition has not enough parameters.")]
+    fn test_instantiate_free_parameter_by_index_panic_when_index_too_large_in_complex_prop() {
+        let mut prop = Prop::And(
+            Box::new(Prop::Atom(
+                "A".to_string(),
+                vec![PropParameter::Uninstantiated("x".to_string())],
+            )),
+            Box::new(Prop::ForAll {
+                object_ident: "y".to_string(),
+                object_type_ident: "t".to_string(),
+                body: Box::new(Prop::Atom(
+                    "B".to_string(),
+                    vec![PropParameter::Uninstantiated("z".to_string())],
+                )),
+            }),
+        );
+        let subst = Identifier::new("sub".to_string(), 42);
+
+        prop.instantiate_free_parameter_by_index(10, &subst);
     }
 }

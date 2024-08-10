@@ -1,4 +1,3 @@
-import Swal from 'sweetalert2';
 import { Identifier, Prop } from 'alice';
 import { v4 } from 'uuid';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, AssumptionContext } from '..';
@@ -28,6 +27,7 @@ export class OrElimRuleHandler extends ProofRuleHandler {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            assumptions,
             error,
         } = params;
 
@@ -44,19 +44,16 @@ export class OrElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        // ask for disjunction
-        let disjunction = (await Swal.fire({
+        const disjunction = await this.promptProp({
             title: 'Enter the disjunction you want to eliminate from.',
-            input: 'text',
             inputPlaceholder: 'A v B',
-            showCloseButton: true,
-        })).value;
+            assumptions,
+            error,
+        });
 
         if (!disjunction) {
             return;
         }
-
-        disjunction = this.parseProp(disjunction);
 
         if (disjunction.kind !== 'Or') {
             error('Your input is not a disjunction.');
@@ -99,6 +96,7 @@ export class OrElimRuleHandler extends ProofRuleHandler {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            assumptions,
             error,
         } = params;
 
@@ -122,19 +120,16 @@ export class OrElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        // ask for new conclusion
-        const newConclusionPromptResult = await Swal.fire({
+        const newConclusion = await this.promptProp({
             title: 'Enter new conclusion',
-            input: 'text',
             inputPlaceholder: 'C',
-            showCloseButton: true,
+            assumptions,
+            error,
         });
 
-        if (!newConclusionPromptResult.isConfirmed) {
+        if (!newConclusion) {
             return;
         }
-
-        const newConclusion = this.parseProp(newConclusionPromptResult.value);
 
         const nodeId = v4();
 
