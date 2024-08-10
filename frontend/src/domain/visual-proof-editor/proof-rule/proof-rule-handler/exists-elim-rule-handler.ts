@@ -1,4 +1,3 @@
-import Swal from 'sweetalert2';
 import { instantiate_free_parameter } from 'alice';
 import { v4 } from 'uuid';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
@@ -26,6 +25,7 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            assumptions,
             error,
         } = params;
 
@@ -42,18 +42,16 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        let existsProp = (await Swal.fire({
+        const existsProp = await this.promptProp({
             title: 'Enter existential quantification you want to eliminate.',
-            input: 'text',
             inputPlaceholder: '∃x:t. A(x)',
-            showCloseButton: true,
-        })).value;
+            assumptions,
+            error,
+        });
 
         if (!existsProp) {
             return;
         }
-
-        existsProp = this.parseProp(existsProp);
 
         if (existsProp.kind !== 'Exists') {
             error('You did not enter an existential quantification.');
@@ -101,6 +99,7 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
             selectedProofTreeNodes,
             generateIdentifier,
             generateUniqueNumber,
+            assumptions,
             error,
         } = params;
 
@@ -124,23 +123,19 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        // ask for new conclusion
-        let newConclusion = (await Swal.fire({
+        const newConclusion = await this.promptProp({
             title: 'Enter new conclusion',
-            input: 'text',
             inputPlaceholder: 'C',
-            showCloseButton: true,
-        })).value;
+            assumptions,
+            error,
+        });
 
         if (!newConclusion) {
-            return this.createEmptyProofRuleHandlerResult();
+            return;
         }
 
-        newConclusion = this.parseProp(newConclusion);
-
-
         // TODO check that free parameter does not escape scope
-
+        // Let that handle the type checker
 
         const { object_ident, object_type_ident, body } = propConclusion.value;
 

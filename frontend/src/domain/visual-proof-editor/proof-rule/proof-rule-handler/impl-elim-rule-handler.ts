@@ -1,7 +1,6 @@
 import { v4 } from 'uuid';
 import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
-import Swal from 'sweetalert2';
 import { isEqual } from 'lodash';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
@@ -19,7 +18,7 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
-        const { selectedProofTreeNodes, error } = params;
+        const { selectedProofTreeNodes, assumptions, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
             error('Cannot apply rule on this node.');
@@ -34,18 +33,16 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        let implAntecedent = (await Swal.fire({
+        const implAntecedent = await this.promptProp({
             title: 'Enter antecedent of implication.',
-            input: 'text',
             inputPlaceholder: 'A',
-            showCloseButton: true,
-        })).value;
+            assumptions,
+            error,
+        });
 
         if (!implAntecedent) {
             return;
         }
-
-        implAntecedent = this.parseProp(implAntecedent);
 
         return {
             additionalAssumptions: [],

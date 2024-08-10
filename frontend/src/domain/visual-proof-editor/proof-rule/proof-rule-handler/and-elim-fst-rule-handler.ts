@@ -1,6 +1,5 @@
 import { v4 } from 'uuid';
 import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
-import Swal from 'sweetalert2';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { Prop } from 'alice';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
@@ -18,7 +17,7 @@ export class AndElimFstRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
-        const { selectedProofTreeNodes, error } = params;
+        const { selectedProofTreeNodes, error, assumptions } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
             error('Cannot apply this rule on multiple nodes.');
@@ -33,19 +32,16 @@ export class AndElimFstRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        const secondComponentResult = await Swal.fire({
-            title: 'Enter second component of conjunction.',
-            input: 'text',
+        const secondComponent = await this.promptProp({
+            title: 'Enter second component of conjunction',
             inputPlaceholder: 'B',
-            showCloseButton: true,
+            assumptions,
+            error,
         });
 
-        let secondComponent = secondComponentResult.value;
         if (!secondComponent) {
             return;
         }
-
-        secondComponent = this.parseProp(secondComponent);
 
         const conjunction: Prop = { kind: 'And', value: [conclusion.value, secondComponent] };
 
