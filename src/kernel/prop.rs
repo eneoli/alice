@@ -314,6 +314,7 @@ impl Prop {
                 Prop::Atom(_, params) => {
                     let param_limit = index - *current_index + 1;
                     if params.len() < param_limit {
+                        *current_index += params.len();
                         return;
                     }
 
@@ -322,6 +323,7 @@ impl Prop {
                     };
 
                     *param = PropParameter::Instantiated(substitutor.clone());
+                    *current_index = index;
                 }
             }
         }
