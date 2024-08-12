@@ -1,8 +1,8 @@
 import React from 'react';
-import { printProp } from '../../../util/print-prop';
 import { css } from '@emotion/css';
 import { Button } from 'antd';
 import { Assumption, AssumptionContext } from '../proof-rule';
+import { print_prop } from 'alice';
 
 interface VisualProofEditorAssumptionViewProps {
     assumptionContexts: AssumptionContext[];
@@ -43,7 +43,7 @@ export function VisualProofEditorAssumptionView(props: VisualProofEditorAssumpti
 
 function displayAssumption(assumption: Assumption) {
     switch (assumption.kind) {
-        case 'PropIsTrue': return assumption.ident.name + ': ' + printProp(assumption.prop);
+        case 'PropIsTrue': return assumption.ident.name + ': ' + print_prop(assumption.prop);
         case 'Datatype': return assumption.ident.name + ': ' + assumption.datatype;
     }
 }
