@@ -1,4 +1,4 @@
-import { Identifier, ProofTreeConclusion, ProofTreeRule, Prop } from 'alice';
+import { Identifier, ProofTree, ProofTreeConclusion, ProofTreeRule, Prop } from 'alice';
 import { v4 } from 'uuid';
 
 export interface VisualProofEditorProofTree {
@@ -6,6 +6,14 @@ export interface VisualProofEditorProofTree {
     premisses: VisualProofEditorProofTree[],
     rule: ProofTreeRule | null,
     conclusion: ProofTreeConclusion,
+}
+
+export function visualProofEditorProofTreeIntoAliceProofTree(proofTree: VisualProofEditorProofTree): ProofTree {
+    return {
+        premisses: proofTree.premisses.map(visualProofEditorProofTreeIntoAliceProofTree),
+        rule: proofTree.rule ?? { kind: 'Sorry' },
+        conclusion: proofTree.conclusion,
+    }
 }
 
 export function createEmptyVisualProofEditorProofTreeFromConclusion(conclusion: ProofTreeConclusion) {

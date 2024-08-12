@@ -75,6 +75,15 @@ impl From<Type> for Prop {
     }
 }
 
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Type::Prop(prop) => write!(f, "{}", prop),
+            Type::Datatype(datatype) => write!(f, "{}", datatype),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Eq, Tsify, Serialize, Deserialize, Debug)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(tag = "kind", content = "value")]
@@ -347,59 +356,135 @@ impl ProofTerm {
 
 impl Display for ProofTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ProofTerm::Unit => write!(f, "()"),
-            ProofTerm::Ident(Ident(ident)) => write!(f, "{}", ident),
-            ProofTerm::Pair(Pair(fst, snd)) => write!(f, "({}, {})", fst, snd),
-            ProofTerm::ProjectFst(ProjectFst(body)) => write!(f, "fst {}", body),
-            ProofTerm::ProjectSnd(ProjectSnd(body)) => write!(f, "snd {}", body),
-            ProofTerm::Abort(Abort(body)) => write!(f, "abort {}", body),
-            ProofTerm::OrLeft(OrLeft(body)) => write!(f, "inl {}", body),
-            ProofTerm::OrRight(OrRight(body)) => write!(f, "inr {}", body),
-            ProofTerm::Case(Case {
-                head,
-                fst_ident,
-                fst_term,
-                snd_ident,
-                snd_term,
-            }) => {
-                write!(
-                    f,
-                    "case {} of inl {} => {}, inr {} => {}",
-                    head, fst_ident, fst_term, snd_ident, snd_term
-                )
+        if let ProofTerm::Sorry = self {
+            return write!(f, "sorry");
+        }
+
+        if let ProofTerm::Unit = self {
+            return write!(f, "()");
+        }
+
+        if let ProofTerm::Ident(Ident(ident)) = self {
+            return write!(f, "{}", ident);
+        }
+
+        if let ProofTerm::Pair(Pair(fst, snd)) = self {
+            return write!(f, "({}, {})", fst, snd);
+        }
+
+        if let ProofTerm::Function(Function {
+            param_ident,
+            param_type,
+            body,
+        }) = self
+        {
+            if let Some(param_type) = param_type {
+                return write!(f, "fn {}: {} => {}", param_ident, param_type, body);
             }
-            ProofTerm::Function(Function {
-                param_ident,
-                param_type,
-                body,
-            }) => {
-                if let Some(param_type) = param_type {
-                    write!(f, "fn {}: {:?} => {}", param_ident, param_type, body)
-                } else {
-                    write!(f, "fn {} => {}", param_ident, body)
-                }
-            }
-            ProofTerm::Application(Application {
-                function,
-                applicant,
-            }) => write!(f, "({}) ({})", function, applicant),
-            ProofTerm::LetIn(LetIn {
-                fst_ident,
-                snd_ident,
-                head,
-                body,
-            }) => write!(
+
+            return write!(f, "fn {} => {}", param_ident, body);
+        }
+
+        if let ProofTerm::Case(Case {
+            head,
+            fst_ident,
+            fst_term,
+            snd_ident,
+            snd_term,
+        }) = self
+        {
+            return write!(
+                f,
+                "case {} of inl {} => {}, inr {} => {}",
+                head, fst_ident, fst_term, snd_ident, snd_term
+            );
+        }
+
+        if let ProofTerm::LetIn(LetIn {
+            fst_ident,
+            snd_ident,
+            head,
+            body,
+        }) = self
+        {
+            return write!(
                 f,
                 "let ({}, {}) = {} in {}",
                 fst_ident, snd_ident, head, body
-            ),
-            ProofTerm::TypeAscription(TypeAscription {
-                proof_term,
-                ascription,
-            }) => write!(f, "{}: {:?}", proof_term, ascription),
-            ProofTerm::Sorry => write!(f, "sorry"),
+            );
         }
+
+        if let ProofTerm::Application(Application {
+            function,
+            applicant,
+        }) = self
+        {
+            let own_precedence = self.precedence();
+            let function_precedence = function.precedence();
+            let applicant_precedence = applicant.precedence();
+
+            let should_wrap_left = (function_precedence < own_precedence)
+                || ((function_precedence == own_precedence) && function.right_associative());
+
+            let should_wrap_right = (applicant_precedence < own_precedence)
+                || ((applicant_precedence == own_precedence) && applicant.left_associative());
+
+            let left_side = if should_wrap_left {
+                format!("({})", function)
+            } else {
+                format!("{}", function)
+            };
+
+            let right_side = if should_wrap_right {
+                format!("({})", applicant)
+            } else {
+                format!("{}", applicant)
+            };
+
+            return write!(f, "{} {}", left_side, right_side);
+        }
+
+        if let ProofTerm::TypeAscription(TypeAscription {
+            proof_term,
+            ascription,
+        }) = self
+        {
+            let should_wrap = match **proof_term {
+                ProofTerm::Function(_) => true,
+                ProofTerm::Case(_) => true,
+                ProofTerm::LetIn(_) => true,
+                ProofTerm::TypeAscription(_) => true,
+                _ => false,
+            };
+
+            if should_wrap {
+                return write!(f, "({}): {}", proof_term, ascription);
+            }
+
+            return write!(f, "{}: {}", proof_term, ascription);
+        }
+
+        // named function call
+
+        let (function_name, body) = match self {
+            ProofTerm::ProjectFst(ProjectFst(body)) => ("fst", body),
+            ProofTerm::ProjectSnd(ProjectSnd(body)) => ("snd", body),
+            ProofTerm::Abort(Abort(body)) => ("abort", body),
+            ProofTerm::OrLeft(OrLeft(body)) => ("inl", body),
+            ProofTerm::OrRight(OrRight(body)) => ("inr", body),
+            _ => unreachable!(),
+        };
+
+        let parent_precedence = self.precedence();
+        let child_precedence = body.precedence();
+
+        let should_wrap = parent_precedence > child_precedence;
+
+        if should_wrap {
+            return write!(f, "{} ({})", function_name, body);
+        }
+
+        write!(f, "{} {}", function_name, body)
     }
 }
 

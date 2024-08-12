@@ -1,8 +1,9 @@
-use std::fmt::{self, Debug};
+use std::fmt::{self, Debug, Display};
 use std::vec;
 
 use super::checker::identifier_context::IdentifierContext;
 use super::{checker::identifier::Identifier, proof_term::Type};
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
@@ -99,6 +100,63 @@ pub enum Prop {
 impl Prop {
     pub fn boxed(&self) -> Box<Self> {
         Box::new(self.clone())
+    }
+
+    pub fn precedence(&self) -> usize {
+        match self {
+            Prop::Atom(_, _) => 999,
+            Prop::True => 999,
+            Prop::False => 999,
+            Prop::And(_, _) => 4,
+            Prop::Or(_, _) => 3,
+            Prop::Impl(_, snd) => {
+                if **snd == Prop::False {
+                    999
+                } else {
+                    2
+                }
+            }
+            Prop::ForAll { .. } => 1,
+            Prop::Exists { .. } => 1,
+        }
+    }
+
+    pub fn left_associative(&self) -> bool {
+        match self {
+            Prop::Atom(_, _) => false,
+            Prop::True => false,
+            Prop::False => false,
+            Prop::And(_, _) => true,
+            Prop::Or(_, _) => true,
+            Prop::Impl(_, _) => false,
+            Prop::ForAll { .. } => false,
+            Prop::Exists { .. } => false,
+        }
+    }
+
+    pub fn right_associative(&self) -> bool {
+        match self {
+            Prop::Atom(_, _) => false,
+            Prop::True => false,
+            Prop::False => false,
+            Prop::And(_, _) => false,
+            Prop::Or(_, _) => false,
+            Prop::Impl(_, _) => true,
+            Prop::ForAll { .. } => false,
+            Prop::Exists { .. } => false,
+        }
+    }
+
+    pub fn get_atoms(&self) -> Vec<(String, usize)> {
+        match self {
+            Prop::True => vec![],
+            Prop::False => vec![],
+            Prop::Atom(atom, params) => vec![(atom.clone(), params.len())],
+            Prop::ForAll { body, .. } | Prop::Exists { body, .. } => body.get_atoms(),
+            Prop::And(fst, snd) | Prop::Or(fst, snd) | Prop::Impl(fst, snd) => {
+                [fst.get_atoms(), snd.get_atoms()].concat()
+            }
+        }
     }
 
     pub fn has_quantifiers(&self) -> bool {
@@ -678,6 +736,86 @@ impl Prop {
 impl From<Prop> for Type {
     fn from(val: Prop) -> Self {
         Type::Prop(val)
+    }
+}
+
+impl Display for Prop {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Prop::Atom(name, params) = self {
+            if params.len() == 0 {
+                return write!(f, "{}", name);
+            }
+
+            let param_list = params.iter().map(PropParameter::name).join(", ");
+
+            return write!(f, "{}({})", name, param_list);
+        }
+
+        if let Prop::True = self {
+            return write!(f, "⊤");
+        }
+
+        if let Prop::False = self {
+            return write!(f, "⊥");
+        }
+
+        if let Prop::ForAll {
+            object_ident,
+            object_type_ident,
+            body,
+        } = self
+        {
+            return write!(f, "∀{}:{}. {}", object_ident, object_type_ident, body);
+        }
+
+        if let Prop::Exists {
+            object_ident,
+            object_type_ident,
+            body,
+        } = self
+        {
+            return write!(f, "∃{}:{}. {}", object_ident, object_type_ident, body);
+        }
+
+        // Binary connective
+
+        let wrap = |prop: &Prop, should_wrap: bool| {
+            if should_wrap {
+                return format!("({})", prop);
+            }
+
+            format!("{}", prop)
+        };
+
+        let (connective_symbol, fst, snd) = match self {
+            Prop::And(ref fst, ref snd) => ("∧", fst, snd),
+            Prop::Or(ref fst, ref snd) => ("∨", fst, snd),
+            Prop::Impl(ref fst, ref snd) => ("⊃", fst, snd),
+            _ => unreachable!(),
+        };
+
+        let prop_precedence = self.precedence();
+        let fst_precedence = fst.precedence();
+        let snd_precedence = snd.precedence();
+
+        // Special display for A -> False
+        if let (Prop::Impl(_, _), Prop::False) = (self, &(**snd)) {
+            let should_wrap = prop_precedence > fst_precedence;
+            return write!(f, "¬{}", wrap(self, should_wrap));
+        }
+
+        let should_wrap_fst = (prop_precedence > fst_precedence)
+            || (prop_precedence == fst_precedence && self.right_associative());
+        let should_wrap_snd = (prop_precedence > snd_precedence)
+            || (prop_precedence == snd_precedence && self.left_associative());
+
+        write!(
+            f,
+            "{} {} {}",
+            wrap(fst, should_wrap_fst),
+            connective_symbol,
+            wrap(snd, should_wrap_snd)
+        )
     }
 }
 

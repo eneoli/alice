@@ -3,10 +3,10 @@ import { Header } from './header';
 import { CodeEditor } from '../../code-editor/components/code-editor';
 import { VisualProofEditor } from '../../visual-proof-editor/components/visual-proof-editor';
 import { ConfigProvider, Drawer, message, theme as antdTheme, ThemeConfig } from 'antd';
-import { Prop, export_as_ocaml, parse_prop, verify } from 'alice';
+import { Prop, export_as_ocaml, generate_proof_term_from_proof_tree, parse_prop, verify } from 'alice';
 import { debounce, isEqual } from 'lodash';
 import { CodeModal } from './code-modal';
-import { VisualProofEditorProofTree } from '../../visual-proof-editor/lib/visual-proof-editor-proof-tree';
+import { VisualProofEditorProofTree, visualProofEditorProofTreeIntoAliceProofTree } from '../../visual-proof-editor/lib/visual-proof-editor-proof-tree';
 import { MathJax3Config, MathJaxContext } from 'better-react-mathjax';
 import mathjax from 'mathjax/es5/tex-svg';
 import bussproofs from 'mathjax/es5/input/tex/extensions/bussproofs'
@@ -48,11 +48,14 @@ export function App() {
         }
     }, 500);
 
-
     const handleProofTreeChange = (proofTree: VisualProofEditorProofTree) => {
-        const code = generateCode(proofTree);
-        console.log(code);
-        setProofTerm(code);
+        try {
+            const code = generate_proof_term_from_proof_tree(visualProofEditorProofTreeIntoAliceProofTree(proofTree));
+            console.log(code);
+            setProofTerm(code);
+        } catch(_) {
+            console.error('Generation failed');
+        }
     };
 
     const handleVerify = (prop: string) => {
@@ -135,33 +138,4 @@ const theme: ThemeConfig = {
         colorBgBase: '#233348',
         colorPrimaryBg: 'transparent',
     },
-};
-
-const generateCode: (proofTree: VisualProofEditorProofTree) => string = (proofTree: VisualProofEditorProofTree) => {
-
-    if (proofTree.rule === null) {
-        return 'sorry';
-    }
-
-    const rule = proofTree.rule;
-
-    switch (rule.kind) {
-        case 'TrueIntro': return '()';
-        case 'Ident': return rule.value;
-        case 'AndIntro': return `(${generateCode(proofTree.premisses[0])}, ${generateCode(proofTree.premisses[1])})`;
-        case 'AndElimFst': return `fst (${generateCode(proofTree.premisses[0])})`;
-        case 'AndElimSnd': return `snd (${generateCode(proofTree.premisses[0])})`;
-        case 'OrIntroFst': return `inl (${generateCode(proofTree.premisses[0])})`;
-        case 'OrIntroSnd': return `inr (${generateCode(proofTree.premisses[0])})`;
-        case 'OrElim': return `case ${generateCode(proofTree.premisses[0])} of inl ${rule.value[0]} => ${generateCode(proofTree.premisses[1])}, inr ${rule.value[1]} => ${generateCode(proofTree.premisses[2])}`;
-        case 'ImplIntro': return `fn ${rule.value} => ${generateCode(proofTree.premisses[0])}`;
-        case 'ImplElim': return `(${generateCode(proofTree.premisses[0])}) (${generateCode(proofTree.premisses[1])})`;
-        case 'FalsumElim': return `abort (${generateCode(proofTree.premisses[0])})`;
-        case 'ForAllIntro': return `fn ${rule.value} => ${generateCode(proofTree.premisses[0])}`;
-        case 'ForAllElim': return `(${generateCode(proofTree.premisses[0])}) (${generateCode(proofTree.premisses[1])})`;
-        case 'ExistsIntro': return `(${generateCode(proofTree.premisses[0])}, ${generateCode(proofTree.premisses[1])})`;
-        case 'ExistsElim': return `let (${rule.value[0]}, ${rule.value[1]}) = ${generateCode(proofTree.premisses[0])} in ${generateCode(proofTree.premisses[1])}`;
-        case 'Sorry': return 'sorry';
-        case 'AlphaEquivalent': return generateCode(proofTree.premisses[0]);
-    }
 };

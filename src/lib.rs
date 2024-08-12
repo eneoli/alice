@@ -1,5 +1,8 @@
+use std::fmt::Debug;
+
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{error::Simple, Parser, Stream};
+use itertools::Itertools;
 use kernel::{
     checker::{
         check::{check, CheckError},
@@ -56,6 +59,11 @@ pub fn format_errors<T: std::hash::Hash + Eq + std::fmt::Display>(
     });
 
     return String::from_utf8_lossy(&error_output).to_string();
+}
+
+#[wasm_bindgen]
+pub fn print_prop(prop: &Prop) -> String {
+    format!("{}", prop)
 }
 
 #[wasm_bindgen]
@@ -180,6 +188,36 @@ pub fn bind_identifier(
         bind_name,
         type_name,
     )
+}
+
+#[wasm_bindgen]
+pub fn generate_proof_term_from_proof_tree(proof_tree: &ProofTree) -> String {
+    let Proof {
+        atoms,
+        datatypes,
+        proof_term,
+        ..
+    } = proof_tree.as_proof();
+
+    let atom_decls = atoms
+        .iter()
+        .unique() // print Atom with multiple arities, let type checker throw error
+        .map(|(atom_name, arity)| {
+            if *arity == 0 {
+                format!("atom {};", atom_name)
+            } else {
+                format!("atom {}({});", atom_name, arity)
+            }
+        })
+        .join("\n");
+
+    let datatype_decls = datatypes
+        .iter()
+        .unique()
+        .map(|datatype| format!("datatype {};", datatype))
+        .join("\n");
+
+    format!("{}\n{}\n\n{}", atom_decls, datatype_decls, proof_term)
 }
 
 #[wasm_bindgen]

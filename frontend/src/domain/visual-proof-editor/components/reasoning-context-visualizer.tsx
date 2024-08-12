@@ -1,9 +1,9 @@
 import React, { Fragment, MouseEvent } from 'react';
 import { css, cx } from '@emotion/css';
 import { ProofNode } from '../../proof-tree/components/proof-node';
-import { printProp, printTypeJudgment } from '../../../util/print-prop';
+import { printTypeJudgment } from '../../../util/print-type-judgment';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
-import { ProofTreeConclusion } from 'alice';
+import { print_prop, ProofTreeConclusion } from 'alice';
 import { VisualProofEditorReasoningContext } from '../lib/visual-proof-editor-reasoning-context';
 import { VisualProofEditorProofTree } from '../lib/visual-proof-editor-proof-tree';
 
@@ -108,7 +108,7 @@ function Conclusion(props: ConclusionProps) {
             [cssDraggedOverProofTreeConclusionContainer]: isOver,
         })} ref={setNodeRef}>
             {conclusion.kind === 'PropIsTrue' && (
-                printProp(conclusion.value)
+                print_prop(conclusion.value)
             )}
 
             {conclusion.kind === 'TypeJudgement' && (
