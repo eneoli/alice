@@ -48,35 +48,18 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
 
         // Ask for assumption
 
-        const options = assumptions
-            .reduce((accu, current, i) => {
-                if (current.assumption.kind !== 'Datatype') {
-                    return accu;
-                }
-
-                accu.set(i, `${current.assumption.ident.name} : ${current.assumption.datatype}`);
-
-                return accu;
-            }, new Map<number, string>());
-
-        if (options.size == 0) {
-            error('There are no witnesses you can select.');
-            return;
-        }
-
-        let assumption = (await Swal.fire({
+        const identifier = await this.promptAssumptionIdent({
             title: 'Select the witness of the existential quantification.',
-            input: 'select',
-            inputOptions: Object.fromEntries(options.entries()),
-        })).value;
+            assumptions,
+            error,
+        });
 
-        if (!assumption) {
+        if (!identifier) {
             return;
         }
-        assumption = assumptions[assumption];
 
         const { body, object_ident, object_type_ident } = propConclusion.value;
-        const instantiated_body = instantiate_free_parameter(body, object_ident, assumption.assumption.ident);
+        const instantiated_body = instantiate_free_parameter(body, object_ident, identifier);
 
         return {
             additionalAssumptions: [],
@@ -87,7 +70,7 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
                     id: proofTree.id,
                     premisses: [
                         createEmptyVisualProofEditorProofTreeFromTypeJudgment(
-                            assumption.assumption.ident,
+                            identifier,
                             object_type_ident,
                         ),
                         createEmptyVisualProofEditorProofTreeFromProp(instantiated_body),

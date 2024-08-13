@@ -59,7 +59,19 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
             )
         });
 
-        if (prompt.isDismissed || prompt.isDenied || !identifier) {
+        if (prompt.isDismissed || prompt.isDenied) {
+            return;
+        }
+
+        if (!identifier) {
+            identifier = await this.promptAssumptionIdent({
+                title: 'Select the assumption you apply the universal quantification on.',
+                assumptions,
+                error,
+            });
+        }
+
+        if (!identifier) {
             return;
         }
 

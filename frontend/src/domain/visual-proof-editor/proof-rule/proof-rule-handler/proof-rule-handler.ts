@@ -8,6 +8,12 @@ import { VisualProofEditorParameterIdentifierSelector } from '../../components/v
 
 const ReactSwal = withReactContent(Swal);
 
+interface PromptAssumptionIdentOptions {
+    title: string;
+    assumptions: AssumptionContext[];
+    error: (msg: string) => void;
+}
+
 interface PromptPropOptions {
     title: string;
     inputPlaceholder?: string;
@@ -22,6 +28,39 @@ export abstract class ProofRuleHandler {
     protected abstract handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined>;
 
     protected abstract handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined>;
+
+    protected async promptAssumptionIdent(options: PromptAssumptionIdentOptions): Promise<Identifier | null> {
+        const {title, assumptions, error} = options;
+
+        const selectOptions = assumptions
+            .reduce((accu, current, i) => {
+                if (current.assumption.kind !== 'Datatype') {
+                    return accu;
+                }
+
+                accu.set(i, `${current.assumption.ident.name} : ${current.assumption.datatype}`);
+
+                return accu;
+            }, new Map<number, string>());
+
+        if (selectOptions.size == 0) {
+            error('There are no witnesses you can select.');
+            return null;
+        }
+
+        let assumption = (await Swal.fire({
+            title,
+            input: 'select',
+            inputOptions: Object.fromEntries(selectOptions.entries()),
+        })).value;
+
+        if (!assumption) {
+            return null;
+        }
+        assumption = assumptions[assumption];
+
+        return assumption.assumption.ident;
+    }
 
     protected async promptProp(options: PromptPropOptions): Promise<Prop | null> {
         const {
