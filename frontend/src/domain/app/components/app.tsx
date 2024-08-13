@@ -10,6 +10,7 @@ import { VisualProofEditorProofTree, visualProofEditorProofTreeIntoAliceProofTre
 import { MathJax3Config, MathJaxContext } from 'better-react-mathjax';
 import mathjax from 'mathjax/es5/tex-svg';
 import bussproofs from 'mathjax/es5/input/tex/extensions/bussproofs'
+import { Tutor } from '../../tutor/components/tutor';
 
 const mathjaxConfig: MathJax3Config = {
     loader: {
@@ -53,7 +54,7 @@ export function App() {
             const code = generate_proof_term_from_proof_tree(visualProofEditorProofTreeIntoAliceProofTree(proofTree));
             console.log(code);
             setProofTerm(code);
-        } catch(_) {
+        } catch (_) {
             console.error('Generation failed');
         }
     };
@@ -123,8 +124,13 @@ export function App() {
                         />
                     )
                 }
-                <Drawer title={'💡 Tutor'} open={showTutor} onClose={() => setShowTutor(false)}>
-                    Hallo!
+                <Drawer
+                    title={'💡 Tutor'}
+                    open={showTutor}
+                    onClose={() => setShowTutor(false)}
+                    style={{color: '#fefefe', background: 'linear-gradient(90deg, rgba(46,77,97,1) 0%, rgba(43,63,89,1) 100%)'}}
+                >
+                    <Tutor />
                 </Drawer>
             </MathJaxContext>
         </ConfigProvider>
