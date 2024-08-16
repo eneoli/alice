@@ -137,7 +137,7 @@ impl Prover {
 
         let body_proof_term = self.prove_right(sequent)?;
 
-        Some(Function::create(param_ident, None, body_proof_term.boxed()))
+        Some(Function::create(param_ident, None, body_proof_term.boxed(), None))
     }
 
     fn prove_left(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
@@ -264,8 +264,10 @@ impl Prover {
                                 .boxed(),
                             )
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
+                        span: None,
                     })
                     .boxed(),
                 });
@@ -291,6 +293,7 @@ impl Prover {
                             .boxed(),
                         })
                         .boxed(),
+                        span: None,
                     })
                     .boxed(),
                 });
@@ -312,6 +315,7 @@ impl Prover {
                             .boxed(),
                         })
                         .boxed(),
+                        span: None,
                     })
                     .boxed(),
                 });
@@ -410,10 +414,12 @@ impl Prover {
                                     param_ident: self.generate_identifier(),
                                     param_type: None,
                                     body: Ident::create(first_param_ident).boxed(),
+                                    span: None,
                                 })
                                 .boxed(),
                             })
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
                     }),

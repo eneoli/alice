@@ -151,6 +151,7 @@ pub struct Function {
     pub param_ident: String,
     pub param_type: Option<Type>,
     pub body: Box<ProofTerm>,
+    pub span: Option<Range<usize>>,
 }
 
 impl Function {
@@ -158,11 +159,13 @@ impl Function {
         param_ident: String,
         param_type: Option<Type>,
         body: Box<ProofTerm>,
+        span: Option<Range<usize>>,
     ) -> ProofTerm {
         ProofTerm::Function(Function {
             param_ident,
             param_type,
             body,
+            span,
         })
     }
 }
@@ -377,6 +380,7 @@ impl Display for ProofTerm {
             param_ident,
             param_type,
             body,
+            ..
         }) = self
         {
             if let Some(param_type) = param_type {

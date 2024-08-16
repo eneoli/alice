@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tsify_next::Tsify;
 
 use crate::kernel::{
     proof_term::{
@@ -16,7 +17,9 @@ use super::{
     identifier_context::IdentifierContext,
 };
 
-#[derive(Debug, Error, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Error, PartialEq, Eq, Serialize, Deserialize, Clone, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum SynthesizeError {
     #[error("Checking type failed")]
     CheckError(#[from] Box<CheckError>),
@@ -84,7 +87,7 @@ impl<'a> SynthesizeVisitor<'a> {
 
 impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for SynthesizeVisitor<'a> {
     fn visit_ident(&mut self, ident: &Ident) -> Result<(Type, ProofTree), SynthesizeError> {
-        let Ident(ident) = ident;
+        let Ident(ident, _) = ident;
 
         // lookup identifier
         let (identifier, ident_type) = match self.ctx.get_by_name(ident) {
@@ -205,6 +208,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             param_ident,
             param_type,
             body,
+            ..
         } = function;
 
         // require param annotation
@@ -295,7 +299,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
                 mut body,
             }) => {
                 let param_ident = match **applicant {
-                    ProofTerm::Ident(Ident(ref ident)) => ident,
+                    ProofTerm::Ident(Ident(ref ident, _)) => ident,
                     _ => unreachable!("Datatype functions do not exist"),
                 };
 

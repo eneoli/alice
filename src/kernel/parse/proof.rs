@@ -109,7 +109,8 @@ mod tests {
                 proof_term: ProofTerm::Function(Function {
                     param_type: None,
                     param_ident: "u".to_string(),
-                    body: ProofTerm::Ident(Ident("u".to_string(), Some(8..9))).boxed()
+                    body: ProofTerm::Ident(Ident("u".to_string(), Some(8..9))).boxed(),
+                    span: Some(0..9),
                 })
             }
         )
@@ -155,7 +156,8 @@ mod tests {
                 proof_term: ProofTerm::Function(Function {
                     param_ident: "u".to_string(),
                     param_type: None,
-                    body: ProofTerm::Ident(Ident("u".to_string(), Some(22..23))).boxed()
+                    body: ProofTerm::Ident(Ident("u".to_string(), Some(22..23))).boxed(),
+                    span: Some(14..23),
                 })
             }
         )
@@ -180,7 +182,8 @@ mod tests {
                 proof_term: ProofTerm::Function(Function {
                     param_ident: "u".to_string(),
                     param_type: None,
-                    body: ProofTerm::Ident(Ident("u".to_string(), Some(16..17))).boxed()
+                    body: ProofTerm::Ident(Ident("u".to_string(), Some(16..17))).boxed(),
+                    span: Some(8..17),
                 })
             }
         )
@@ -231,7 +234,8 @@ mod tests {
                 proof_term: ProofTerm::Function(Function {
                     param_ident: "u".to_string(),
                     param_type: None,
-                    body: ProofTerm::Ident(Ident("u".to_string(), Some(79..80))).boxed()
+                    body: ProofTerm::Ident(Ident("u".to_string(), Some(79..80))).boxed(),
+                    span: Some(71..80),
                 })
             }
         )

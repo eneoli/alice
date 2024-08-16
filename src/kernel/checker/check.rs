@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tsify_next::Tsify;
 
 use crate::{
     kernel::{
@@ -19,7 +20,9 @@ use super::{
     synthesize::{synthesize, SynthesizeError},
 };
 
-#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum CheckError {
     #[error("An error happened while synthesizing")]
     SynthesizeError(#[from] SynthesizeError),
@@ -162,7 +165,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             ) => {
                 // instantiate body with parameter name of function to account for \alpha-Equivalence
                 let substitution = match **fst_term {
-                    ProofTerm::Ident(Ident(ref ident)) => ident.clone(),
+                    ProofTerm::Ident(Ident(ref ident, _)) => ident.clone(),
                     _ => unreachable!(),
                 };
 
@@ -273,6 +276,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             param_ident,
             param_type,
             body,
+            span,
         } = function;
 
         let param_identifier = self.identifier_factory.create(param_ident.clone());
@@ -333,6 +337,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                         function.param_ident.clone(),
                         Some(instantiated_param_type),
                         function.body.clone(),
+                        span.clone(),
                     ),
                 });
             }

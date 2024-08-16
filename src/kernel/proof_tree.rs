@@ -220,7 +220,7 @@ impl ProofTreeExporter {
                     self.atoms.append(&mut fst.get_atoms());
                 }
 
-                Function::create(param_ident.clone(), annotation, body_proof_term.boxed())
+                Function::create(param_ident.clone(), annotation, body_proof_term.boxed(), None)
             }
             ProofTreeRule::ImplElim => {
                 let [ref fst, ref snd] = premisses[..] else {
@@ -319,7 +319,7 @@ impl ProofTreeExporter {
                     self.datatypes.push(datatype.clone());
                 }
 
-                Function::create(param_ident.clone(), param_type, body_proof_term.boxed())
+                Function::create(param_ident.clone(), param_type, body_proof_term.boxed(), None)
             }
             ProofTreeRule::ForAllElim => {
                 let expected_reasoning_mode = Self::expected_conclusion_mode(rule);

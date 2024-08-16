@@ -164,19 +164,23 @@ fn resolve_datatypes(
             param_ident,
             param_type: None,
             body,
+            span,
         }) => ProofTerm::Function(Function {
             param_ident,
             param_type: None,
             body: resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
         }),
         ProofTerm::Function(Function {
             param_ident,
             param_type: Some(param_type),
             body,
+            span,
         }) => ProofTerm::Function(Function {
             param_ident,
             param_type: Some(get_real_type(param_type)?),
             body: resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
         }),
 
         ProofTerm::LetIn(LetIn {
@@ -232,6 +236,7 @@ mod tests {
             param_ident: "u".to_string(),
             param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
             body: ProofTerm::Unit.boxed(),
+            span: None,
         });
 
         proof_term =
@@ -243,6 +248,7 @@ mod tests {
                 param_ident: "u".to_string(),
                 param_type: Some(Type::Datatype("nat".to_string())),
                 body: ProofTerm::Unit.boxed(),
+                span: None,
             })
         )
     }
@@ -260,18 +266,22 @@ mod tests {
                         param_ident: "w".to_string(),
                         param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
                         body: ProofTerm::Unit.boxed(),
+                        span: None,
                     })
                     .boxed(),
                     ProofTerm::Function(Function {
                         param_ident: "x".to_string(),
                         param_type: Some(Type::Prop(Prop::Atom("t".to_string(), vec![]))),
                         body: ProofTerm::Unit.boxed(),
+                        span: None,
                     })
                     .boxed(),
                 ))
                 .boxed(),
+                span: None,
             })
             .boxed(),
+            span: None,
         });
 
         proof_term = resolve_datatypes(
@@ -294,18 +304,22 @@ mod tests {
                             param_ident: "w".to_string(),
                             param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
                             body: ProofTerm::Unit.boxed(),
+                            span: None,
                         })
                         .boxed(),
                         ProofTerm::Function(Function {
                             param_ident: "x".to_string(),
                             param_type: Some(Type::Datatype("t".to_string())),
                             body: ProofTerm::Unit.boxed(),
+                            span: None,
                         })
                         .boxed(),
                     ))
                     .boxed(),
+                    span: None,
                 })
                 .boxed(),
+                span: None,
             })
         )
     }
@@ -320,6 +334,7 @@ mod tests {
                 Prop::Atom("nat".to_string(), vec![]).boxed(),
             ))),
             body: ProofTerm::Unit.boxed(),
+            span: None,
         });
 
         resolve_datatypes(
@@ -343,6 +358,7 @@ mod tests {
                 ],
             ))),
             body: ProofTerm::Unit.boxed(),
+            span: None,
         });
 
         resolve_datatypes(proof_term, &HashMap::new(), &vec!["nat".to_string()]).unwrap();
@@ -361,6 +377,7 @@ mod tests {
                 ],
             ))),
             body: ProofTerm::Unit.boxed(),
+            span: None,
         });
 
         resolve_datatypes(proof_term, &HashMap::from([("A".to_string(), 3)]), &vec![]).unwrap();
