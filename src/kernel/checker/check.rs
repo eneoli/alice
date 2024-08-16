@@ -650,6 +650,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let TypeAscription {
             ascription,
             proof_term,
+            ..
         } = type_ascription;
 
         let mut instantiated_ascription = ascription.clone();

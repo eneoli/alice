@@ -264,6 +264,7 @@ impl Abort {
 pub struct TypeAscription {
     pub proof_term: Box<ProofTerm>,
     pub ascription: Type,
+    pub span: Option<Range<usize>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
@@ -485,6 +486,7 @@ impl Display for ProofTerm {
         if let ProofTerm::TypeAscription(TypeAscription {
             proof_term,
             ascription,
+            ..
         }) = self
         {
             let should_wrap = match **proof_term {

@@ -195,11 +195,12 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
         choice((function, case(application.clone()), application, let_in))
             .then(type_ascription.or_not())
-            .map(|(proof_term, ascription)| {
+            .map_with_span(|(proof_term, ascription), span| {
                 if let Some(ascription) = ascription {
                     ProofTerm::TypeAscription(TypeAscription {
                         proof_term: proof_term.boxed(),
                         ascription: Type::Prop(ascription),
+                        span: Some(span),
                     })
                 } else {
                     proof_term

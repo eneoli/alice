@@ -489,6 +489,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         let TypeAscription {
             proof_term,
             ascription,
+            ..
         } = type_ascription;
 
         // check that  if ascription is Prop, it only has known identifiers as free occurences

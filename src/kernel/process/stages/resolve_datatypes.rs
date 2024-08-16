@@ -217,9 +217,11 @@ fn resolve_datatypes(
         ProofTerm::TypeAscription(TypeAscription {
             ascription,
             proof_term,
+            span,
         }) => ProofTerm::TypeAscription(TypeAscription {
             ascription: get_real_type(ascription)?,
             proof_term: resolve_datatypes(*proof_term, atoms, datatypes)?.boxed(),
+            span,
         }),
         ProofTerm::Sorry(span) => ProofTerm::Sorry(span),
     };

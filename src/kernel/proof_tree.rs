@@ -136,6 +136,7 @@ impl ProofTreeExporter {
             proof_term = ProofTerm::TypeAscription(TypeAscription {
                 ascription: Type::Prop(prop.clone()),
                 proof_term: proof_term.boxed(),
+                span: None,
             });
 
             self.atoms.append(&mut prop.get_atoms());

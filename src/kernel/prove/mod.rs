@@ -277,6 +277,7 @@ impl Prover {
                         span: None,
                     })
                     .boxed(),
+                    span: None,
                 });
                 let new_judgment = TypeJudgment::new(new_prop, new_proof_term);
                 sequent.append_ordered(new_judgment);
@@ -303,6 +304,7 @@ impl Prover {
                         span: None,
                     })
                     .boxed(),
+                    span: None,
                 });
                 let or_fst_judgment = TypeJudgment::new(or_fst_prop, or_fst_proof_term);
                 sequent.append_ordered(or_fst_judgment);
@@ -325,6 +327,7 @@ impl Prover {
                         span: None,
                     })
                     .boxed(),
+                    span: None,
                 });
                 let or_snd_judgment = TypeJudgment::new(or_snd_prop, or_snd_proof_term);
                 sequent.append_ordered(or_snd_judgment);
@@ -429,6 +432,7 @@ impl Prover {
                             span: None,
                         })
                         .boxed(),
+                        span: None,
                     }),
                 ));
 
