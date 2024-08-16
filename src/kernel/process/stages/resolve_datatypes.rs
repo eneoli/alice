@@ -190,11 +190,13 @@ fn resolve_datatypes(
             snd_ident,
             head,
             body,
+            span,
         }) => ProofTerm::LetIn(LetIn {
             fst_ident,
             snd_ident,
             head: resolve_datatypes(*head, atoms, datatypes)?.boxed(),
             body: resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
         }),
 
         ProofTerm::OrLeft(OrLeft(body)) => {
@@ -216,7 +218,7 @@ fn resolve_datatypes(
             ascription: get_real_type(ascription)?,
             proof_term: resolve_datatypes(*proof_term, atoms, datatypes)?.boxed(),
         }),
-        ProofTerm::Sorry(span) => ProofTerm::Sorry(span.clone()),
+        ProofTerm::Sorry(span) => ProofTerm::Sorry(span),
     };
 
     Ok(result)

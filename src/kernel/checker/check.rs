@@ -435,6 +435,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             snd_ident,
             head,
             body,
+            ..
         } = let_in;
 
         let (head_type, head_proof_tree) = synthesize(head, self.ctx, self.identifier_factory)?;

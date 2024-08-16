@@ -197,6 +197,7 @@ pub struct LetIn {
     pub snd_ident: String,
     pub head: Box<ProofTerm>,
     pub body: Box<ProofTerm>,
+    pub span: Option<Range<usize>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
@@ -435,6 +436,7 @@ impl Display for ProofTerm {
             snd_ident,
             head,
             body,
+            ..
         }) = self
         {
             return write!(

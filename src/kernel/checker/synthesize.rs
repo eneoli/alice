@@ -352,6 +352,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             snd_ident,
             head,
             body,
+            ..
         } = let_in;
 
         let (head_type, pair_proof_term_tree) =

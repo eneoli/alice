@@ -386,6 +386,7 @@ impl ProofTreeExporter {
                     fst_ident: fst_ident.clone(),
                     snd_ident: snd_ident.clone(),
                     body: snd_proof_term.boxed(),
+                    span: None,
                 })
             }
         }

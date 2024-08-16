@@ -81,12 +81,13 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .then(proof_term.clone())
             .then_ignore(just(Token::IN))
             .then(proof_term.clone())
-            .map(|(((fst_ident, snd_ident), pair_proof_term), body)| {
+            .map_with_span(|(((fst_ident, snd_ident), pair_proof_term), body), span| {
                 ProofTerm::LetIn(LetIn {
                     fst_ident,
                     snd_ident,
                     head: Box::new(pair_proof_term),
                     body: Box::new(body),
+                    span: Some(span),
                 })
             });
 
@@ -876,7 +877,8 @@ mod tests {
                     ProofTerm::Ident(Ident("b".to_string(), Some(19..20))).boxed(),
                     ProofTerm::Ident(Ident("a".to_string(), Some(22..23))).boxed()
                 ))
-                .boxed()
+                .boxed(),
+                span: Some(0..24),
             })
         )
     }
@@ -903,7 +905,8 @@ mod tests {
                     body: ProofTerm::Ident(Ident("a".to_string(), Some(26..27))).boxed(),
                     span: Some(18..27),
                 })
-                .boxed()
+                .boxed(),
+                span: Some(0..27),
             })
         )
     }
@@ -930,7 +933,8 @@ mod tests {
                     body: ProofTerm::Ident(Ident("a".to_string(), Some(29..30))).boxed(),
                     span: Some(18..30),
                 })
-                .boxed()
+                .boxed(),
+                span: Some(0..30),
             })
         )
     }
@@ -1006,6 +1010,7 @@ mod tests {
                 snd_ident: "b".to_string(),
                 head: ProofTerm::Sorry(Some(14..19)).boxed(),
                 body: ProofTerm::Ident(Ident("u".to_string(), Some(23..24))).boxed(),
+                span: Some(0..24),
             })
         )
     }
@@ -1021,6 +1026,7 @@ mod tests {
                 snd_ident: "b".to_string(),
                 head: ProofTerm::Ident(Ident("u".to_string(), Some(13..14))).boxed(),
                 body: ProofTerm::Sorry(Some(18..23)).boxed(),
+                span: Some(0..23),
             })
         );
     }
