@@ -28,7 +28,7 @@ impl OcamlExporter {
         match proof_term {
             ProofTerm::Unit => "()".to_string(),
             ProofTerm::Sorry => "sorry ()".to_string(),
-            ProofTerm::Ident(Ident(ident)) => ident.clone(),
+            ProofTerm::Ident(Ident(ident, _)) => ident.clone(),
             ProofTerm::Abort(Abort(body)) => {
                 if Self::should_wrap_unary(proof_term.precedence(), body.precedence()) {
                     format!("abort ({})", Self::generate_ocaml_term(body.as_ref()))

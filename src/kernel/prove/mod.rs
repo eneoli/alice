@@ -286,7 +286,7 @@ impl Prover {
                         body: ProofTerm::Application(Application {
                             function: proof_term.boxed(),
                             applicant: ProofTerm::OrLeft(OrLeft(
-                                ProofTerm::Ident(Ident(or_fst_ident)).boxed(),
+                                ProofTerm::Ident(Ident(or_fst_ident, None)).boxed(),
                             ))
                             .boxed(),
                         })
@@ -307,7 +307,7 @@ impl Prover {
                         body: ProofTerm::Application(Application {
                             function: proof_term.boxed(),
                             applicant: ProofTerm::OrRight(OrRight(
-                                ProofTerm::Ident(Ident(or_snd_ident)).boxed(),
+                                ProofTerm::Ident(Ident(or_snd_ident, None)).boxed(),
                             ))
                             .boxed(),
                         })

@@ -26,7 +26,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
     let proof_term = recursive(|proof_term| {
         let ident_term = ident_token
-            .map(|ident| ProofTerm::Ident(Ident(ident)))
+            .map_with_span(|ident, span| ProofTerm::Ident(Ident(ident, Some(span))))
             .boxed();
 
         let unit = just(Token::LROUND)
@@ -137,7 +137,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                 .try_map(|(lhs, rhs), span| {
                     //  check that if lhs is constructor/destructor, we got a rhs
                     let identifiers = ["inl", "inr", "abort", "fst", "snd"];
-                    if let ProofTerm::Ident(Ident(ref ident)) = lhs {
+                    if let ProofTerm::Ident(Ident(ref ident, _)) = lhs {
                         if identifiers.contains(&ident.as_str()) && rhs.is_empty() {
                             return Err(Simple::custom(span, "Missing applicant"));
                         }
@@ -250,7 +250,7 @@ mod tests {
             ProofTerm::Function(Function {
                 param_ident: "x".to_string(),
                 param_type: None,
-                body: ProofTerm::Ident(Ident("x".to_string())).boxed()
+                body: ProofTerm::Ident(Ident("x".to_string(), Some(8..9))).boxed()
             })
         )
     }
@@ -270,7 +270,7 @@ mod tests {
             ProofTerm::Function(Function {
                 param_ident: "x".to_string(),
                 param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
-                body: ProofTerm::Ident(Ident("x".to_string())).boxed()
+                body: ProofTerm::Ident(Ident("x".to_string(), Some(11..12))).boxed()
             })
         )
     }
@@ -292,11 +292,11 @@ mod tests {
                 param_type: None,
                 body: ProofTerm::Pair(Pair(
                     ProofTerm::ProjectSnd(ProjectSnd(
-                        ProofTerm::Ident(Ident("x".to_string())).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(13..14))).boxed()
                     ))
                     .boxed(),
                     ProofTerm::ProjectFst(ProjectFst(
-                        ProofTerm::Ident(Ident("x".to_string())).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed()
                     ))
                     .boxed(),
                 ))
@@ -325,11 +325,11 @@ mod tests {
                 ))),
                 body: ProofTerm::Pair(Pair(
                     ProofTerm::ProjectSnd(ProjectSnd(
-                        ProofTerm::Ident(Ident("x".to_string())).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed()
                     ))
                     .boxed(),
                     ProofTerm::ProjectFst(ProjectFst(
-                        ProofTerm::Ident(Ident("x".to_string())).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(27..28))).boxed()
                     ))
                     .boxed(),
                 ))
@@ -358,10 +358,13 @@ mod tests {
                         param_ident: "x".to_string(),
                         param_type: None,
                         body: ProofTerm::Application(Application {
-                            function: ProofTerm::Ident(Ident("f".to_string())).boxed(),
+                            function: ProofTerm::Ident(Ident("f".to_string(), Some(17..18)))
+                                .boxed(),
                             applicant: ProofTerm::Application(Application {
-                                function: ProofTerm::Ident(Ident("x".to_string())).boxed(),
-                                applicant: ProofTerm::Ident(Ident("x".to_string())).boxed()
+                                function: ProofTerm::Ident(Ident("x".to_string(), Some(20..21)))
+                                    .boxed(),
+                                applicant: ProofTerm::Ident(Ident("x".to_string(), Some(22..23)))
+                                    .boxed()
                             })
                             .boxed()
                         })
@@ -372,10 +375,13 @@ mod tests {
                         param_ident: "x".to_string(),
                         param_type: None,
                         body: ProofTerm::Application(Application {
-                            function: ProofTerm::Ident(Ident("f".to_string())).boxed(),
+                            function: ProofTerm::Ident(Ident("f".to_string(), Some(35..36)))
+                                .boxed(),
                             applicant: ProofTerm::Application(Application {
-                                function: ProofTerm::Ident(Ident("x".to_string())).boxed(),
-                                applicant: ProofTerm::Ident(Ident("x".to_string())).boxed()
+                                function: ProofTerm::Ident(Ident("x".to_string(), Some(38..39)))
+                                    .boxed(),
+                                applicant: ProofTerm::Ident(Ident("x".to_string(), Some(40..41)))
+                                    .boxed()
                             })
                             .boxed()
                         })
@@ -408,10 +414,13 @@ mod tests {
                         param_ident: "x".to_string(),
                         param_type: Some(Type::Prop(Prop::Atom("B".to_string(), vec![]))),
                         body: ProofTerm::Application(Application {
-                            function: ProofTerm::Ident(Ident("f".to_string())).boxed(),
+                            function: ProofTerm::Ident(Ident("f".to_string(), Some(27..28)))
+                                .boxed(),
                             applicant: ProofTerm::Application(Application {
-                                function: ProofTerm::Ident(Ident("x".to_string())).boxed(),
-                                applicant: ProofTerm::Ident(Ident("x".to_string())).boxed()
+                                function: ProofTerm::Ident(Ident("x".to_string(), Some(30..31)))
+                                    .boxed(),
+                                applicant: ProofTerm::Ident(Ident("x".to_string(), Some(32..33)))
+                                    .boxed()
                             })
                             .boxed()
                         })
@@ -422,10 +431,13 @@ mod tests {
                         param_ident: "x".to_string(),
                         param_type: Some(Type::Prop(Prop::Atom("B".to_string(), vec![]))),
                         body: ProofTerm::Application(Application {
-                            function: ProofTerm::Ident(Ident("f".to_string())).boxed(),
+                            function: ProofTerm::Ident(Ident("f".to_string(), Some(50..51)))
+                                .boxed(),
                             applicant: ProofTerm::Application(Application {
-                                function: ProofTerm::Ident(Ident("x".to_string())).boxed(),
-                                applicant: ProofTerm::Ident(Ident("x".to_string())).boxed()
+                                function: ProofTerm::Ident(Ident("x".to_string(), Some(53..54)))
+                                    .boxed(),
+                                applicant: ProofTerm::Ident(Ident("x".to_string(), Some(55..56)))
+                                    .boxed()
                             })
                             .boxed()
                         })
@@ -451,8 +463,8 @@ mod tests {
         assert_eq!(
             ast,
             ProofTerm::Pair(Pair(
-                ProofTerm::Ident(Ident("a".to_string())).boxed(),
-                ProofTerm::Ident(Ident("b".to_string())).boxed(),
+                ProofTerm::Ident(Ident("a".to_string(), Some(1..2))).boxed(),
+                ProofTerm::Ident(Ident("b".to_string(), Some(4..5))).boxed(),
             ))
         )
     }
@@ -467,7 +479,10 @@ mod tests {
             .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
 
-        assert_eq!(ast, ProofTerm::Ident(Ident("hiThere".to_string())))
+        assert_eq!(
+            ast,
+            ProofTerm::Ident(Ident("hiThere".to_string(), Some(0..7)))
+        )
     }
 
     #[test]
@@ -496,8 +511,8 @@ mod tests {
         assert_eq!(
             ast,
             ProofTerm::Application(Application {
-                function: ProofTerm::Ident(Ident("f".to_string())).boxed(),
-                applicant: ProofTerm::Ident(Ident("a".to_string())).boxed(),
+                function: ProofTerm::Ident(Ident("f".to_string(), Some(0..1))).boxed(),
+                applicant: ProofTerm::Ident(Ident("a".to_string(), Some(2..3))).boxed(),
             })
         )
     }
@@ -518,13 +533,13 @@ mod tests {
                 function: ProofTerm::Function(Function {
                     param_ident: "u".to_string(),
                     param_type: None,
-                    body: ProofTerm::Ident(Ident("u".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("u".to_string(), Some(9..10))).boxed(),
                 })
                 .boxed(),
                 applicant: ProofTerm::Function(Function {
                     param_ident: "x".to_string(),
                     param_type: None,
-                    body: ProofTerm::Ident(Ident("x".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed(),
                 })
                 .boxed()
             })
@@ -547,13 +562,13 @@ mod tests {
                 function: ProofTerm::Function(Function {
                     param_ident: "u".to_string(),
                     param_type: Some(Type::Prop(Prop::True)),
-                    body: ProofTerm::Ident(Ident("u".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("u".to_string(), Some(15..16))).boxed(),
                 })
                 .boxed(),
                 applicant: ProofTerm::Function(Function {
                     param_ident: "x".to_string(),
                     param_type: Some(Type::Prop(Prop::False)),
-                    body: ProofTerm::Ident(Ident("x".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("x".to_string(), Some(32..33))).boxed(),
                 })
                 .boxed()
             })
@@ -578,7 +593,7 @@ mod tests {
                 body: ProofTerm::Function(Function {
                     param_ident: "x".to_string(),
                     param_type: None,
-                    body: ProofTerm::Ident(Ident("x".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("x".to_string(), Some(16..17))).boxed(),
                 })
                 .boxed()
             })
@@ -603,7 +618,7 @@ mod tests {
                 body: ProofTerm::Function(Function {
                     param_ident: "x".to_string(),
                     param_type: Some(Type::Prop(Prop::False)),
-                    body: ProofTerm::Ident(Ident("x".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("x".to_string(), Some(28..29))).boxed(),
                 })
                 .boxed()
             })
@@ -624,8 +639,8 @@ mod tests {
             ast,
             ProofTerm::ProjectFst(ProjectFst(
                 ProofTerm::Pair(Pair(
-                    ProofTerm::Ident(Ident("a".to_string())).boxed(),
-                    ProofTerm::Ident(Ident("b".to_string())).boxed(),
+                    ProofTerm::Ident(Ident("a".to_string(), Some(5..6))).boxed(),
+                    ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
                 ))
                 .boxed()
             ))
@@ -644,7 +659,9 @@ mod tests {
 
         assert_eq!(
             ast,
-            ProofTerm::OrLeft(OrLeft(ProofTerm::Ident(Ident("a".to_string())).boxed()))
+            ProofTerm::OrLeft(OrLeft(
+                ProofTerm::Ident(Ident("a".to_string(), Some(4..5))).boxed()
+            ))
         )
     }
 
@@ -660,7 +677,9 @@ mod tests {
 
         assert_eq!(
             ast,
-            ProofTerm::OrRight(OrRight(ProofTerm::Ident(Ident("a".to_string())).boxed()))
+            ProofTerm::OrRight(OrRight(
+                ProofTerm::Ident(Ident("a".to_string(), Some(4..5))).boxed()
+            ))
         )
     }
 
@@ -680,15 +699,15 @@ mod tests {
                 param_ident: "u".to_string(),
                 param_type: None,
                 body: ProofTerm::Case(Case {
-                    head: ProofTerm::Ident(Ident("u".to_string())).boxed(),
+                    head: ProofTerm::Ident(Ident("u".to_string(), Some(13..14))).boxed(),
                     fst_ident: "a".to_string(),
                     fst_term: ProofTerm::OrRight(OrRight(
-                        ProofTerm::Ident(Ident("a".to_string())).boxed()
+                        ProofTerm::Ident(Ident("a".to_string(), Some(31..32))).boxed()
                     ))
                     .boxed(),
                     snd_ident: "b".to_string(),
                     snd_term: ProofTerm::OrLeft(OrLeft(
-                        ProofTerm::Ident(Ident("b".to_string())).boxed()
+                        ProofTerm::Ident(Ident("b".to_string(), Some(47..48))).boxed()
                     ))
                     .boxed()
                 })
@@ -755,8 +774,8 @@ mod tests {
             ast,
             ProofTerm::ProjectSnd(ProjectSnd(
                 ProofTerm::Pair(Pair(
-                    ProofTerm::Ident(Ident("a".to_string())).boxed(),
-                    ProofTerm::Ident(Ident("b".to_string())).boxed(),
+                    ProofTerm::Ident(Ident("a".to_string(), Some(5..6))).boxed(),
+                    ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
                 ))
                 .boxed()
             ))
@@ -775,7 +794,9 @@ mod tests {
 
         assert_eq!(
             ast,
-            ProofTerm::Abort(Abort(ProofTerm::Ident(Ident("a".to_string())).boxed()))
+            ProofTerm::Abort(Abort(
+                ProofTerm::Ident(Ident("a".to_string(), Some(6..7))).boxed()
+            ))
         )
     }
 
@@ -793,14 +814,14 @@ mod tests {
             ast,
             ProofTerm::Case(Case {
                 head: ProofTerm::Pair(Pair(
-                    ProofTerm::Ident(Ident("a".to_string())).boxed(),
-                    ProofTerm::Ident(Ident("b".to_string())).boxed(),
+                    ProofTerm::Ident(Ident("a".to_string(), Some(6..7))).boxed(),
+                    ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
                 ))
                 .boxed(),
                 fst_ident: "u".to_string(),
-                fst_term: ProofTerm::Ident(Ident("u".to_string())).boxed(),
+                fst_term: ProofTerm::Ident(Ident("u".to_string(), Some(23..24))).boxed(),
                 snd_ident: "u".to_string(),
-                snd_term: ProofTerm::Ident(Ident("u".to_string())).boxed(),
+                snd_term: ProofTerm::Ident(Ident("u".to_string(), Some(35..36))).boxed(),
             })
         )
     }
@@ -820,10 +841,10 @@ mod tests {
             ProofTerm::LetIn(LetIn {
                 fst_ident: "a".to_string(),
                 snd_ident: "b".to_string(),
-                head: ProofTerm::Ident(Ident("M".to_string())).boxed(),
+                head: ProofTerm::Ident(Ident("M".to_string(), Some(13..14))).boxed(),
                 body: ProofTerm::Pair(Pair(
-                    ProofTerm::Ident(Ident("b".to_string())).boxed(),
-                    ProofTerm::Ident(Ident("a".to_string())).boxed()
+                    ProofTerm::Ident(Ident("b".to_string(), Some(19..20))).boxed(),
+                    ProofTerm::Ident(Ident("a".to_string(), Some(22..23))).boxed()
                 ))
                 .boxed()
             })
@@ -845,11 +866,11 @@ mod tests {
             ProofTerm::LetIn(LetIn {
                 fst_ident: "a".to_string(),
                 snd_ident: "b".to_string(),
-                head: ProofTerm::Ident(Ident("M".to_string())).boxed(),
+                head: ProofTerm::Ident(Ident("M".to_string(), Some(13..14))).boxed(),
                 body: ProofTerm::Function(Function {
                     param_type: None,
                     param_ident: "x".to_string(),
-                    body: ProofTerm::Ident(Ident("a".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("a".to_string(), Some(26..27))).boxed(),
                 })
                 .boxed()
             })
@@ -871,11 +892,11 @@ mod tests {
             ProofTerm::LetIn(LetIn {
                 fst_ident: "a".to_string(),
                 snd_ident: "b".to_string(),
-                head: ProofTerm::Ident(Ident("M".to_string())).boxed(),
+                head: ProofTerm::Ident(Ident("M".to_string(), Some(13..14))).boxed(),
                 body: ProofTerm::Function(Function {
                     param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
                     param_ident: "x".to_string(),
-                    body: ProofTerm::Ident(Ident("a".to_string())).boxed(),
+                    body: ProofTerm::Ident(Ident("a".to_string(), Some(29..30))).boxed(),
                 })
                 .boxed()
             })
@@ -916,7 +937,7 @@ mod tests {
             ast,
             Application::create(
                 ProofTerm::Sorry.boxed(),
-                Ident::create("u".to_string()).boxed()
+                ProofTerm::Ident(Ident("u".to_string(), Some(6..7))).boxed()
             )
         );
     }
@@ -928,7 +949,7 @@ mod tests {
         assert_eq!(
             ast,
             Application::create(
-                Ident::create("u".to_string()).boxed(),
+                ProofTerm::Ident(Ident("u".to_string(), Some(0..1))).boxed(),
                 ProofTerm::Sorry.boxed()
             )
         );
@@ -944,21 +965,21 @@ mod tests {
                 fst_ident: "a".to_string(),
                 snd_ident: "b".to_string(),
                 head: ProofTerm::Sorry.boxed(),
-                body: Ident::create("u".to_string()).boxed(),
+                body: ProofTerm::Ident(Ident("u".to_string(), Some(23..24))).boxed(),
             })
         )
     }
 
     #[test]
     fn test_sorry_in_let_in_body() {
-        let ast = parse("let (a, b)  = u in sorry");
+        let ast = parse("let (a, b) = u in sorry");
 
         assert_eq!(
             ast,
             ProofTerm::LetIn(LetIn {
                 fst_ident: "a".to_string(),
                 snd_ident: "b".to_string(),
-                head: Ident::create("u".to_string()).boxed(),
+                head: ProofTerm::Ident(Ident("u".to_string(), Some(13..14))).boxed(),
                 body: ProofTerm::Sorry.boxed(),
             })
         );
@@ -973,13 +994,13 @@ mod tests {
             Case::create(
                 ProofTerm::Sorry.boxed(),
                 "a".to_string(),
-                Ident::create("a".to_string()).boxed(),
+                ProofTerm::Ident(Ident("a".to_string(), Some(23..24))).boxed(),
                 "b".to_string(),
-                Ident::create("b".to_string()).boxed(),
+                ProofTerm::Ident(Ident("b".to_string(), Some(35..36))).boxed(),
             )
         );
     }
-    
+
     #[test]
     fn test_sorry_in_case_body() {
         let ast = parse("case u of inl a => sorry, inr b => sorry");
@@ -987,11 +1008,12 @@ mod tests {
         assert_eq!(
             ast,
             Case::create(
-                Ident::create("u".to_string()).boxed(),
+                ProofTerm::Ident(Ident("u".to_string(), Some(5..6))).boxed(),
                 "a".to_string(),
                 ProofTerm::Sorry.boxed(),
                 "b".to_string(),
                 ProofTerm::Sorry.boxed(),
             )
         );
-    }}
+    }
+}

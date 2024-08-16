@@ -1,5 +1,6 @@
 use core::fmt;
 use std::fmt::Display;
+use std::ops::Range;
 
 use super::{
     checker::identifier_context::IdentifierContext,
@@ -106,11 +107,11 @@ pub enum ProofTermKind {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct Ident(pub String);
+pub struct Ident(pub String, pub Option<Range<usize>>);
 
 impl Ident {
     pub fn create(ident: String) -> ProofTerm {
-        ProofTerm::Ident(Self(ident))
+        ProofTerm::Ident(Self(ident, None))
     }
 
     pub fn as_str(&self) -> &str {
@@ -364,7 +365,7 @@ impl Display for ProofTerm {
             return write!(f, "()");
         }
 
-        if let ProofTerm::Ident(Ident(ident)) = self {
+        if let ProofTerm::Ident(Ident(ident, _)) = self {
             return write!(f, "{}", ident);
         }
 
