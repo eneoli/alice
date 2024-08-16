@@ -121,7 +121,7 @@ impl Prover {
         let snd_sequent = sequent.with_new_goal(snd);
         let snd_proof_term = self.prove_right(snd_sequent)?;
 
-        Some(Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed()))
+        Some(Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None))
     }
 
     fn handle_impl_right(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
@@ -266,6 +266,7 @@ impl Prover {
                                 Pair::create(
                                     Ident::create(fst_ident).boxed(),
                                     Ident::create(snd_ident).boxed(),
+                                    None,
                                 )
                                 .boxed(),
                             )

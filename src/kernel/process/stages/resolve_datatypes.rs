@@ -133,9 +133,10 @@ fn resolve_datatypes(
     let result = match proof_term {
         ProofTerm::Unit(span) => ProofTerm::Unit(span),
         ProofTerm::Ident(ident) => ProofTerm::Ident(ident),
-        ProofTerm::Pair(Pair(fst, snd)) => ProofTerm::Pair(Pair(
+        ProofTerm::Pair(Pair(fst, snd, span)) => ProofTerm::Pair(Pair(
             resolve_datatypes(*fst, atoms, datatypes)?.boxed(),
             resolve_datatypes(*snd, atoms, datatypes)?.boxed(),
+            span,
         )),
         ProofTerm::Abort(Abort(body)) => {
             ProofTerm::Abort(Abort(resolve_datatypes(*body, atoms, datatypes)?.boxed()))
@@ -282,6 +283,7 @@ mod tests {
                         span: None,
                     })
                     .boxed(),
+                    None,
                 ))
                 .boxed(),
                 span: None,
@@ -320,6 +322,7 @@ mod tests {
                             span: None,
                         })
                         .boxed(),
+                        None,
                     ))
                     .boxed(),
                     span: None,

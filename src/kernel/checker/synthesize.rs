@@ -116,7 +116,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     }
 
     fn visit_pair(&mut self, pair: &Pair) -> Result<(Type, ProofTree), SynthesizeError> {
-        let Pair(fst, snd) = pair;
+        let Pair(fst, snd, _) = pair;
 
         let (fst_type, fst_proof_tree) = synthesize(fst, self.ctx, self.identifier_factory)?;
         let (snd_type, snd_proof_tree) = synthesize(snd, self.ctx, self.identifier_factory)?;

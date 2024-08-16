@@ -40,7 +40,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .then(proof_term.clone())
             .then_ignore(just(Token::COMMA).or_not())
             .then_ignore(just(Token::RROUND))
-            .map(|(fst, snd)| ProofTerm::Pair(Pair(Box::new(fst), Box::new(snd))))
+            .map_with_span(|(fst, snd), span| ProofTerm::Pair(Pair(Box::new(fst), Box::new(snd), Some(span))))
             .boxed();
 
         let sorry = just(Token::SORRY).map_with_span(|_, span| ProofTerm::Sorry(Some(span)));
@@ -309,6 +309,7 @@ mod tests {
                         ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed()
                     ))
                     .boxed(),
+                    Some(8..22),
                 ))
                 .boxed(),
                 span: Some(0..22),
@@ -343,6 +344,7 @@ mod tests {
                         ProofTerm::Ident(Ident("x".to_string(), Some(27..28))).boxed()
                     ))
                     .boxed(),
+                    Some(15..29),
                 ))
                 .boxed(),
                 span: Some(0..29),
@@ -488,6 +490,7 @@ mod tests {
             ProofTerm::Pair(Pair(
                 ProofTerm::Ident(Ident("a".to_string(), Some(1..2))).boxed(),
                 ProofTerm::Ident(Ident("b".to_string(), Some(4..5))).boxed(),
+                Some(0..6),
             ))
         )
     }
@@ -672,6 +675,7 @@ mod tests {
                 ProofTerm::Pair(Pair(
                     ProofTerm::Ident(Ident("a".to_string(), Some(5..6))).boxed(),
                     ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
+                    Some(4..10),
                 ))
                 .boxed()
             ))
@@ -809,6 +813,7 @@ mod tests {
                 ProofTerm::Pair(Pair(
                     ProofTerm::Ident(Ident("a".to_string(), Some(5..6))).boxed(),
                     ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
+                    Some(4..10),
                 ))
                 .boxed()
             ))
@@ -849,6 +854,7 @@ mod tests {
                 head: ProofTerm::Pair(Pair(
                     ProofTerm::Ident(Ident("a".to_string(), Some(6..7))).boxed(),
                     ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
+                    Some(5..10),
                 ))
                 .boxed(),
                 fst_ident: "u".to_string(),
@@ -878,7 +884,8 @@ mod tests {
                 head: ProofTerm::Ident(Ident("M".to_string(), Some(13..14))).boxed(),
                 body: ProofTerm::Pair(Pair(
                     ProofTerm::Ident(Ident("b".to_string(), Some(19..20))).boxed(),
-                    ProofTerm::Ident(Ident("a".to_string(), Some(22..23))).boxed()
+                    ProofTerm::Ident(Ident("a".to_string(), Some(22..23))).boxed(),
+                    Some(18..24),
                 ))
                 .boxed(),
                 span: Some(0..24),
@@ -972,7 +979,8 @@ mod tests {
             ast,
             Pair::create(
                 ProofTerm::Sorry(Some(1..6)).boxed(),
-                ProofTerm::Sorry(Some(8..13)).boxed()
+                ProofTerm::Sorry(Some(8..13)).boxed(),
+                Some(0..14),
             )
         );
     }

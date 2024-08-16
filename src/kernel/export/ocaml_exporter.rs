@@ -36,7 +36,7 @@ impl OcamlExporter {
                     format!("abort {}", Self::generate_ocaml_term(body.as_ref()))
                 }
             }
-            ProofTerm::Pair(Pair(fst, snd)) => format!(
+            ProofTerm::Pair(Pair(fst, snd, _)) => format!(
                 "({}, {})",
                 Self::generate_ocaml_term(fst),
                 Self::generate_ocaml_term(snd)
@@ -149,7 +149,7 @@ impl ProofExporter for OcamlExporter {
                 snd_term,
                 ..
             }) => self.can_export(head) && self.can_export(&fst_term) && self.can_export(&snd_term),
-            ProofTerm::Pair(Pair(fst, snd)) => self.can_export(fst) && self.can_export(snd),
+            ProofTerm::Pair(Pair(fst, snd, _)) => self.can_export(fst) && self.can_export(snd),
             ProofTerm::ProjectFst(ProjectFst(body)) => self.can_export(body),
             ProofTerm::ProjectSnd(ProjectSnd(body)) => self.can_export(body),
             ProofTerm::Application(Application {

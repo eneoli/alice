@@ -146,7 +146,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
     }
 
     fn visit_pair(&mut self, pair: &Pair) -> Result<ProofTree, CheckError> {
-        let Pair(fst_term, snd_term) = pair;
+        let Pair(fst_term, snd_term, _) = pair;
 
         let (expected_fst_type, expected_snd_type, rule, conclusion) = match self.expected_type {
             // And

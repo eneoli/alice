@@ -173,7 +173,7 @@ impl ProofTreeExporter {
                 let fst_proof_term = self.do_export_as_proof_term(fst, &fst_reasoning_mode);
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
-                Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed())
+                Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None)
             }
             ProofTreeRule::AndElimFst | ProofTreeRule::AndElimSnd => {
                 let expected_reasoning_mode = Self::expected_conclusion_mode(rule);
@@ -362,7 +362,7 @@ impl ProofTreeExporter {
                 let fst_proof_term = self.do_export_as_proof_term(fst, &fst_reasoning_mode);
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
-                let proof_term = Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed());
+                let proof_term = Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None);
 
                 self.wrap_into_type_ascription(
                     proof_term,

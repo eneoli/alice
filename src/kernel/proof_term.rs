@@ -120,11 +120,11 @@ impl Ident {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct Pair(pub Box<ProofTerm>, pub Box<ProofTerm>);
+pub struct Pair(pub Box<ProofTerm>, pub Box<ProofTerm>, pub Option<Range<usize>>);
 
 impl Pair {
-    pub fn create(fst: Box<ProofTerm>, snd: Box<ProofTerm>) -> ProofTerm {
-        ProofTerm::Pair(Self(fst, snd))
+    pub fn create(fst: Box<ProofTerm>, snd: Box<ProofTerm>, span: Option<Range<usize>>) -> ProofTerm {
+        ProofTerm::Pair(Self(fst, snd, span))
     }
 }
 
@@ -402,7 +402,7 @@ impl Display for ProofTerm {
             return write!(f, "{}", ident);
         }
 
-        if let ProofTerm::Pair(Pair(fst, snd)) = self {
+        if let ProofTerm::Pair(Pair(fst, snd, _)) = self {
             return write!(f, "({}, {})", fst, snd);
         }
 
