@@ -132,7 +132,7 @@ mod tests {
                 processing_state: ProofProcessingState::Parsed,
                 atoms: vec![],
                 datatypes: vec![],
-                proof_term: ProofTerm::Unit
+                proof_term: ProofTerm::Unit(Some(0..2)),
             }
         )
     }
@@ -205,7 +205,7 @@ mod tests {
                 processing_state: ProofProcessingState::Parsed,
                 atoms: vec![],
                 datatypes: vec!["nat".to_string()],
-                proof_term: ProofTerm::Unit
+                proof_term: ProofTerm::Unit(Some(14..16)),
             }
         )
     }
@@ -257,7 +257,7 @@ mod tests {
                 processing_state: ProofProcessingState::Parsed,
                 atoms: vec![("A".to_string(), 0), ("B".to_string(), 42)],
                 datatypes: vec!["nat".to_string(), "t".to_string(), "list".to_string()],
-                proof_term: ProofTerm::Unit
+                proof_term: ProofTerm::Unit(Some(61..63)),
             }
         )
     }

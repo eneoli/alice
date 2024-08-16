@@ -26,8 +26,8 @@ impl OcamlExporter {
 
     fn generate_ocaml_term(proof_term: &ProofTerm) -> String {
         match proof_term {
-            ProofTerm::Unit => "()".to_string(),
-            ProofTerm::Sorry => "sorry ()".to_string(),
+            ProofTerm::Unit(_) => "()".to_string(),
+            ProofTerm::Sorry(_) => "sorry ()".to_string(),
             ProofTerm::Ident(Ident(ident, _)) => ident.clone(),
             ProofTerm::Abort(Abort(body)) => {
                 if Self::should_wrap_unary(proof_term.precedence(), body.precedence()) {
@@ -93,6 +93,7 @@ impl OcamlExporter {
             ProofTerm::Application(Application {
                 function,
                 applicant,
+                ..
             }) => {
                 let own_precedence = proof_term.precedence();
                 let function_precedence = function.precedence();
@@ -134,9 +135,9 @@ impl ProofExporter for OcamlExporter {
 
     fn can_export(&self, proof_term: &ProofTerm) -> bool {
         match proof_term {
-            ProofTerm::Unit => true,
+            ProofTerm::Unit(_) => true,
             ProofTerm::Ident(_) => true,
-            ProofTerm::Sorry => true,
+            ProofTerm::Sorry(_) => true,
             ProofTerm::TypeAscription(_) => true,
             ProofTerm::Abort(Abort(body)) => self.can_export(body),
             ProofTerm::OrLeft(OrLeft(body)) => self.can_export(body),
@@ -153,6 +154,7 @@ impl ProofExporter for OcamlExporter {
             ProofTerm::Application(Application {
                 function,
                 applicant,
+                ..
             }) => self.can_export(&function) && self.can_export(&applicant),
             ProofTerm::Function(Function {
                 param_type, body, ..

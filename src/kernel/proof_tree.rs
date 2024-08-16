@@ -156,8 +156,8 @@ impl ProofTreeExporter {
         } = proof_tree;
 
         match rule {
-            ProofTreeRule::TrueIntro => ProofTerm::Unit,
-            ProofTreeRule::Sorry => ProofTerm::Sorry,
+            ProofTreeRule::TrueIntro => ProofTerm::Unit(None),
+            ProofTreeRule::Sorry => ProofTerm::Sorry(None),
             ProofTreeRule::Ident(ident) => Ident::create(ident.clone()),
             ProofTreeRule::AlphaEquivalent => {
                 self.do_export_as_proof_term(&premisses[0], reasoning_mode)

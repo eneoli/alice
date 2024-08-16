@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tsify_next::Tsify;
@@ -364,6 +366,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let Application {
             function,
             applicant,
+            ..
         } = application;
 
         let (expected_return_prop, conclusion) = match self.expected_type {
@@ -623,7 +626,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         })
     }
 
-    fn visit_unit(&mut self) -> Result<ProofTree, CheckError> {
+    fn visit_unit(&mut self, span: Option<Range<usize>>) -> Result<ProofTree, CheckError> {
         if self.expected_type == Type::Prop(Prop::True) {
             Ok(ProofTree {
                 premisses: vec![],
@@ -633,7 +636,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         } else {
             Err(CheckError::IncompatibleProofTerm {
                 expected_type: self.expected_type.clone(),
-                proof_term: ProofTerm::Unit,
+                proof_term: ProofTerm::Unit(span),
             })
         }
     }

@@ -131,7 +131,7 @@ fn resolve_datatypes(
     };
 
     let result = match proof_term {
-        ProofTerm::Unit => ProofTerm::Unit,
+        ProofTerm::Unit(span) => ProofTerm::Unit(span),
         ProofTerm::Ident(ident) => ProofTerm::Ident(ident),
         ProofTerm::Pair(Pair(fst, snd)) => ProofTerm::Pair(Pair(
             resolve_datatypes(*fst, atoms, datatypes)?.boxed(),
@@ -143,9 +143,11 @@ fn resolve_datatypes(
         ProofTerm::Application(Application {
             function,
             applicant,
+            // span,
         }) => ProofTerm::Application(Application {
             function: resolve_datatypes(*function, atoms, datatypes)?.boxed(),
             applicant: resolve_datatypes(*applicant, atoms, datatypes)?.boxed(),
+            // span: span.clone(),
         }),
         ProofTerm::Case(Case {
             head,
@@ -214,7 +216,7 @@ fn resolve_datatypes(
             ascription: get_real_type(ascription)?,
             proof_term: resolve_datatypes(*proof_term, atoms, datatypes)?.boxed(),
         }),
-        ProofTerm::Sorry => ProofTerm::Sorry,
+        ProofTerm::Sorry(span) => ProofTerm::Sorry(span.clone()),
     };
 
     Ok(result)
@@ -235,7 +237,7 @@ mod tests {
         let mut proof_term = ProofTerm::Function(Function {
             param_ident: "u".to_string(),
             param_type: Some(Type::Prop(Prop::Atom("nat".to_string(), vec![]))),
-            body: ProofTerm::Unit.boxed(),
+            body: ProofTerm::Unit(None).boxed(),
             span: None,
         });
 
@@ -247,7 +249,7 @@ mod tests {
             ProofTerm::Function(Function {
                 param_ident: "u".to_string(),
                 param_type: Some(Type::Datatype("nat".to_string())),
-                body: ProofTerm::Unit.boxed(),
+                body: ProofTerm::Unit(None).boxed(),
                 span: None,
             })
         )
@@ -265,14 +267,14 @@ mod tests {
                     ProofTerm::Function(Function {
                         param_ident: "w".to_string(),
                         param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
-                        body: ProofTerm::Unit.boxed(),
+                        body: ProofTerm::Unit(None).boxed(),
                         span: None,
                     })
                     .boxed(),
                     ProofTerm::Function(Function {
                         param_ident: "x".to_string(),
                         param_type: Some(Type::Prop(Prop::Atom("t".to_string(), vec![]))),
-                        body: ProofTerm::Unit.boxed(),
+                        body: ProofTerm::Unit(None).boxed(),
                         span: None,
                     })
                     .boxed(),
@@ -303,14 +305,14 @@ mod tests {
                         ProofTerm::Function(Function {
                             param_ident: "w".to_string(),
                             param_type: Some(Type::Prop(Prop::Atom("A".to_string(), vec![]))),
-                            body: ProofTerm::Unit.boxed(),
+                            body: ProofTerm::Unit(None).boxed(),
                             span: None,
                         })
                         .boxed(),
                         ProofTerm::Function(Function {
                             param_ident: "x".to_string(),
                             param_type: Some(Type::Datatype("t".to_string())),
-                            body: ProofTerm::Unit.boxed(),
+                            body: ProofTerm::Unit(None).boxed(),
                             span: None,
                         })
                         .boxed(),
@@ -333,7 +335,7 @@ mod tests {
                 Prop::Atom("A".to_string(), vec![]).boxed(),
                 Prop::Atom("nat".to_string(), vec![]).boxed(),
             ))),
-            body: ProofTerm::Unit.boxed(),
+            body: ProofTerm::Unit(None).boxed(),
             span: None,
         });
 
@@ -357,7 +359,7 @@ mod tests {
                     PropParameter::Uninstantiated("y".to_string()),
                 ],
             ))),
-            body: ProofTerm::Unit.boxed(),
+            body: ProofTerm::Unit(None).boxed(),
             span: None,
         });
 
@@ -376,7 +378,7 @@ mod tests {
                     PropParameter::Uninstantiated("y".to_string()),
                 ],
             ))),
-            body: ProofTerm::Unit.boxed(),
+            body: ProofTerm::Unit(None).boxed(),
             span: None,
         });
 

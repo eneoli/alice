@@ -31,7 +31,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
         let unit = just(Token::LROUND)
             .then(just(Token::RROUND))
-            .map(|_| ProofTerm::Unit)
+            .map_with_span(|_, span| ProofTerm::Unit(Some(span)))
             .boxed();
 
         let pair = just(Token::LROUND)
@@ -43,7 +43,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .map(|(fst, snd)| ProofTerm::Pair(Pair(Box::new(fst), Box::new(snd))))
             .boxed();
 
-        let sorry = just(Token::SORRY).map(|_| ProofTerm::Sorry);
+        let sorry = just(Token::SORRY).map_with_span(|_, span| ProofTerm::Sorry(Some(span)));
 
         let atom = choice((
             proof_term
@@ -162,6 +162,9 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     Ok((lhs, rhs))
                 })
                 .foldl(|lhs, rhs| {
+                    // let lhs_span_start = lhs.span().as_ref().unwrap().start();
+                    // let rhs_span_end = rhs.span().as_ref().unwrap().end();
+
                     if let ProofTerm::Ident(ident) = lhs.clone() {
                         match ident.as_str() {
                             "inl" => ProofTerm::OrLeft(OrLeft(Box::new(rhs))),
@@ -172,12 +175,14 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                             _ => ProofTerm::Application(Application {
                                 function: Box::new(lhs),
                                 applicant: Box::new(rhs),
+                                // span: Some(lhs_span_start..rhs_span_end),
                             }),
                         }
                     } else {
                         ProofTerm::Application(Application {
                             function: Box::new(lhs),
                             applicant: Box::new(rhs),
+                            // span: Some(lhs_span_start..rhs_span_end),
                         })
                     }
                 })
@@ -369,9 +374,11 @@ mod tests {
                                 function: ProofTerm::Ident(Ident("x".to_string(), Some(20..21)))
                                     .boxed(),
                                 applicant: ProofTerm::Ident(Ident("x".to_string(), Some(22..23)))
-                                    .boxed()
+                                    .boxed(),
+                                // span: Some(0..1),
                             })
-                            .boxed()
+                            .boxed(),
+                            // span: Some(0..1),
                         })
                         .boxed(),
                         span: Some(9..24),
@@ -387,14 +394,17 @@ mod tests {
                                 function: ProofTerm::Ident(Ident("x".to_string(), Some(38..39)))
                                     .boxed(),
                                 applicant: ProofTerm::Ident(Ident("x".to_string(), Some(40..41)))
-                                    .boxed()
+                                    .boxed(),
+                                // span: Some(0..1),
                             })
-                            .boxed()
+                            .boxed(),
+                            // span: Some(0..1),
                         })
                         .boxed(),
                         span: Some(27..42),
                     })
-                    .boxed()
+                    .boxed(),
+                    // span: Some(8..43),
                 })
                 .boxed(),
                 span: Some(0..43),
@@ -506,7 +516,7 @@ mod tests {
             .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
             .unwrap();
 
-        assert_eq!(ast, ProofTerm::Unit)
+        assert_eq!(ast, ProofTerm::Unit(Some(0..2)))
     }
 
     #[test]
@@ -929,7 +939,7 @@ mod tests {
     fn test_root_sorry() {
         let ast = parse("sorry");
 
-        assert_eq!(ast, ProofTerm::Sorry);
+        assert_eq!(ast, ProofTerm::Sorry(Some(0..5)));
     }
 
     #[test]
@@ -938,7 +948,12 @@ mod tests {
 
         assert_eq!(
             ast,
-            Function::create("u".to_string(), None, ProofTerm::Sorry.boxed(), Some(0..13))
+            Function::create(
+                "u".to_string(),
+                None,
+                ProofTerm::Sorry(Some(8..13)).boxed(),
+                Some(0..13)
+            )
         );
     }
 
@@ -948,7 +963,10 @@ mod tests {
 
         assert_eq!(
             ast,
-            Pair::create(ProofTerm::Sorry.boxed(), ProofTerm::Sorry.boxed())
+            Pair::create(
+                ProofTerm::Sorry(Some(1..6)).boxed(),
+                ProofTerm::Sorry(Some(8..13)).boxed()
+            )
         );
     }
 
@@ -958,7 +976,7 @@ mod tests {
         assert_eq!(
             ast,
             Application::create(
-                ProofTerm::Sorry.boxed(),
+                ProofTerm::Sorry(Some(0..5)).boxed(),
                 ProofTerm::Ident(Ident("u".to_string(), Some(6..7))).boxed()
             )
         );
@@ -972,7 +990,7 @@ mod tests {
             ast,
             Application::create(
                 ProofTerm::Ident(Ident("u".to_string(), Some(0..1))).boxed(),
-                ProofTerm::Sorry.boxed()
+                ProofTerm::Sorry(Some(2..7)).boxed()
             )
         );
     }
@@ -986,7 +1004,7 @@ mod tests {
             ProofTerm::LetIn(LetIn {
                 fst_ident: "a".to_string(),
                 snd_ident: "b".to_string(),
-                head: ProofTerm::Sorry.boxed(),
+                head: ProofTerm::Sorry(Some(14..19)).boxed(),
                 body: ProofTerm::Ident(Ident("u".to_string(), Some(23..24))).boxed(),
             })
         )
@@ -1002,7 +1020,7 @@ mod tests {
                 fst_ident: "a".to_string(),
                 snd_ident: "b".to_string(),
                 head: ProofTerm::Ident(Ident("u".to_string(), Some(13..14))).boxed(),
-                body: ProofTerm::Sorry.boxed(),
+                body: ProofTerm::Sorry(Some(18..23)).boxed(),
             })
         );
     }
@@ -1014,7 +1032,7 @@ mod tests {
         assert_eq!(
             ast,
             Case::create(
-                ProofTerm::Sorry.boxed(),
+                ProofTerm::Sorry(Some(5..10)).boxed(),
                 "a".to_string(),
                 ProofTerm::Ident(Ident("a".to_string(), Some(23..24))).boxed(),
                 "b".to_string(),
@@ -1032,9 +1050,9 @@ mod tests {
             Case::create(
                 ProofTerm::Ident(Ident("u".to_string(), Some(5..6))).boxed(),
                 "a".to_string(),
-                ProofTerm::Sorry.boxed(),
+                ProofTerm::Sorry(Some(19..24)).boxed(),
                 "b".to_string(),
-                ProofTerm::Sorry.boxed(),
+                ProofTerm::Sorry(Some(35..40)).boxed(),
             )
         );
     }

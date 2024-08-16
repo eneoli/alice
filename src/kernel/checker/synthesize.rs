@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tsify_next::Tsify;
@@ -278,6 +280,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         let Application {
             function,
             applicant,
+            ..
         } = application;
 
         // synthesize function
@@ -466,7 +469,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         Err(SynthesizeError::NotSynthesizing(ProofTermKind::Abort))
     }
 
-    fn visit_unit(&mut self) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_unit(&mut self, _span: Option<Range<usize>>) -> Result<(Type, ProofTree), SynthesizeError> {
         Ok((
             Type::Prop(Prop::True),
             ProofTree {

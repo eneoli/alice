@@ -99,7 +99,7 @@ impl Prover {
 
     fn prove_right(&mut self, sequent: Sequent) -> Option<ProofTerm> {
         match sequent.goal {
-            Prop::True => Some(ProofTerm::Unit),
+            Prop::True => Some(ProofTerm::Unit(None)),
             Prop::False => self.prove_left(sequent),
             Prop::Atom(_, _) => self.prove_left(sequent),
             Prop::Or(_, _) => self.prove_left(sequent),
@@ -137,7 +137,12 @@ impl Prover {
 
         let body_proof_term = self.prove_right(sequent)?;
 
-        Some(Function::create(param_ident, None, body_proof_term.boxed(), None))
+        Some(Function::create(
+            param_ident,
+            None,
+            body_proof_term.boxed(),
+            None,
+        ))
     }
 
     fn prove_left(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
@@ -236,7 +241,7 @@ impl Prover {
         match *fst {
             Prop::True => {
                 let application_proof_term =
-                    Application::create(proof_term.boxed(), ProofTerm::Unit.boxed());
+                    Application::create(proof_term.boxed(), ProofTerm::Unit(None).boxed());
                 let application_judgment = TypeJudgment::new(*snd, application_proof_term);
                 sequent.append_ordered(application_judgment);
                 self.prove_left(sequent)

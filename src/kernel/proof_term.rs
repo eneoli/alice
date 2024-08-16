@@ -174,13 +174,19 @@ impl Function {
 pub struct Application {
     pub function: Box<ProofTerm>,
     pub applicant: Box<ProofTerm>,
+    // pub span: Option<Range<usize>>,
 }
 
 impl Application {
-    pub fn create(function: Box<ProofTerm>, applicant: Box<ProofTerm>) -> ProofTerm {
+    pub fn create(
+        function: Box<ProofTerm>,
+        applicant: Box<ProofTerm>,
+        // span: Option<Range<usize>>,
+    ) -> ProofTerm {
         ProofTerm::Application(Application {
             function,
             applicant,
+            // span,
         })
     }
 }
@@ -270,8 +276,8 @@ pub enum ProofTerm {
     Case(Case),
     Abort(Abort),
     TypeAscription(TypeAscription),
-    Unit,
-    Sorry,
+    Unit(Option<Range<usize>>),
+    Sorry(Option<Range<usize>>),
 }
 
 impl ProofTerm {
@@ -279,11 +285,30 @@ impl ProofTerm {
         Box::new(self.clone())
     }
 
+    pub fn span(&self) -> &Option<Range<usize>> {
+        match self {
+            ProofTerm::Ident(Ident(_, span)) => span,
+            ProofTerm::Pair(_) => todo!(),
+            ProofTerm::ProjectFst(_) => todo!(),
+            ProofTerm::ProjectSnd(_) => todo!(),
+            ProofTerm::Function(Function { span, .. }) => span,
+            ProofTerm::Application(Application { .. }) => todo!(),
+            ProofTerm::LetIn(_) => todo!(),
+            ProofTerm::OrLeft(_) => todo!(),
+            ProofTerm::OrRight(_) => todo!(),
+            ProofTerm::Case(_) => todo!(),
+            ProofTerm::Abort(_) => todo!(),
+            ProofTerm::TypeAscription(_) => todo!(),
+            ProofTerm::Unit(span) => span,
+            ProofTerm::Sorry(span) => span,
+        }
+    }
+
     pub fn precedence(&self) -> usize {
         match self {
-            ProofTerm::Unit => 999,
+            ProofTerm::Unit(_) => 999,
             ProofTerm::Ident(_) => 999,
-            ProofTerm::Sorry => 999,
+            ProofTerm::Sorry(_) => 999,
             ProofTerm::Abort(_) => 3,
             ProofTerm::Pair(_) => 999,
             ProofTerm::ProjectFst(_) => 3,
@@ -300,9 +325,9 @@ impl ProofTerm {
 
     pub fn right_associative(&self) -> bool {
         match self {
-            ProofTerm::Unit => false,
+            ProofTerm::Unit(_) => false,
             ProofTerm::Ident(_) => false,
-            ProofTerm::Sorry => false,
+            ProofTerm::Sorry(_) => false,
             ProofTerm::Abort(_) => false,
             ProofTerm::Pair(_) => false,
             ProofTerm::ProjectFst(_) => false,
@@ -319,9 +344,9 @@ impl ProofTerm {
 
     pub fn left_associative(&self) -> bool {
         match self {
-            ProofTerm::Unit => false,
+            ProofTerm::Unit(_) => false,
             ProofTerm::Ident(_) => false,
-            ProofTerm::Sorry => false,
+            ProofTerm::Sorry(_) => false,
             ProofTerm::Abort(_) => true,
             ProofTerm::Pair(_) => false,
             ProofTerm::ProjectFst(_) => true,
@@ -352,19 +377,19 @@ impl ProofTerm {
             ProofTerm::TypeAscription(type_ascription) => {
                 visitor.visit_type_ascription(type_ascription)
             }
-            ProofTerm::Unit => visitor.visit_unit(),
-            ProofTerm::Sorry => visitor.visit_sorry(),
+            ProofTerm::Unit(span) => visitor.visit_unit(span.clone()),
+            ProofTerm::Sorry(_) => visitor.visit_sorry(),
         }
     }
 }
 
 impl Display for ProofTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let ProofTerm::Sorry = self {
+        if let ProofTerm::Sorry(_) = self {
             return write!(f, "sorry");
         }
 
-        if let ProofTerm::Unit = self {
+        if let ProofTerm::Unit(_) = self {
             return write!(f, "()");
         }
 
@@ -422,6 +447,7 @@ impl Display for ProofTerm {
         if let ProofTerm::Application(Application {
             function,
             applicant,
+            ..
         }) = self
         {
             let own_precedence = self.precedence();
@@ -506,6 +532,6 @@ pub trait ProofTermVisitor<R> {
     fn visit_case(&mut self, case: &Case) -> R;
     fn visit_abort(&mut self, abort: &Abort) -> R;
     fn visit_type_ascription(&mut self, type_ascription: &TypeAscription) -> R;
-    fn visit_unit(&mut self) -> R;
+    fn visit_unit(&mut self, span: Option<Range<usize>>) -> R;
     fn visit_sorry(&mut self) -> R;
 }
