@@ -227,6 +227,8 @@ pub struct Case {
 
     pub snd_ident: String,
     pub snd_term: Box<ProofTerm>,
+
+    pub span: Option<Range<usize>>,
 }
 
 impl Case {
@@ -236,6 +238,7 @@ impl Case {
         fst_term: Box<ProofTerm>,
         snd_ident: String,
         snd_term: Box<ProofTerm>,
+        span: Option<Range<usize>>,
     ) -> ProofTerm {
         ProofTerm::Case(Case {
             head,
@@ -243,6 +246,7 @@ impl Case {
             fst_term,
             snd_ident,
             snd_term,
+            span,
         })
     }
 }
@@ -422,6 +426,7 @@ impl Display for ProofTerm {
             fst_term,
             snd_ident,
             snd_term,
+            span,
         }) = self
         {
             return write!(

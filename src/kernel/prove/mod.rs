@@ -211,6 +211,7 @@ impl Prover {
             fst_term.boxed(),
             snd_ident,
             snd_term.boxed(),
+            None,
         ))
     }
 

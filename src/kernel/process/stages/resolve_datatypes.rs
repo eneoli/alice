@@ -155,12 +155,14 @@ fn resolve_datatypes(
             fst_term: left_term,
             snd_ident: right_ident,
             snd_term: right_term,
+            span,
         }) => ProofTerm::Case(Case {
             head: resolve_datatypes(*head, atoms, datatypes)?.boxed(),
             fst_ident: left_ident,
             fst_term: resolve_datatypes(*left_term, atoms, datatypes)?.boxed(),
             snd_ident: right_ident,
             snd_term: resolve_datatypes(*right_term, atoms, datatypes)?.boxed(),
+            span,
         }),
         ProofTerm::Function(Function {
             param_ident,

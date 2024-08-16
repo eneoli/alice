@@ -555,6 +555,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             fst_term,
             snd_ident,
             snd_term,
+            span,
         } = case;
 
         let (proof_term_type, proof_term_tree) =

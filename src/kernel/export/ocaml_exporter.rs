@@ -75,6 +75,7 @@ impl OcamlExporter {
                 fst_term,
                 snd_ident,
                 snd_term,
+                ..
             }) => {
                 format!(
                     "match {} with | Inl {} -> {} | Inr {} -> {}",

@@ -110,14 +110,15 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     .then_ignore(just(Token::ARROW))
                     .then(proof_term.clone())
                     .then_ignore(just(Token::COMMA).or_not())
-                    .map(
-                        |((((proof_term, left_ident), left_term), right_ident), right_term)| {
+                    .map_with_span(
+                        |((((proof_term, left_ident), left_term), right_ident), right_term), span| {
                             ProofTerm::Case(Case {
                                 head: Box::new(proof_term),
                                 fst_ident: left_ident,
                                 fst_term: Box::new(left_term),
                                 snd_ident: right_ident,
                                 snd_term: Box::new(right_term),
+                                span: Some(span),
                             })
                         },
                     )
@@ -739,7 +740,8 @@ mod tests {
                     snd_term: ProofTerm::OrLeft(OrLeft(
                         ProofTerm::Ident(Ident("b".to_string(), Some(47..48))).boxed()
                     ))
-                    .boxed()
+                    .boxed(),
+                    span: Some(8..48),
                 })
                 .boxed(),
                 span: Some(0..48),
@@ -853,6 +855,7 @@ mod tests {
                 fst_term: ProofTerm::Ident(Ident("u".to_string(), Some(23..24))).boxed(),
                 snd_ident: "u".to_string(),
                 snd_term: ProofTerm::Ident(Ident("u".to_string(), Some(35..36))).boxed(),
+                span: Some(0..37),
             })
         )
     }
@@ -1043,6 +1046,7 @@ mod tests {
                 ProofTerm::Ident(Ident("a".to_string(), Some(23..24))).boxed(),
                 "b".to_string(),
                 ProofTerm::Ident(Ident("b".to_string(), Some(35..36))).boxed(),
+                Some(0..36),
             )
         );
     }
@@ -1059,6 +1063,7 @@ mod tests {
                 ProofTerm::Sorry(Some(19..24)).boxed(),
                 "b".to_string(),
                 ProofTerm::Sorry(Some(35..40)).boxed(),
+                Some(0..40),
             )
         );
     }

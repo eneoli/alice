@@ -278,6 +278,7 @@ impl ProofTreeExporter {
                     fst_proof_term.boxed(),
                     snd_ident.clone(),
                     snd_proof_term.boxed(),
+                    None,
                 )
             }
             ProofTreeRule::FalsumElim => {

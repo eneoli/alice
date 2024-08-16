@@ -418,6 +418,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             fst_term,
             snd_ident,
             snd_term,
+            ..
         } = case;
 
         let (proof_term_type, proof_term_tree) =
