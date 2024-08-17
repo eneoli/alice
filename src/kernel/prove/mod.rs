@@ -1,4 +1,5 @@
 use identifier_generator::IdentifierGenerator;
+use itertools::Itertools;
 
 use crate::kernel::proof_term::{ProjectFst, ProjectSnd};
 
@@ -15,9 +16,9 @@ mod identifier_generator;
 mod tests;
 
 #[derive(Debug, Clone)]
-struct TypeJudgment {
-    prop: Prop,
-    proof_term: ProofTerm,
+pub struct TypeJudgment {
+    pub prop: Prop,
+    pub proof_term: ProofTerm,
 }
 
 impl TypeJudgment {
@@ -64,10 +65,31 @@ impl<'a> Sequent<'a> {
 }
 
 pub fn prove(prop: &Prop) -> Option<ProofTerm> {
-    let proof_term = Prover::prove(prop)?;
+    prove_with_ctx(prop, &IdentifierContext::new())
+}
+
+pub fn prove_with_ctx(prop: &Prop, ctx: &IdentifierContext) -> Option<ProofTerm> {
+    let assumptions = ctx
+        .get_all_visible()
+        .iter()
+        .filter_map(|(ident, _type)| {
+            let Type::Prop(prop) = _type else {
+                return None;
+            };
+
+            let name = ident.name();
+
+            Some(TypeJudgment {
+                prop: prop.clone(),
+                proof_term: Ident::create(name.clone()),
+            })
+        })
+        .collect_vec();
+
+    let proof_term = Prover::prove_with_assumptions(prop, assumptions)?;
 
     // sanity check
-    let check_result = check(&proof_term, prop, &IdentifierContext::new());
+    let check_result = check(&proof_term, prop, ctx);
     if check_result.is_err() {
         panic!(
             "Prover returned wrong proof. Prop: {:#?}, proof term: {:#?}, error: {:#?}",
@@ -84,11 +106,24 @@ struct Prover {
 
 impl Prover {
     pub fn prove(prop: &Prop) -> Option<ProofTerm> {
+        Prover::prove_with_assumptions(prop, vec![])
+    }
+
+    pub fn prove_with_assumptions(
+        prop: &Prop,
+        assumptions: Vec<TypeJudgment>,
+    ) -> Option<ProofTerm> {
         if prop.has_free_parameters() {
             panic!("Cannot prove propositions with quantifiers.");
         }
 
-        Prover::new().prove_right(Sequent::new(prop))
+        let mut sequent = Sequent::new(prop);
+
+        for assumption in assumptions {
+            sequent.append_ordered(assumption);
+        }
+
+        Prover::new().prove_right(sequent)
     }
 
     fn new() -> Self {
