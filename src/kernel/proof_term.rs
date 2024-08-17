@@ -435,7 +435,7 @@ impl Display for ProofTerm {
             fst_term,
             snd_ident,
             snd_term,
-            span,
+            ..
         }) = self
         {
             return write!(
