@@ -1,9 +1,10 @@
 import { css } from '@emotion/css';
-import { print_prop, Prop } from 'alice';
+import { ProofTreeConclusion } from 'alice';
 import React from 'react';
+import { printProofTreeConclusion } from '../../../util/print-proof-tree-conclusion';
 
-interface TutorGoalDisplayGoal {
-    prop: Prop,
+export interface TutorGoalDisplayGoal {
+    proofTreeConclusion: ProofTreeConclusion,
     hint: string,
 }
 
@@ -13,6 +14,16 @@ interface TutorGoalDisplayProps {
 
 export function TutorGoalDisplay(props: TutorGoalDisplayProps) {
     const { goals } = props;
+
+    if (goals.length === 0) {
+        return (
+            <div className={cssGoalDisplayContainer}>
+                <span style={{ textAlign: 'center', width: '100%' }} className={cssTitle}>
+                    🎉 All goals closed!
+                </span>
+            </div>
+        );
+    }
 
     return (
         <div className={cssGoalDisplayContainer}>
@@ -25,7 +36,7 @@ export function TutorGoalDisplay(props: TutorGoalDisplayProps) {
                     goals.map((goal, i) => (
                         <li key={i}>
                             <span>
-                                ⊢ <span className={cssProp}>{print_prop(goal.prop)}</span>
+                                ⊢ <span className={cssProp}>{printProofTreeConclusion(goal.proofTreeConclusion)}</span>
                                 <br />
                                 <br />
                                 Hint: <span className={cssHint}>{goal.hint}</span>
@@ -41,12 +52,12 @@ export function TutorGoalDisplay(props: TutorGoalDisplayProps) {
 const cssGoalDisplayContainer = css`
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
 `;
 
 const cssTitle = css`
     color: white;
-    font-size: 1.7em;
+    font-size: 1.5em;
 `;
 
 const cssTitleGoalNumber = css`
@@ -104,13 +115,14 @@ const cssHint = css`
     position: relative;
 
     :hover:after {
-        opacity: 0.15;
-        transition: all 0.1s;
+        opacity: 0.2;
+        transition: all 0.15s;
     }
 
     :after {
         content: '';
         position: absolute;
+        top: 0;
         left: 0;
         width: 100%;
         height: 100%;
