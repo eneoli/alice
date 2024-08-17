@@ -12,6 +12,7 @@ use crate::{
         },
         proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
         prop::{InstatiationError, Prop, PropKind, PropParameter},
+        prove::prove_with_ctx,
     },
     util::counter::Counter,
 };
@@ -20,6 +21,7 @@ use super::{
     identifier::{Identifier, IdentifierFactory},
     identifier_context::IdentifierContext,
     synthesize::{synthesize, SynthesizeError},
+    TypeCheckerGoal, TypeCheckerResult,
 };
 
 #[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
@@ -74,7 +76,7 @@ pub fn check(
     proof_term: &ProofTerm,
     expected_prop: &Prop,
     ctx: &IdentifierContext,
-) -> Result<ProofTree, CheckError> {
+) -> Result<TypeCheckerResult, CheckError> {
     if expected_prop.has_free_parameters() {
         return Err(CheckError::PropHasFreeParameters(expected_prop.clone()));
     }
@@ -94,7 +96,7 @@ pub(super) fn check_allowing_free_params(
     expected_type: &Type,
     ctx: &IdentifierContext,
     identifier_factory: &mut IdentifierFactory,
-) -> Result<ProofTree, CheckError> {
+) -> Result<TypeCheckerResult, CheckError> {
     let mut visitor = CheckVisitor::new(expected_type.clone(), ctx, identifier_factory);
     proof_term.visit(&mut visitor)
 }
@@ -119,28 +121,32 @@ impl<'a> CheckVisitor<'a> {
     }
 }
 
-impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
-    fn visit_ident(&mut self, ident: &Ident) -> Result<ProofTree, CheckError> {
+impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisitor<'a> {
+    fn visit_ident(&mut self, ident: &Ident) -> Result<TypeCheckerResult, CheckError> {
         // use =>
         //     <= rule
 
-        let (_type, proof_tree) = synthesize(
+        let (_type, mut type_checker_result) = synthesize(
             &ProofTerm::Ident(ident.clone()),
             self.ctx,
             self.identifier_factory,
         )?;
 
         if Type::eq(&_type, &self.expected_type) {
-            return Ok(proof_tree);
+            return Ok(type_checker_result);
         }
 
         if Type::alpha_eq(&_type, &self.expected_type) {
             let conclusion = match &self.expected_type {
                 Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                Type::Datatype(_) => proof_tree.conclusion.clone(),
+                Type::Datatype(_) => type_checker_result.proof_tree.conclusion.clone(),
             };
 
-            return Ok(proof_tree.create_alphq_eq_tree(conclusion));
+            type_checker_result.proof_tree = type_checker_result
+                .proof_tree
+                .create_alphq_eq_tree(conclusion);
+
+            return Ok(type_checker_result);
         }
 
         Err(CheckError::UnexpectedType {
@@ -150,7 +156,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         })
     }
 
-    fn visit_pair(&mut self, pair: &Pair) -> Result<ProofTree, CheckError> {
+    fn visit_pair(&mut self, pair: &Pair) -> Result<TypeCheckerResult, CheckError> {
         let Pair(fst_term, snd_term, span) = pair;
 
         let (expected_fst_type, expected_snd_type, rule, conclusion) =
@@ -203,47 +209,53 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             };
 
         // check pair components
-        let fst_proof_tree = check_allowing_free_params(
+        let fst_result = check_allowing_free_params(
             fst_term,
             &expected_fst_type,
             self.ctx,
             self.identifier_factory,
         )?;
-        let snd_proof_tree = check_allowing_free_params(
+        let snd_result = check_allowing_free_params(
             snd_term,
             &expected_snd_type,
             self.ctx,
             self.identifier_factory,
         )?;
 
-        Ok(ProofTree {
-            premisses: vec![fst_proof_tree, snd_proof_tree],
-            rule,
-            conclusion,
+        Ok(TypeCheckerResult {
+            goals: [fst_result.goals, snd_result.goals].concat(),
+            proof_tree: ProofTree {
+                premisses: vec![fst_result.proof_tree, snd_result.proof_tree],
+                rule,
+                conclusion,
+            },
         })
     }
 
-    fn visit_project_fst(&mut self, projection: &ProjectFst) -> Result<ProofTree, CheckError> {
+    fn visit_project_fst(
+        &mut self,
+        projection: &ProjectFst,
+    ) -> Result<TypeCheckerResult, CheckError> {
         // use =>
         //     <= rule
 
-        let (projection_type, projection_proof_tree) = synthesize(
+        let (projection_type, projection_result) = synthesize(
             &ProofTerm::ProjectFst(projection.clone()),
             self.ctx,
             self.identifier_factory,
         )?;
 
         if Type::eq(&self.expected_type, &projection_type) {
-            return Ok(projection_proof_tree);
+            return Ok(projection_result);
         }
 
         if Type::alpha_eq(&self.expected_type, &projection_type) {
             let conclusion = match self.expected_type {
                 Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                Type::Datatype(_) => projection_proof_tree.conclusion.clone(),
+                Type::Datatype(_) => projection_result.proof_tree.conclusion.clone(),
             };
 
-            return Ok(projection_proof_tree.create_alphq_eq_tree(conclusion));
+            return Ok(projection_result.create_with_alphq_eq_tree(conclusion));
         }
 
         Err(CheckError::UnexpectedType {
@@ -253,27 +265,30 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         })
     }
 
-    fn visit_project_snd(&mut self, projection: &ProjectSnd) -> Result<ProofTree, CheckError> {
+    fn visit_project_snd(
+        &mut self,
+        projection: &ProjectSnd,
+    ) -> Result<TypeCheckerResult, CheckError> {
         // use =>
         //     <= rule
 
-        let (projection_type, projection_proof_tree) = synthesize(
+        let (projection_type, projection_result) = synthesize(
             &ProofTerm::ProjectSnd(projection.clone()),
             self.ctx,
             self.identifier_factory,
         )?;
 
         if Type::eq(&self.expected_type, &projection_type) {
-            return Ok(projection_proof_tree);
+            return Ok(projection_result);
         }
 
         if Type::alpha_eq(&self.expected_type, &projection_type) {
             let conclusion = match &self.expected_type {
                 Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                Type::Datatype(_) => projection_proof_tree.conclusion.clone(),
+                Type::Datatype(_) => projection_result.proof_tree.conclusion.clone(),
             };
 
-            return Ok(projection_proof_tree.create_alphq_eq_tree(conclusion));
+            return Ok(projection_result.create_with_alphq_eq_tree(conclusion));
         }
 
         Err(CheckError::UnexpectedType {
@@ -283,7 +298,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         })
     }
 
-    fn visit_function(&mut self, function: &Function) -> Result<ProofTree, CheckError> {
+    fn visit_function(&mut self, function: &Function) -> Result<TypeCheckerResult, CheckError> {
         let Function {
             param_ident,
             param_type,
@@ -355,21 +370,27 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         // check body of function
         let mut body_ctx = self.ctx.clone();
         body_ctx.insert(param_identifier, expected_param_type.clone());
-        let body_proof_tree = check_allowing_free_params(
+        let body_result = check_allowing_free_params(
             body,
             &Type::Prop(expected_body_prop),
             &body_ctx,
             self.identifier_factory,
         )?;
 
-        Ok(ProofTree {
-            premisses: vec![body_proof_tree],
-            rule,
-            conclusion,
+        Ok(TypeCheckerResult {
+            goals: body_result.goals,
+            proof_tree: ProofTree {
+                premisses: vec![body_result.proof_tree],
+                rule,
+                conclusion,
+            },
         })
     }
 
-    fn visit_application(&mut self, application: &Application) -> Result<ProofTree, CheckError> {
+    fn visit_application(
+        &mut self,
+        application: &Application,
+    ) -> Result<TypeCheckerResult, CheckError> {
         let Application {
             function,
             applicant,
@@ -385,25 +406,27 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let applicant_synthesize_result = synthesize(applicant, self.ctx, self.identifier_factory);
 
         // use  ⊃ E<= rule
-        if let Ok((Type::Prop(applicant_prop), applicant_proof_tree)) = applicant_synthesize_result
-        {
+        if let Ok((Type::Prop(applicant_prop), applicant_result)) = applicant_synthesize_result {
             // check function
             let expected_function_type = Type::Prop(Prop::Impl(
                 applicant_prop.boxed(),
                 expected_return_prop.boxed(),
             ));
 
-            let function_proof_tree = check_allowing_free_params(
+            let function_result = check_allowing_free_params(
                 function,
                 &expected_function_type,
                 self.ctx,
                 self.identifier_factory,
             )?;
 
-            return Ok(ProofTree {
-                premisses: vec![function_proof_tree, applicant_proof_tree],
-                rule: ProofTreeRule::ImplElim,
-                conclusion,
+            return Ok(TypeCheckerResult {
+                goals: vec![function_result.goals, applicant_result.goals].concat(),
+                proof_tree: ProofTree {
+                    premisses: vec![function_result.proof_tree, applicant_result.proof_tree],
+                    rule: ProofTreeRule::ImplElim,
+                    conclusion,
+                },
             });
         }
 
@@ -411,23 +434,23 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         //     <= rule
 
         // synthesize application
-        let (application_type, application_proof_tree) = synthesize(
+        let (application_type, application_result) = synthesize(
             &ProofTerm::Application(application.clone()),
             self.ctx,
             self.identifier_factory,
         )?;
 
         if Type::eq(&application_type, &self.expected_type) {
-            return Ok(application_proof_tree);
+            return Ok(application_result);
         }
 
         if Type::alpha_eq(&application_type, &self.expected_type) {
             let conclusion = match &self.expected_type {
                 Type::Prop(prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-                Type::Datatype(_) => application_proof_tree.conclusion.clone(),
+                Type::Datatype(_) => application_result.proof_tree.conclusion.clone(),
             };
 
-            return Ok(application_proof_tree.create_alphq_eq_tree(conclusion));
+            return Ok(application_result.create_with_alphq_eq_tree(conclusion));
         }
 
         Err(CheckError::UnexpectedType {
@@ -437,7 +460,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         })
     }
 
-    fn visit_let_in(&mut self, let_in: &LetIn) -> Result<ProofTree, CheckError> {
+    fn visit_let_in(&mut self, let_in: &LetIn) -> Result<TypeCheckerResult, CheckError> {
         let LetIn {
             fst_ident,
             snd_ident,
@@ -446,7 +469,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             ..
         } = let_in;
 
-        let (head_type, head_proof_tree) = synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, head_result) = synthesize(head, self.ctx, self.identifier_factory)?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -464,7 +487,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             let mut body_ctx = self.ctx.clone();
             body_ctx.insert(fst_identifier.clone(), Type::Datatype(object_type_ident));
             body_ctx.insert(snd_identifier, Type::Prop(*exists_body));
-            let body_proof_tree = check_allowing_free_params(
+            let body_result = check_allowing_free_params(
                 body,
                 &self.expected_type,
                 &body_ctx,
@@ -482,10 +505,13 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                     ));
                 }
 
-                Ok(ProofTree {
-                    premisses: vec![head_proof_tree, body_proof_tree],
-                    rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
-                    conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
+                Ok(TypeCheckerResult {
+                    goals: [head_result.goals, body_result.goals].concat(),
+                    proof_tree: ProofTree {
+                        premisses: vec![head_result.proof_tree, body_result.proof_tree],
+                        rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
+                        conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
+                    },
                 })
             } else {
                 Err(CheckError::CannotReturnDatatype(body.span().clone()))
@@ -499,7 +525,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         }
     }
 
-    fn visit_or_left(&mut self, or_left: &OrLeft) -> Result<ProofTree, CheckError> {
+    fn visit_or_left(&mut self, or_left: &OrLeft) -> Result<TypeCheckerResult, CheckError> {
         let OrLeft(body, span) = or_left;
 
         let (expected_body_type, conclusion) = match self.expected_type {
@@ -516,21 +542,24 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             }
         };
 
-        let body_proof_tree = check_allowing_free_params(
+        let body_result = check_allowing_free_params(
             body,
             &expected_body_type,
             self.ctx,
             self.identifier_factory,
         )?;
 
-        Ok(ProofTree {
-            premisses: vec![body_proof_tree],
-            rule: ProofTreeRule::OrIntroFst,
-            conclusion,
+        Ok(TypeCheckerResult {
+            goals: body_result.goals,
+            proof_tree: ProofTree {
+                premisses: vec![body_result.proof_tree],
+                rule: ProofTreeRule::OrIntroFst,
+                conclusion,
+            },
         })
     }
 
-    fn visit_or_right(&mut self, or_right: &OrRight) -> Result<ProofTree, CheckError> {
+    fn visit_or_right(&mut self, or_right: &OrRight) -> Result<TypeCheckerResult, CheckError> {
         let OrRight(body, span) = or_right;
 
         let (expected_body_type, conclusion) = match self.expected_type {
@@ -547,21 +576,24 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             }
         };
 
-        let body_proof_tree = check_allowing_free_params(
+        let body_result = check_allowing_free_params(
             body,
             &expected_body_type,
             self.ctx,
             self.identifier_factory,
         )?;
 
-        Ok(ProofTree {
-            premisses: vec![body_proof_tree],
-            rule: ProofTreeRule::OrIntroSnd,
-            conclusion,
+        Ok(TypeCheckerResult {
+            goals: body_result.goals,
+            proof_tree: ProofTree {
+                premisses: vec![body_result.proof_tree],
+                rule: ProofTreeRule::OrIntroSnd,
+                conclusion,
+            },
         })
     }
 
-    fn visit_case(&mut self, case: &Case) -> Result<ProofTree, CheckError> {
+    fn visit_case(&mut self, case: &Case) -> Result<TypeCheckerResult, CheckError> {
         let Case {
             head,
             fst_ident,
@@ -571,7 +603,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             span,
         } = case;
 
-        let (head_type, head_proof_tree) = synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, head_result) = synthesize(head, self.ctx, self.identifier_factory)?;
 
         let (fst, snd) = match head_type {
             Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
@@ -588,7 +620,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let fst_identifier = self.identifier_factory.create(fst_ident.clone());
         let mut fst_ctx = self.ctx.clone();
         fst_ctx.insert(fst_identifier, Type::Prop(*fst));
-        let fst_proof_tree = check_allowing_free_params(
+        let fst_result = check_allowing_free_params(
             fst_term,
             &self.expected_type,
             &fst_ctx,
@@ -599,7 +631,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let snd_identifier = self.identifier_factory.create(snd_ident.clone());
         let mut snd_ctx = self.ctx.clone();
         snd_ctx.insert(snd_identifier, Type::Prop(*snd));
-        let snd_proof_tree = check_allowing_free_params(
+        let snd_result = check_allowing_free_params(
             snd_term,
             &self.expected_type,
             &snd_ctx,
@@ -612,17 +644,24 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             _ => return Err(CheckError::CannotReturnDatatype(span.clone())),
         };
 
-        Ok(ProofTree {
-            premisses: vec![head_proof_tree, fst_proof_tree, snd_proof_tree],
-            rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
-            conclusion,
+        Ok(TypeCheckerResult {
+            goals: [head_result.goals, fst_result.goals, snd_result.goals].concat(),
+            proof_tree: ProofTree {
+                premisses: vec![
+                    head_result.proof_tree,
+                    fst_result.proof_tree,
+                    snd_result.proof_tree,
+                ],
+                rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
+                conclusion,
+            },
         })
     }
 
-    fn visit_abort(&mut self, abort: &Abort) -> Result<ProofTree, CheckError> {
+    fn visit_abort(&mut self, abort: &Abort) -> Result<TypeCheckerResult, CheckError> {
         let Abort(body, span) = abort;
 
-        let body_proof_tree = check_allowing_free_params(
+        let body_result = check_allowing_free_params(
             body,
             &Type::Prop(Prop::False),
             self.ctx,
@@ -634,19 +673,25 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             _ => return Err(CheckError::CannotReturnDatatype(span.clone())),
         };
 
-        Ok(ProofTree {
-            premisses: vec![body_proof_tree],
-            rule: ProofTreeRule::FalsumElim,
-            conclusion,
+        Ok(TypeCheckerResult {
+            goals: body_result.goals,
+            proof_tree: ProofTree {
+                premisses: vec![body_result.proof_tree],
+                rule: ProofTreeRule::FalsumElim,
+                conclusion,
+            },
         })
     }
 
-    fn visit_unit(&mut self, span: Option<Range<usize>>) -> Result<ProofTree, CheckError> {
+    fn visit_unit(&mut self, span: Option<Range<usize>>) -> Result<TypeCheckerResult, CheckError> {
         if self.expected_type == Type::Prop(Prop::True) {
-            Ok(ProofTree {
-                premisses: vec![],
-                rule: ProofTreeRule::TrueIntro,
-                conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
+            Ok(TypeCheckerResult {
+                goals: vec![],
+                proof_tree: ProofTree {
+                    premisses: vec![],
+                    rule: ProofTreeRule::TrueIntro,
+                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
+                },
             })
         } else {
             Err(CheckError::IncompatibleProofTerm {
@@ -660,7 +705,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
     fn visit_type_ascription(
         &mut self,
         type_ascription: &TypeAscription,
-    ) -> Result<ProofTree, CheckError> {
+    ) -> Result<TypeCheckerResult, CheckError> {
         let TypeAscription {
             ascription,
             proof_term,
@@ -692,7 +737,10 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         )
     }
 
-    fn visit_sorry(&mut self, _span: Option<Range<usize>>) -> Result<ProofTree, CheckError> {
+    fn visit_sorry(
+        &mut self,
+        _span: Option<Range<usize>>,
+    ) -> Result<TypeCheckerResult, CheckError> {
         let conclusion = match self.expected_type {
             Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
             Type::Datatype(ref datatype) => {
@@ -700,10 +748,35 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             }
         };
 
-        Ok(ProofTree {
-            premisses: vec![],
-            rule: ProofTreeRule::Sorry,
-            conclusion,
+        let mut goal = TypeCheckerGoal {
+            solution: None,
+            conclusion: conclusion.clone(),
+        };
+
+        let ProofTreeConclusion::PropIsTrue(ref prop) = conclusion else {
+            return Ok(TypeCheckerResult {
+                goals: vec![goal],
+                proof_tree: ProofTree {
+                    premisses: vec![],
+                    rule: ProofTreeRule::Sorry,
+                    conclusion,
+                },
+            });
+        };
+
+        // Run G4IP
+        if !prop.has_quantifiers() && !prop.has_free_parameters() {
+            goal.solution = prove_with_ctx(prop, self.ctx);
+        }
+
+        // save result as goal
+        Ok(TypeCheckerResult {
+            goals: vec![goal],
+            proof_tree: ProofTree {
+                premisses: vec![],
+                rule: ProofTreeRule::Sorry,
+                conclusion,
+            },
         })
     }
 }

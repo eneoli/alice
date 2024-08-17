@@ -17,6 +17,7 @@ use super::{
     check::{check_allowing_free_params, CheckError},
     identifier::IdentifierFactory,
     identifier_context::IdentifierContext,
+    TypeCheckerResult,
 };
 
 #[derive(Debug, Error, PartialEq, Eq, Serialize, Deserialize, Clone, Tsify)]
@@ -66,7 +67,7 @@ pub fn synthesize(
     proof_term: &ProofTerm,
     ctx: &IdentifierContext,
     identifier_factory: &mut IdentifierFactory,
-) -> Result<(Type, ProofTree), SynthesizeError> {
+) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
     let mut visitor = SynthesizeVisitor::new(ctx, identifier_factory);
 
     proof_term.visit(&mut visitor)
@@ -86,8 +87,10 @@ impl<'a> SynthesizeVisitor<'a> {
     }
 }
 
-impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for SynthesizeVisitor<'a> {
-    fn visit_ident(&mut self, ident: &Ident) -> Result<(Type, ProofTree), SynthesizeError> {
+impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
+    for SynthesizeVisitor<'a>
+{
+    fn visit_ident(&mut self, ident: &Ident) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let Ident(ident, ident_span) = ident;
 
         // lookup identifier
@@ -111,19 +114,22 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
         Ok((
             ident_type.clone(),
-            ProofTree {
-                premisses: vec![],
-                rule: ProofTreeRule::Ident(ident.clone()),
-                conclusion,
+            TypeCheckerResult {
+                goals: vec![],
+                proof_tree: ProofTree {
+                    premisses: vec![],
+                    rule: ProofTreeRule::Ident(ident.clone()),
+                    conclusion,
+                },
             },
         ))
     }
 
-    fn visit_pair(&mut self, pair: &Pair) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_pair(&mut self, pair: &Pair) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let Pair(fst, snd, span) = pair;
 
-        let (fst_type, fst_proof_tree) = synthesize(fst, self.ctx, self.identifier_factory)?;
-        let (snd_type, snd_proof_tree) = synthesize(snd, self.ctx, self.identifier_factory)?;
+        let (fst_type, fst_result) = synthesize(fst, self.ctx, self.identifier_factory)?;
+        let (snd_type, snd_result) = synthesize(snd, self.ctx, self.identifier_factory)?;
 
         match (&fst_type, &snd_type) {
             // Exists
@@ -137,10 +143,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
                 Ok((
                     _type.clone().into(),
-                    ProofTree {
-                        premisses: vec![fst_proof_tree, snd_proof_tree],
-                        rule: ProofTreeRule::AndIntro,
-                        conclusion: ProofTreeConclusion::PropIsTrue(_type),
+                    TypeCheckerResult {
+                        goals: [fst_result.goals, snd_result.goals].concat(),
+                        proof_tree: ProofTree {
+                            premisses: vec![fst_result.proof_tree, snd_result.proof_tree],
+                            rule: ProofTreeRule::AndIntro,
+                            conclusion: ProofTreeConclusion::PropIsTrue(_type),
+                        },
                     },
                 ))
             }
@@ -158,10 +167,10 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     fn visit_project_fst(
         &mut self,
         projection: &ProjectFst,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let ProjectFst(body, span) = projection;
 
-        let (body_type, body_proof_tree) = synthesize(body, self.ctx, self.identifier_factory)?;
+        let (body_type, body_result) = synthesize(body, self.ctx, self.identifier_factory)?;
 
         let fst = match body_type {
             Type::Prop(Prop::And(fst, _)) => fst,
@@ -176,10 +185,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
         Ok((
             Type::Prop(*fst.clone()),
-            ProofTree {
-                premisses: vec![body_proof_tree],
-                rule: ProofTreeRule::AndElimFst,
-                conclusion: ProofTreeConclusion::PropIsTrue(*fst),
+            TypeCheckerResult {
+                goals: body_result.goals,
+                proof_tree: ProofTree {
+                    premisses: vec![body_result.proof_tree],
+                    rule: ProofTreeRule::AndElimFst,
+                    conclusion: ProofTreeConclusion::PropIsTrue(*fst),
+                },
             },
         ))
     }
@@ -187,10 +199,10 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     fn visit_project_snd(
         &mut self,
         projection: &ProjectSnd,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let ProjectSnd(body, span) = projection;
 
-        let (body_type, body_proof_tree) = synthesize(body, self.ctx, self.identifier_factory)?;
+        let (body_type, body_result) = synthesize(body, self.ctx, self.identifier_factory)?;
 
         let snd = match body_type {
             Type::Prop(Prop::And(_, snd)) => snd,
@@ -205,10 +217,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
         Ok((
             Type::Prop(*snd.clone()),
-            ProofTree {
-                premisses: vec![body_proof_tree],
-                rule: ProofTreeRule::AndElimSnd,
-                conclusion: ProofTreeConclusion::PropIsTrue(*snd),
+            TypeCheckerResult {
+                goals: body_result.goals,
+                proof_tree: ProofTree {
+                    premisses: vec![body_result.proof_tree],
+                    rule: ProofTreeRule::AndElimSnd,
+                    conclusion: ProofTreeConclusion::PropIsTrue(*snd),
+                },
             },
         ))
     }
@@ -216,7 +231,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     fn visit_function(
         &mut self,
         function: &Function,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let Function {
             param_ident,
             param_type,
@@ -244,7 +259,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         let param_identifier = self.identifier_factory.create(param_ident.clone());
         let mut body_ctx = self.ctx.clone();
         body_ctx.insert(param_identifier, bound_param_type.clone());
-        let (body_type, body_proof_tree) = synthesize(body, &body_ctx, self.identifier_factory)?;
+        let (body_type, body_result) = synthesize(body, &body_ctx, self.identifier_factory)?;
 
         match (&bound_param_type, &body_type) {
             // Forall
@@ -257,10 +272,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
                 Ok((
                     _type.clone().into(),
-                    ProofTree {
-                        premisses: vec![body_proof_tree],
-                        rule: ProofTreeRule::ForAllIntro(param_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(_type),
+                    TypeCheckerResult {
+                        goals: body_result.goals,
+                        proof_tree: ProofTree {
+                            premisses: vec![body_result.proof_tree],
+                            rule: ProofTreeRule::ForAllIntro(param_ident.clone()),
+                            conclusion: ProofTreeConclusion::PropIsTrue(_type),
+                        },
                     },
                 ))
             }
@@ -271,10 +289,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
                 Ok((
                     _type.clone().into(),
-                    ProofTree {
-                        premisses: vec![body_proof_tree],
-                        rule: ProofTreeRule::ImplIntro(param_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(_type),
+                    TypeCheckerResult {
+                        goals: body_result.goals,
+                        proof_tree: ProofTree {
+                            premisses: vec![body_result.proof_tree],
+                            rule: ProofTreeRule::ImplIntro(param_ident.clone()),
+                            conclusion: ProofTreeConclusion::PropIsTrue(_type),
+                        },
                     },
                 ))
             }
@@ -289,7 +310,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     fn visit_application(
         &mut self,
         application: &Application,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let Application {
             function,
             applicant,
@@ -297,7 +318,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         } = application;
 
         // synthesize function
-        let (function_type, function_proof_tree) =
+        let (function_type, function_result) =
             synthesize(function, self.ctx, self.identifier_factory)?;
 
         let (requested_applicant_type, return_type, rule) =
@@ -346,7 +367,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
                 }
             };
 
-        let applicant_proof_tree = check_allowing_free_params(
+        let applicant_result = check_allowing_free_params(
             applicant,
             &requested_applicant_type,
             self.ctx,
@@ -356,15 +377,21 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
         Ok((
             Type::Prop(return_type.clone()),
-            ProofTree {
-                premisses: vec![function_proof_tree, applicant_proof_tree],
-                rule,
-                conclusion: ProofTreeConclusion::PropIsTrue(return_type),
+            TypeCheckerResult {
+                goals: [function_result.goals, applicant_result.goals].concat(),
+                proof_tree: ProofTree {
+                    premisses: vec![function_result.proof_tree, applicant_result.proof_tree],
+                    rule,
+                    conclusion: ProofTreeConclusion::PropIsTrue(return_type),
+                },
             },
         ))
     }
 
-    fn visit_let_in(&mut self, let_in: &LetIn) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_let_in(
+        &mut self,
+        let_in: &LetIn,
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let LetIn {
             fst_ident,
             snd_ident,
@@ -373,8 +400,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             ..
         } = let_in;
 
-        let (head_type, pair_proof_term_tree) =
-            synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, pair_result) = synthesize(head, self.ctx, self.identifier_factory)?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -390,8 +416,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             let mut body_ctx = self.ctx.clone();
             body_ctx.insert(fst_identifier.clone(), Type::Datatype(object_type_ident));
             body_ctx.insert(snd_identifier, Type::Prop(*exists_body));
-            let (body_type, body_proof_tree) =
-                synthesize(body, &body_ctx, self.identifier_factory)?;
+            let (body_type, body_result) = synthesize(body, &body_ctx, self.identifier_factory)?;
 
             if let Type::Prop(prop) = &body_type {
                 // check that quantified object does not escape it's scope
@@ -406,10 +431,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
                 Ok((
                     body_type.clone(),
-                    ProofTree {
-                        premisses: vec![pair_proof_term_tree, body_proof_tree],
-                        rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
-                        conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
+                    TypeCheckerResult {
+                        goals: [pair_result.goals, body_result.goals].concat(),
+                        proof_tree: ProofTree {
+                            premisses: vec![pair_result.proof_tree, body_result.proof_tree],
+                            rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
+                            conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
+                        },
                     },
                 ))
             } else {
@@ -424,7 +452,10 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         }
     }
 
-    fn visit_or_left(&mut self, or_left: &OrLeft) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_or_left(
+        &mut self,
+        or_left: &OrLeft,
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let OrLeft(_, span) = or_left;
 
         Err(SynthesizeError::NotSynthesizing(
@@ -433,7 +464,10 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         ))
     }
 
-    fn visit_or_right(&mut self, or_right: &OrRight) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_or_right(
+        &mut self,
+        or_right: &OrRight,
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let OrRight(_, span) = or_right;
 
         Err(SynthesizeError::NotSynthesizing(
@@ -442,7 +476,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         ))
     }
 
-    fn visit_case(&mut self, case: &Case) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_case(&mut self, case: &Case) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let Case {
             head,
             fst_ident,
@@ -452,15 +486,14 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
             span,
         } = case;
 
-        let (proof_term_type, proof_term_tree) =
-            synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, head_result) = synthesize(head, self.ctx, self.identifier_factory)?;
 
-        let (fst, snd) = match proof_term_type {
+        let (fst, snd) = match head_type {
             Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
             _ => {
                 return Err(SynthesizeError::UnexpectedPropKind {
                     expected: vec![PropKind::Or],
-                    received: proof_term_type,
+                    received: head_type,
                     span: head.span().clone(),
                 })
             }
@@ -470,13 +503,13 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
         let fst_identifier = self.identifier_factory.create(fst_ident.clone());
         let mut fst_ctx = self.ctx.clone();
         fst_ctx.insert(fst_identifier, Type::Prop(*fst));
-        let (fst_type, fst_proof_tree) = synthesize(fst_term, &fst_ctx, self.identifier_factory)?;
+        let (fst_type, fst_result) = synthesize(fst_term, &fst_ctx, self.identifier_factory)?;
 
         // snythesize snd arm
         let snd_identifier = self.identifier_factory.create(snd_ident.clone());
         let mut snd_ctx = self.ctx.clone();
         snd_ctx.insert(snd_identifier, Type::Prop(*snd));
-        let (snd_type, snd_proof_tree) = synthesize(snd_term, &snd_ctx, self.identifier_factory)?;
+        let (snd_type, snd_result) = synthesize(snd_term, &snd_ctx, self.identifier_factory)?;
 
         // check for alpha-equivalence
         if !Type::alpha_eq(&fst_type, &snd_type) {
@@ -495,15 +528,22 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
 
         Ok((
             snd_type,
-            ProofTree {
-                premisses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
-                rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
-                conclusion,
+            TypeCheckerResult {
+                goals: [head_result.goals, fst_result.goals, snd_result.goals].concat(),
+                proof_tree: ProofTree {
+                    premisses: vec![
+                        head_result.proof_tree,
+                        fst_result.proof_tree,
+                        snd_result.proof_tree,
+                    ],
+                    rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
+                    conclusion,
+                },
             },
         ))
     }
 
-    fn visit_abort(&mut self, abort: &Abort) -> Result<(Type, ProofTree), SynthesizeError> {
+    fn visit_abort(&mut self, abort: &Abort) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let Abort(_, span) = abort;
 
         Err(SynthesizeError::NotSynthesizing(
@@ -515,13 +555,16 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     fn visit_unit(
         &mut self,
         _span: Option<Range<usize>>,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         Ok((
             Type::Prop(Prop::True),
-            ProofTree {
-                premisses: vec![],
-                rule: ProofTreeRule::TrueIntro,
-                conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
+            TypeCheckerResult {
+                goals: vec![],
+                proof_tree: ProofTree {
+                    premisses: vec![],
+                    rule: ProofTreeRule::TrueIntro,
+                    conclusion: ProofTreeConclusion::PropIsTrue(Prop::True),
+                },
             },
         ))
     }
@@ -529,7 +572,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     fn visit_type_ascription(
         &mut self,
         type_ascription: &TypeAscription,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         let TypeAscription {
             proof_term,
             ascription,
@@ -559,7 +602,7 @@ impl<'a> ProofTermVisitor<Result<(Type, ProofTree), SynthesizeError>> for Synthe
     fn visit_sorry(
         &mut self,
         span: Option<Range<usize>>,
-    ) -> Result<(Type, ProofTree), SynthesizeError> {
+    ) -> Result<(Type, TypeCheckerResult), SynthesizeError> {
         Err(SynthesizeError::NotSynthesizing(ProofTermKind::Sorry, span))
     }
 }
