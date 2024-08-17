@@ -1,19 +1,27 @@
 import { css } from '@emotion/css';
+import { Progress } from 'antd';
 import React, { ReactNode } from 'react';
 
-type TutorPropositionSolutionStatusStatus = 'solvable' | 'unsolvable' | 'unknown';
+export type TutorPropositionSolutionStatusStatus = 'solved' | 'solvable' | 'unsolvable' | 'unknown';
 
 interface TutorPropositionSolutionStatusProps {
     status: TutorPropositionSolutionStatusStatus;
+    percentage: number;
 }
 
 export function TutorPropositionSolutionStatus(props: TutorPropositionSolutionStatusProps) {
-    const { status } = props;
+    const { status, percentage } = props;
 
     const statusText = getText(status);
 
     return (
         <div className={cssStatusContainer}>
+            <Progress
+                type="circle"
+                size={90}
+                strokeColor={'#1677ff'}
+                percent={percentage}
+            />
             <span className={cssStatusText}>
                 {statusText}
             </span>
@@ -23,6 +31,13 @@ export function TutorPropositionSolutionStatus(props: TutorPropositionSolutionSt
 
 function getText(status: TutorPropositionSolutionStatusStatus): ReactNode {
     switch (status) {
+        case 'solved': return (
+            <span>
+                <span style={{color: '#4BB543'}}>You did it!</span>
+                <br/>
+                You proved the proposition!
+            </span>
+        );
         case 'solvable': return (
             <span>
                 Alice thinks <span style={{ color: '#12DC19' }}>you can prove</span> this proposition.
