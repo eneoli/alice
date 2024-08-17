@@ -345,6 +345,7 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
                     <DndContext
                         collisionDetection={visualProofEditorCollisionDetection}
                         sensors={sensors}
+                        autoScroll={false}
                         onDragStart={onDragStart}
                         onDragEnd={onDragEnd}
                         onDragCancel={onDragCancel}>
