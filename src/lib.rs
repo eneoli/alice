@@ -7,7 +7,7 @@ use kernel::{
     checker::{
         check::{check, CheckError},
         identifier::Identifier,
-        identifier_context::IdentifierContext,
+        identifier_context::IdentifierContext, TypeCheckerResult,
     },
     export::{ocaml_exporter::OcamlExporter, ProofExporter},
     parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
@@ -67,7 +67,7 @@ pub fn print_prop(prop: &Prop) -> String {
 }
 
 #[wasm_bindgen]
-pub fn verify(prop: &str, proof_term: &str) -> Result<ProofTree, BackendError> {
+pub fn verify(prop: &str, proof_term: &str) -> Result<TypeCheckerResult, BackendError> {
     let proof_term_len = proof_term.chars().count();
 
     // Step 1: Parse tokens
@@ -101,13 +101,13 @@ pub fn verify(prop: &str, proof_term: &str) -> Result<ProofTree, BackendError> {
         ))
         .map_err(|err| BackendError::ParserError(format_errors(err, prop)))?;
 
-    let proof_tree = check(
+    let checker_result = check(
         &processed_proof.proof_term,
         &parsed_prop,
         &IdentifierContext::new(),
     )?;
 
-    Ok(proof_tree)
+    Ok(checker_result)
 }
 
 #[wasm_bindgen]
