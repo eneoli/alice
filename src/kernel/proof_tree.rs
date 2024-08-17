@@ -189,8 +189,8 @@ impl ProofTreeExporter {
                 let body_proof_term = self.do_export_as_proof_term(body, &body_reasoning_mode);
 
                 let proof_term = match rule {
-                    ProofTreeRule::AndElimFst => ProjectFst::create(body_proof_term.boxed()),
-                    ProofTreeRule::AndElimSnd => ProjectSnd::create(body_proof_term.boxed()),
+                    ProofTreeRule::AndElimFst => ProjectFst::create(body_proof_term.boxed(), None),
+                    ProofTreeRule::AndElimSnd => ProjectSnd::create(body_proof_term.boxed(), None),
                     _ => unreachable!(),
                 };
 
@@ -234,7 +234,7 @@ impl ProofTreeExporter {
                 let fst_proof_term = self.do_export_as_proof_term(fst, &fst_reasoning_mode);
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
-                Application::create(fst_proof_term.boxed(), snd_proof_term.boxed())
+                Application::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None)
             }
             ProofTreeRule::OrIntroFst | ProofTreeRule::OrIntroSnd => {
                 let expected_reasoning_mode = Self::expected_conclusion_mode(rule);
@@ -248,8 +248,8 @@ impl ProofTreeExporter {
                 let body_proof_term = self.do_export_as_proof_term(body, &body_reasoning_mode);
 
                 let proof_term = match rule {
-                    ProofTreeRule::OrIntroFst => OrLeft::create(body_proof_term.boxed()),
-                    ProofTreeRule::OrIntroSnd => OrRight::create(body_proof_term.boxed()),
+                    ProofTreeRule::OrIntroFst => OrLeft::create(body_proof_term.boxed(), None),
+                    ProofTreeRule::OrIntroSnd => OrRight::create(body_proof_term.boxed(), None),
                     _ => unreachable!(),
                 };
 
@@ -294,7 +294,7 @@ impl ProofTreeExporter {
 
                 let body_proof_term = self.do_export_as_proof_term(body, &body_reasoning_mode);
 
-                let proof_term = Abort::create(body_proof_term.boxed());
+                let proof_term = Abort::create(body_proof_term.boxed(), None);
 
                 self.wrap_into_type_ascription(
                     proof_term,
@@ -339,7 +339,7 @@ impl ProofTreeExporter {
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
                 let proof_term =
-                    Application::create(fst_proof_term.boxed(), snd_proof_term.boxed());
+                    Application::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None);
 
                 self.wrap_into_type_ascription(
                     proof_term,

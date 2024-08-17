@@ -542,7 +542,10 @@ mod tests {
             &mut IdentifierFactory::new(Counter::new()),
         );
 
-        assert_eq!(_type, Err(SynthesizeError::QuantifiedObjectEscapesScope))
+        assert_eq!(
+            _type,
+            Err(SynthesizeError::QuantifiedObjectEscapesScope(Some(122..127)))
+        )
     }
 
     #[test]

@@ -40,7 +40,9 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             .then(proof_term.clone())
             .then_ignore(just(Token::COMMA).or_not())
             .then_ignore(just(Token::RROUND))
-            .map_with_span(|(fst, snd), span| ProofTerm::Pair(Pair(Box::new(fst), Box::new(snd), Some(span))))
+            .map_with_span(|(fst, snd), span| {
+                ProofTerm::Pair(Pair(Box::new(fst), Box::new(snd), Some(span)))
+            })
             .boxed();
 
         let sorry = just(Token::SORRY).map_with_span(|_, span| ProofTerm::Sorry(Some(span)));
@@ -111,7 +113,8 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     .then(proof_term.clone())
                     .then_ignore(just(Token::COMMA).or_not())
                     .map_with_span(
-                        |((((proof_term, left_ident), left_term), right_ident), right_term), span| {
+                        |((((proof_term, left_ident), left_term), right_ident), right_term),
+                         span| {
                             ProofTerm::Case(Case {
                                 head: Box::new(proof_term),
                                 fst_ident: left_ident,
@@ -164,27 +167,29 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                     Ok((lhs, rhs))
                 })
                 .foldl(|lhs, rhs| {
-                    // let lhs_span_start = lhs.span().as_ref().unwrap().start();
-                    // let rhs_span_end = rhs.span().as_ref().unwrap().end();
+                    let lhs_span_start = lhs.span().as_ref().unwrap().start();
+                    let rhs_span_end = rhs.span().as_ref().unwrap().end();
+
+                    let span = Some(lhs_span_start..rhs_span_end);
 
                     if let ProofTerm::Ident(ident) = lhs.clone() {
                         match ident.as_str() {
-                            "inl" => ProofTerm::OrLeft(OrLeft(Box::new(rhs))),
-                            "inr" => ProofTerm::OrRight(OrRight(Box::new(rhs))),
-                            "abort" => ProofTerm::Abort(Abort(Box::new(rhs))),
-                            "fst" => ProofTerm::ProjectFst(ProjectFst(Box::new(rhs))),
-                            "snd" => ProofTerm::ProjectSnd(ProjectSnd(Box::new(rhs))),
+                            "inl" => ProofTerm::OrLeft(OrLeft(Box::new(rhs), span)),
+                            "inr" => ProofTerm::OrRight(OrRight(Box::new(rhs), span)),
+                            "abort" => ProofTerm::Abort(Abort(Box::new(rhs), span)),
+                            "fst" => ProofTerm::ProjectFst(ProjectFst(Box::new(rhs), span)),
+                            "snd" => ProofTerm::ProjectSnd(ProjectSnd(Box::new(rhs), span)),
                             _ => ProofTerm::Application(Application {
                                 function: Box::new(lhs),
                                 applicant: Box::new(rhs),
-                                // span: Some(lhs_span_start..rhs_span_end),
+                                span,
                             }),
                         }
                     } else {
                         ProofTerm::Application(Application {
                             function: Box::new(lhs),
                             applicant: Box::new(rhs),
-                            // span: Some(lhs_span_start..rhs_span_end),
+                            span,
                         })
                     }
                 })
@@ -303,11 +308,13 @@ mod tests {
                 param_type: None,
                 body: ProofTerm::Pair(Pair(
                     ProofTerm::ProjectSnd(ProjectSnd(
-                        ProofTerm::Ident(Ident("x".to_string(), Some(13..14))).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(13..14))).boxed(),
+                        Some(9..14),
                     ))
                     .boxed(),
                     ProofTerm::ProjectFst(ProjectFst(
-                        ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed(),
+                        Some(16..21),
                     ))
                     .boxed(),
                     Some(8..22),
@@ -338,11 +345,13 @@ mod tests {
                 ))),
                 body: ProofTerm::Pair(Pair(
                     ProofTerm::ProjectSnd(ProjectSnd(
-                        ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed(),
+                        Some(16..21),
                     ))
                     .boxed(),
                     ProofTerm::ProjectFst(ProjectFst(
-                        ProofTerm::Ident(Ident("x".to_string(), Some(27..28))).boxed()
+                        ProofTerm::Ident(Ident("x".to_string(), Some(27..28))).boxed(),
+                        Some(23..28),
                     ))
                     .boxed(),
                     Some(15..29),
@@ -380,10 +389,10 @@ mod tests {
                                     .boxed(),
                                 applicant: ProofTerm::Ident(Ident("x".to_string(), Some(22..23)))
                                     .boxed(),
-                                // span: Some(0..1),
+                                span: Some(20..23),
                             })
                             .boxed(),
-                            // span: Some(0..1),
+                            span: Some(17..23),
                         })
                         .boxed(),
                         span: Some(9..24),
@@ -400,16 +409,16 @@ mod tests {
                                     .boxed(),
                                 applicant: ProofTerm::Ident(Ident("x".to_string(), Some(40..41)))
                                     .boxed(),
-                                // span: Some(0..1),
+                                span: Some(38..41),
                             })
                             .boxed(),
-                            // span: Some(0..1),
+                            span: Some(35..41),
                         })
                         .boxed(),
                         span: Some(27..42),
                     })
                     .boxed(),
-                    // span: Some(8..43),
+                    span: Some(9..42),
                 })
                 .boxed(),
                 span: Some(0..43),
@@ -443,9 +452,11 @@ mod tests {
                                 function: ProofTerm::Ident(Ident("x".to_string(), Some(30..31)))
                                     .boxed(),
                                 applicant: ProofTerm::Ident(Ident("x".to_string(), Some(32..33)))
-                                    .boxed()
+                                    .boxed(),
+                                span: Some(30..33),
                             })
-                            .boxed()
+                            .boxed(),
+                            span: Some(27..33),
                         })
                         .boxed(),
                         span: Some(14..34),
@@ -461,14 +472,17 @@ mod tests {
                                 function: ProofTerm::Ident(Ident("x".to_string(), Some(53..54)))
                                     .boxed(),
                                 applicant: ProofTerm::Ident(Ident("x".to_string(), Some(55..56)))
-                                    .boxed()
+                                    .boxed(),
+                                span: Some(53..56),
                             })
-                            .boxed()
+                            .boxed(),
+                            span: Some(50..56),
                         })
                         .boxed(),
                         span: Some(37..57),
                     })
-                    .boxed()
+                    .boxed(),
+                    span: Some(14..57),
                 })
                 .boxed(),
                 span: Some(0..58),
@@ -540,6 +554,7 @@ mod tests {
             ProofTerm::Application(Application {
                 function: ProofTerm::Ident(Ident("f".to_string(), Some(0..1))).boxed(),
                 applicant: ProofTerm::Ident(Ident("a".to_string(), Some(2..3))).boxed(),
+                span: Some(0..3),
             })
         )
     }
@@ -570,7 +585,8 @@ mod tests {
                     body: ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed(),
                     span: Some(12..21),
                 })
-                .boxed()
+                .boxed(),
+                span: Some(1..21),
             })
         )
     }
@@ -601,7 +617,8 @@ mod tests {
                     body: ProofTerm::Ident(Ident("x".to_string(), Some(32..33))).boxed(),
                     span: Some(18..33),
                 })
-                .boxed()
+                .boxed(),
+                span: Some(1..33),
             })
         )
     }
@@ -678,7 +695,8 @@ mod tests {
                     ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
                     Some(4..10),
                 ))
-                .boxed()
+                .boxed(),
+                Some(0..10),
             ))
         )
     }
@@ -696,7 +714,8 @@ mod tests {
         assert_eq!(
             ast,
             ProofTerm::OrLeft(OrLeft(
-                ProofTerm::Ident(Ident("a".to_string(), Some(4..5))).boxed()
+                ProofTerm::Ident(Ident("a".to_string(), Some(4..5))).boxed(),
+                Some(0..5),
             ))
         )
     }
@@ -714,7 +733,8 @@ mod tests {
         assert_eq!(
             ast,
             ProofTerm::OrRight(OrRight(
-                ProofTerm::Ident(Ident("a".to_string(), Some(4..5))).boxed()
+                ProofTerm::Ident(Ident("a".to_string(), Some(4..5))).boxed(),
+                Some(0..5),
             ))
         )
     }
@@ -738,12 +758,14 @@ mod tests {
                     head: ProofTerm::Ident(Ident("u".to_string(), Some(13..14))).boxed(),
                     fst_ident: "a".to_string(),
                     fst_term: ProofTerm::OrRight(OrRight(
-                        ProofTerm::Ident(Ident("a".to_string(), Some(31..32))).boxed()
+                        ProofTerm::Ident(Ident("a".to_string(), Some(31..32))).boxed(),
+                        Some(27..32),
                     ))
                     .boxed(),
                     snd_ident: "b".to_string(),
                     snd_term: ProofTerm::OrLeft(OrLeft(
-                        ProofTerm::Ident(Ident("b".to_string(), Some(47..48))).boxed()
+                        ProofTerm::Ident(Ident("b".to_string(), Some(47..48))).boxed(),
+                        Some(43..48),
                     ))
                     .boxed(),
                     span: Some(8..48),
@@ -816,7 +838,8 @@ mod tests {
                     ProofTerm::Ident(Ident("b".to_string(), Some(8..9))).boxed(),
                     Some(4..10),
                 ))
-                .boxed()
+                .boxed(),
+                Some(0..10),
             ))
         )
     }
@@ -834,7 +857,8 @@ mod tests {
         assert_eq!(
             ast,
             ProofTerm::Abort(Abort(
-                ProofTerm::Ident(Ident("a".to_string(), Some(6..7))).boxed()
+                ProofTerm::Ident(Ident("a".to_string(), Some(6..7))).boxed(),
+                Some(0..7),
             ))
         )
     }
@@ -993,7 +1017,8 @@ mod tests {
             ast,
             Application::create(
                 ProofTerm::Sorry(Some(0..5)).boxed(),
-                ProofTerm::Ident(Ident("u".to_string(), Some(6..7))).boxed()
+                ProofTerm::Ident(Ident("u".to_string(), Some(6..7))).boxed(),
+                Some(0..7),
             )
         );
     }
@@ -1006,7 +1031,8 @@ mod tests {
             ast,
             Application::create(
                 ProofTerm::Ident(Ident("u".to_string(), Some(0..1))).boxed(),
-                ProofTerm::Sorry(Some(2..7)).boxed()
+                ProofTerm::Sorry(Some(2..7)).boxed(),
+                Some(0..7),
             )
         );
     }

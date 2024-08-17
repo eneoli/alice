@@ -138,17 +138,17 @@ fn resolve_datatypes(
             resolve_datatypes(*snd, atoms, datatypes)?.boxed(),
             span,
         )),
-        ProofTerm::Abort(Abort(body)) => {
-            ProofTerm::Abort(Abort(resolve_datatypes(*body, atoms, datatypes)?.boxed()))
+        ProofTerm::Abort(Abort(body, span)) => {
+            ProofTerm::Abort(Abort(resolve_datatypes(*body, atoms, datatypes)?.boxed(), span))
         }
         ProofTerm::Application(Application {
             function,
             applicant,
-            // span,
+            span,
         }) => ProofTerm::Application(Application {
             function: resolve_datatypes(*function, atoms, datatypes)?.boxed(),
             applicant: resolve_datatypes(*applicant, atoms, datatypes)?.boxed(),
-            // span: span.clone(),
+            span: span.clone(),
         }),
         ProofTerm::Case(Case {
             head,
@@ -202,17 +202,19 @@ fn resolve_datatypes(
             span,
         }),
 
-        ProofTerm::OrLeft(OrLeft(body)) => {
-            ProofTerm::OrLeft(OrLeft(resolve_datatypes(*body, atoms, datatypes)?.boxed()))
+        ProofTerm::OrLeft(OrLeft(body, span)) => {
+            ProofTerm::OrLeft(OrLeft(resolve_datatypes(*body, atoms, datatypes)?.boxed(), span))
         }
-        ProofTerm::OrRight(OrRight(body)) => {
-            ProofTerm::OrRight(OrRight(resolve_datatypes(*body, atoms, datatypes)?.boxed()))
+        ProofTerm::OrRight(OrRight(body, span)) => {
+            ProofTerm::OrRight(OrRight(resolve_datatypes(*body, atoms, datatypes)?.boxed(), span))
         }
-        ProofTerm::ProjectFst(ProjectFst(body)) => ProofTerm::ProjectFst(ProjectFst(
+        ProofTerm::ProjectFst(ProjectFst(body, span)) => ProofTerm::ProjectFst(ProjectFst(
             resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
         )),
-        ProofTerm::ProjectSnd(ProjectSnd(body)) => ProofTerm::ProjectSnd(ProjectSnd(
+        ProofTerm::ProjectSnd(ProjectSnd(body, span)) => ProofTerm::ProjectSnd(ProjectSnd(
             resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
         )),
         ProofTerm::TypeAscription(TypeAscription {
             ascription,

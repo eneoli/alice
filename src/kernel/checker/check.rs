@@ -8,7 +8,7 @@ use crate::{
     kernel::{
         proof_term::{
             Abort, Application, Case, Function, Ident, LetIn, OrLeft, OrRight, Pair, ProjectFst,
-            ProjectSnd, ProofTerm, ProofTermKind, ProofTermVisitor, Type, TypeAscription,
+            ProjectSnd, ProofTerm, ProofTermVisitor, Type, TypeAscription,
         },
         proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
         prop::{InstatiationError, Prop, PropKind, PropParameter},
@@ -33,37 +33,41 @@ pub enum CheckError {
     PropHasFreeParameters(Prop),
 
     #[error("Identifier {0} unknown")]
-    UnknownIdentifier(String),
+    UnknownIdentifier(String, Option<Range<usize>>),
 
     #[error("Proof Term does not match wich expected type")]
     IncompatibleProofTerm {
         expected_type: Type,
         proof_term: ProofTerm,
-    },
-
-    #[error("Expected different type kind")]
-    UnexpectedProofTermKind {
-        expected: Vec<ProofTermKind>,
-        received: Type,
+        span: Option<Range<usize>>,
     },
 
     #[error("Synthesis yielded unexpected Proposition")]
     UnexpectedPropKind {
         expected: Vec<PropKind>,
         received: Type,
+        span: Option<Range<usize>>,
     },
 
     #[error("Cannot return datatype")]
-    CannotReturnDatatype,
+    CannotReturnDatatype(Option<Range<usize>>),
 
     #[error("Expected different type")]
-    UnexpectedType { expected: Type, received: Type },
+    UnexpectedType {
+        expected: Type,
+        received: Type,
+        span: Option<Range<usize>>,
+    },
 
     #[error("Ascription does not match expected type")]
-    UnexpectedTypeAscription { expected: Type, ascription: Type },
+    UnexpectedTypeAscription {
+        expected: Type,
+        ascription: Type,
+        span: Option<Range<usize>>,
+    },
 
     #[error("Quantified object would escape it's scope")]
-    QuantifiedObjectEscapesScope,
+    QuantifiedObjectEscapesScope(Option<Range<usize>>),
 }
 
 pub fn check(
@@ -142,57 +146,61 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         Err(CheckError::UnexpectedType {
             expected: self.expected_type.clone(),
             received: _type,
+            span: ident.1.clone(),
         })
     }
 
     fn visit_pair(&mut self, pair: &Pair) -> Result<ProofTree, CheckError> {
-        let Pair(fst_term, snd_term, _) = pair;
+        let Pair(fst_term, snd_term, span) = pair;
 
-        let (expected_fst_type, expected_snd_type, rule, conclusion) = match self.expected_type {
-            // And
-            Type::Prop(ref prop @ Prop::And(ref fst, ref snd)) => (
-                Type::Prop(*fst.clone()),
-                Type::Prop(*snd.clone()),
-                ProofTreeRule::AndIntro,
-                ProofTreeConclusion::PropIsTrue(prop.clone()),
-            ),
-
-            // Exists
-            Type::Prop(
-                ref prop @ Prop::Exists {
-                    ref object_ident,
-                    ref object_type_ident,
-                    ref body,
-                },
-            ) => {
-                // instantiate body with parameter name of function to account for \alpha-Equivalence
-                let substitution = match **fst_term {
-                    ProofTerm::Ident(Ident(ref ident, _)) => ident.clone(),
-                    _ => unreachable!(),
-                };
-
-                // instantiate body
-                let (identifier, _) = self
-                    .ctx
-                    .get_by_name(&substitution)
-                    .ok_or(CheckError::UnknownIdentifier(substitution.clone()))?;
-                let mut substitued_body = *body.clone();
-                substitued_body.instantiate_free_parameter(object_ident, identifier);
-
-                (
-                    Type::Datatype(object_type_ident.clone()),
-                    Type::Prop(substitued_body),
-                    ProofTreeRule::ExistsIntro,
+        let (expected_fst_type, expected_snd_type, rule, conclusion) =
+            match self.expected_type {
+                // And
+                Type::Prop(ref prop @ Prop::And(ref fst, ref snd)) => (
+                    Type::Prop(*fst.clone()),
+                    Type::Prop(*snd.clone()),
+                    ProofTreeRule::AndIntro,
                     ProofTreeConclusion::PropIsTrue(prop.clone()),
-                )
-            }
-            _ => {
-                return Err(CheckError::IncompatibleProofTerm {
-                    expected_type: self.expected_type.clone(),
-                    proof_term: ProofTerm::Pair(pair.clone()),
-                })
-            }
-        };
+                ),
+
+                // Exists
+                Type::Prop(
+                    ref prop @ Prop::Exists {
+                        ref object_ident,
+                        ref object_type_ident,
+                        ref body,
+                    },
+                ) => {
+                    // instantiate body with parameter name of function to account for \alpha-Equivalence
+                    let (substitution, ident_span) = match **fst_term {
+                        ProofTerm::Ident(Ident(ref ident, ref ident_span)) => {
+                            (ident.clone(), ident_span.clone())
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    // instantiate body
+                    let (identifier, _) = self.ctx.get_by_name(&substitution).ok_or(
+                        CheckError::UnknownIdentifier(substitution.clone(), ident_span),
+                    )?;
+                    let mut substitued_body = *body.clone();
+                    substitued_body.instantiate_free_parameter(object_ident, identifier);
+
+                    (
+                        Type::Datatype(object_type_ident.clone()),
+                        Type::Prop(substitued_body),
+                        ProofTreeRule::ExistsIntro,
+                        ProofTreeConclusion::PropIsTrue(prop.clone()),
+                    )
+                }
+                _ => {
+                    return Err(CheckError::IncompatibleProofTerm {
+                        expected_type: self.expected_type.clone(),
+                        proof_term: ProofTerm::Pair(pair.clone()),
+                        span: span.clone(),
+                    })
+                }
+            };
 
         // check pair components
         let fst_proof_tree = check_allowing_free_params(
@@ -241,6 +249,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         Err(CheckError::UnexpectedType {
             expected: self.expected_type.clone(),
             received: projection_type,
+            span: projection.1.clone(),
         })
     }
 
@@ -270,6 +279,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         Err(CheckError::UnexpectedType {
             expected: self.expected_type.clone(),
             received: projection_type,
+            span: projection.1.clone(),
         })
     }
 
@@ -315,6 +325,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
                     proof_term: ProofTerm::Function(function.clone()),
+                    span: span.clone(),
                 })
             }
         };
@@ -327,20 +338,16 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                 .instantiate_parameters_with_context(&self.ctx)
                 .map_err(|err| match err {
                     InstatiationError::UnknownIdentifier(ident) => {
-                        CheckError::UnknownIdentifier(ident)
+                        CheckError::UnknownIdentifier(ident, span.clone())
                     }
                 })?;
 
             // fail if type annotation is not expected type
             if !Type::alpha_eq(&instantiated_param_type, &expected_param_type) {
-                return Err(CheckError::IncompatibleProofTerm {
-                    expected_type: self.expected_type.clone(),
-                    proof_term: Function::create(
-                        function.param_ident.clone(),
-                        Some(instantiated_param_type),
-                        function.body.clone(),
-                        span.clone(),
-                    ),
+                return Err(CheckError::UnexpectedType {
+                    expected: expected_param_type.clone(),
+                    received: instantiated_param_type,
+                    span: span.clone(),
                 });
             }
         }
@@ -366,12 +373,12 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let Application {
             function,
             applicant,
-            ..
+            span,
         } = application;
 
         let (expected_return_prop, conclusion) = match self.expected_type {
             Type::Prop(ref prop) => (prop, ProofTreeConclusion::PropIsTrue(prop.clone())),
-            Type::Datatype(_) => return Err(CheckError::CannotReturnDatatype),
+            Type::Datatype(_) => return Err(CheckError::CannotReturnDatatype(span.clone())),
         };
 
         // synthesize applicant
@@ -426,6 +433,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         Err(CheckError::UnexpectedType {
             expected: self.expected_type.clone(),
             received: application_type,
+            span: application.span.clone(),
         })
     }
 
@@ -469,7 +477,9 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                     .get_free_parameters()
                     .contains(&PropParameter::Instantiated(fst_identifier))
                 {
-                    return Err(CheckError::QuantifiedObjectEscapesScope);
+                    return Err(CheckError::QuantifiedObjectEscapesScope(
+                        body.span().clone(),
+                    ));
                 }
 
                 Ok(ProofTree {
@@ -478,18 +488,19 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                     conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
                 })
             } else {
-                Err(CheckError::CannotReturnDatatype)
+                Err(CheckError::CannotReturnDatatype(body.span().clone()))
             }
         } else {
-            Err(CheckError::UnexpectedProofTermKind {
-                expected: vec![ProofTermKind::ExistsPair],
+            Err(CheckError::UnexpectedPropKind {
+                expected: vec![PropKind::Exists],
                 received: head_type,
+                span: head.span().clone(),
             })
         }
     }
 
     fn visit_or_left(&mut self, or_left: &OrLeft) -> Result<ProofTree, CheckError> {
-        let OrLeft(body) = or_left;
+        let OrLeft(body, span) = or_left;
 
         let (expected_body_type, conclusion) = match self.expected_type {
             Type::Prop(ref prop @ Prop::Or(ref fst, _)) => (
@@ -500,6 +511,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
                     proof_term: ProofTerm::OrLeft(or_left.clone()),
+                    span: span.clone(),
                 })
             }
         };
@@ -519,7 +531,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
     }
 
     fn visit_or_right(&mut self, or_right: &OrRight) -> Result<ProofTree, CheckError> {
-        let OrRight(body) = or_right;
+        let OrRight(body, span) = or_right;
 
         let (expected_body_type, conclusion) = match self.expected_type {
             Type::Prop(ref prop @ Prop::Or(_, ref snd)) => (
@@ -530,6 +542,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
                 return Err(CheckError::IncompatibleProofTerm {
                     expected_type: self.expected_type.clone(),
                     proof_term: ProofTerm::OrRight(or_right.clone()),
+                    span: span.clone(),
                 })
             }
         };
@@ -558,15 +571,15 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
             span,
         } = case;
 
-        let (proof_term_type, proof_term_tree) =
-            synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, head_proof_tree) = synthesize(head, self.ctx, self.identifier_factory)?;
 
-        let (fst, snd) = match proof_term_type {
+        let (fst, snd) = match head_type {
             Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
             _ => {
                 return Err(CheckError::UnexpectedPropKind {
                     expected: vec![PropKind::Or],
-                    received: proof_term_type,
+                    received: head_type,
+                    span: head.span().clone(),
                 })
             }
         };
@@ -596,18 +609,18 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         // check whether datatype returned
         let conclusion = match self.expected_type {
             Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            _ => return Err(CheckError::CannotReturnDatatype),
+            _ => return Err(CheckError::CannotReturnDatatype(span.clone())),
         };
 
         Ok(ProofTree {
-            premisses: vec![proof_term_tree, fst_proof_tree, snd_proof_tree],
+            premisses: vec![head_proof_tree, fst_proof_tree, snd_proof_tree],
             rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
             conclusion,
         })
     }
 
     fn visit_abort(&mut self, abort: &Abort) -> Result<ProofTree, CheckError> {
-        let Abort(body) = abort;
+        let Abort(body, span) = abort;
 
         let body_proof_tree = check_allowing_free_params(
             body,
@@ -618,7 +631,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
 
         let conclusion = match self.expected_type {
             Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
-            _ => return Err(CheckError::CannotReturnDatatype),
+            _ => return Err(CheckError::CannotReturnDatatype(span.clone())),
         };
 
         Ok(ProofTree {
@@ -638,7 +651,8 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         } else {
             Err(CheckError::IncompatibleProofTerm {
                 expected_type: self.expected_type.clone(),
-                proof_term: ProofTerm::Unit(span),
+                proof_term: ProofTerm::Unit(span.clone()),
+                span,
             })
         }
     }
@@ -650,20 +664,23 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         let TypeAscription {
             ascription,
             proof_term,
-            ..
+            span,
         } = type_ascription;
 
         let mut instantiated_ascription = ascription.clone();
         instantiated_ascription
             .instantiate_parameters_with_context(&self.ctx)
             .map_err(|err| match err {
-                InstatiationError::UnknownIdentifier(ident) => CheckError::UnknownIdentifier(ident),
+                InstatiationError::UnknownIdentifier(ident) => {
+                    CheckError::UnknownIdentifier(ident, span.clone())
+                }
             })?;
 
         if !Type::alpha_eq(&self.expected_type, &instantiated_ascription) {
             return Err(CheckError::UnexpectedTypeAscription {
                 expected: self.expected_type.clone(),
                 ascription: instantiated_ascription.clone(),
+                span: span.clone(),
             });
         }
 
@@ -675,7 +692,7 @@ impl<'a> ProofTermVisitor<Result<ProofTree, CheckError>> for CheckVisitor<'a> {
         )
     }
 
-    fn visit_sorry(&mut self) -> Result<ProofTree, CheckError> {
+    fn visit_sorry(&mut self, _span: Option<Range<usize>>) -> Result<ProofTree, CheckError> {
         let conclusion = match self.expected_type {
             Type::Prop(ref prop) => ProofTreeConclusion::PropIsTrue(prop.clone()),
             Type::Datatype(ref datatype) => {

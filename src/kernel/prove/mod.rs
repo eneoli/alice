@@ -121,7 +121,11 @@ impl Prover {
         let snd_sequent = sequent.with_new_goal(snd);
         let snd_proof_term = self.prove_right(snd_sequent)?;
 
-        Some(Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None))
+        Some(Pair::create(
+            fst_proof_term.boxed(),
+            snd_proof_term.boxed(),
+            None,
+        ))
     }
 
     fn handle_impl_right(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
@@ -154,7 +158,7 @@ impl Prover {
 
         match &type_judgment.prop {
             Prop::True => self.prove_left(sequent),
-            Prop::False => Some(Abort::create(type_judgment.proof_term.boxed())),
+            Prop::False => Some(Abort::create(type_judgment.proof_term.boxed(), None)),
             Prop::Atom(_, _) => self.handle_atom_left(type_judgment, sequent),
             Prop::And(_, _) => self.handle_and_left(type_judgment, sequent),
             Prop::Or(_, _) => self.handle_or_left(type_judgment, sequent),
@@ -174,10 +178,10 @@ impl Prover {
             panic!("Exptected conjunction");
         };
 
-        let fst_judgment = TypeJudgment::new(*fst, ProjectFst::create(proof_term.boxed()));
+        let fst_judgment = TypeJudgment::new(*fst, ProjectFst::create(proof_term.boxed(), None));
         sequent.append_ordered(fst_judgment);
 
-        let snd_judgment = TypeJudgment::new(*snd, ProjectSnd::create(proof_term.boxed()));
+        let snd_judgment = TypeJudgment::new(*snd, ProjectSnd::create(proof_term.boxed(), None));
         sequent.append_ordered(snd_judgment);
 
         self.prove_left(sequent)
@@ -242,7 +246,7 @@ impl Prover {
         match *fst {
             Prop::True => {
                 let application_proof_term =
-                    Application::create(proof_term.boxed(), ProofTerm::Unit(None).boxed());
+                    Application::create(proof_term.boxed(), ProofTerm::Unit(None).boxed(), None);
                 let application_judgment = TypeJudgment::new(*snd, application_proof_term);
                 sequent.append_ordered(application_judgment);
                 self.prove_left(sequent)
@@ -269,6 +273,7 @@ impl Prover {
                                     None,
                                 )
                                 .boxed(),
+                                None,
                             )
                             .boxed(),
                             span: None,
@@ -297,8 +302,10 @@ impl Prover {
                             function: proof_term.boxed(),
                             applicant: ProofTerm::OrLeft(OrLeft(
                                 ProofTerm::Ident(Ident(or_fst_ident, None)).boxed(),
+                                None,
                             ))
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
                         span: None,
@@ -320,8 +327,10 @@ impl Prover {
                             function: proof_term.boxed(),
                             applicant: ProofTerm::OrRight(OrRight(
                                 ProofTerm::Ident(Ident(or_snd_ident, None)).boxed(),
+                                None,
                             ))
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
                         span: None,
@@ -370,14 +379,14 @@ impl Prover {
         // or left rule
         if let Prop::Or(fst, _) = sequent.goal {
             if let Some(proof_term) = self.prove_right(sequent.with_new_goal(fst)) {
-                return Some(OrLeft::create(proof_term.boxed()));
+                return Some(OrLeft::create(proof_term.boxed(), None));
             }
         }
 
         // or right rule
         if let Prop::Or(_, snd) = sequent.goal {
             if let Some(proof_term) = self.prove_right(sequent.with_new_goal(snd)) {
-                return Some(OrRight::create(proof_term.boxed()));
+                return Some(OrRight::create(proof_term.boxed(), None));
             }
         }
 
@@ -395,7 +404,7 @@ impl Prover {
                     let mut new_sequent = searching_sequent.clone();
                     new_sequent.append_ordered(TypeJudgment::new(
                         *impl_snd.clone(),
-                        Application::create(proof_term.boxed(), elem.proof_term.boxed()),
+                        Application::create(proof_term.boxed(), elem.proof_term.boxed(), None),
                     ));
 
                     if let Some(result_proof_term) = self.prove_left(new_sequent) {
@@ -427,6 +436,7 @@ impl Prover {
                                     span: None,
                                 })
                                 .boxed(),
+                                span: None,
                             })
                             .boxed(),
                             span: None,
@@ -440,7 +450,7 @@ impl Prover {
                     let mut snd_sequent = searching_sequent.clone();
                     snd_sequent.append_unordered(TypeJudgment::new(
                         *impl_snd,
-                        Application::create(proof_term.boxed(), fst_proof_term.boxed()),
+                        Application::create(proof_term.boxed(), fst_proof_term.boxed(), None),
                     ));
 
                     if let Some(final_proof_term) = self.prove_left(snd_sequent) {
