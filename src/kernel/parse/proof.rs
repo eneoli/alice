@@ -41,37 +41,20 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
 
     choice((datatype, atom))
         .repeated()
-        .then(proof_term_parser())
-        .try_map(|(declarations, proof_term), span| {
+        .then(proof_term_parser().then_ignore(end()))
+        .map(|(declarations, proof_term)| {
             let (atoms, datatypes): (Vec<(String, usize)>, Vec<String>) =
                 declarations.into_iter().partition_map(|decl| match decl {
                     DeclarationType::Atom(atom, arity) => Either::Left((atom, arity)),
                     DeclarationType::Datatype(datatype) => Either::Right(datatype),
                 });
 
-            let idents = [atoms.iter().map(|s| s.0.as_str()).collect::<Vec<&str>>(),
-                datatypes.iter().map(|s| s.as_str()).collect()]
-            .concat();
-
-            // check that each identifier is unique
-            let mut seen_idents: Vec<&str> = vec![];
-            for ident in idents {
-                if seen_idents.contains(&ident) {
-                    return Err(Simple::custom(
-                        span,
-                        format!("Identifier \"{}\" declared multiple times", ident),
-                    ));
-                }
-
-                seen_idents.push(ident);
-            }
-
-            Ok(Proof {
+            Proof {
                 processing_state: ProofProcessingState::Parsed,
                 datatypes,
                 atoms,
                 proof_term,
-            })
+            }
         })
         .boxed()
 }
@@ -279,36 +262,6 @@ mod tests {
     #[test]
     fn test_atoms_after_proof_term() {
         let proof_term = "datatype nat; (fn u => u) atom uff;";
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-
-        let ast = proof_parser()
-            .then_ignore(end())
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    fn test_enforce_unqiue_identifiers_datatypes() {
-        let proof_term = "datatype t; datatype nat; datatype t; fn u => u";
-
-        let len = proof_term.chars().count();
-
-        let tokens = lexer().parse(proof_term).unwrap();
-
-        let ast = proof_parser()
-            .then_ignore(end())
-            .parse(Stream::from_iter(len..len + 1, tokens.into_iter()));
-
-        assert!(ast.is_err())
-    }
-
-    #[test]
-    fn test_enforce_unqiue_identifiers_atoms() {
-        let proof_term = "atom A; atom B; atom A(42); fn u => u";
-
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
