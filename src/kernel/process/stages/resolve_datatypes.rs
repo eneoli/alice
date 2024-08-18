@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tsify_next::Tsify;
 
 use crate::kernel::{
     process::{ProofPipelineStage, StageError},
@@ -13,13 +14,18 @@ use crate::kernel::{
     prop::Prop,
 };
 
-#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum ResolveDatatypesStageError {
     #[error("Proposition contains a datatype identifier")]
-    PropContainsDatatypeIdentifier,
+    PropContainsDatatypeIdentifier { prop: Prop, datatype: String },
 
     #[error("Identifier \"{0}\" is unknown")]
     AtomUnknown(String),
+
+    #[error("Identifier \"{0}\" is defined multiple times")]
+    DuplicateIdentifier(String),
 
     #[error("Arity of {ident} wrong: expected {expected}, actual {actual}")]
     ArityWrong {
@@ -60,6 +66,21 @@ impl ProofPipelineStage for ResolveDatatypes {
             ..
         } = proof;
 
+        // check for duplicates
+        let atom_names: Vec<&String> = atoms.iter().map(|(name, _)| name).collect();
+        let datatype_names = datatypes.iter().map(|datatype| datatype).collect();
+
+        let mut seen_names = vec![];
+        for name in [atom_names, datatype_names].concat() {
+            if seen_names.contains(&name) {
+                return Err(StageError::ResolveDatatypesStageError(
+                    ResolveDatatypesStageError::DuplicateIdentifier(name.clone()),
+                ));
+            }
+
+            seen_names.push(name);
+        }
+
         let atom_map = HashMap::from_iter(atoms.clone());
 
         let new_proof_term = resolve_datatypes(proof_term, &atom_map, &datatypes)
@@ -74,22 +95,27 @@ impl ProofPipelineStage for ResolveDatatypes {
     }
 }
 
-fn has_datatype_identifier(prop: &Prop, datatypes: &Vec<String>) -> bool {
+fn get_datatype_identifier(prop: &Prop, datatypes: &Vec<String>) -> Option<String> {
     match prop {
-        Prop::Atom(ident, _) => datatypes.contains(ident),
-        Prop::And(fst, snd) => {
-            has_datatype_identifier(fst, datatypes) || has_datatype_identifier(snd, datatypes)
+        Prop::Atom(ident, _) => {
+            if datatypes.contains(ident) {
+                Some(ident.clone())
+            } else {
+                None
+            }
         }
-        Prop::Or(fst, snd) => {
-            has_datatype_identifier(fst, datatypes) || has_datatype_identifier(snd, datatypes)
+        Prop::And(fst, snd) | Prop::Or(fst, snd) | Prop::Impl(fst, snd) => {
+            if let Some(identifier) = get_datatype_identifier(fst, datatypes) {
+                return Some(identifier);
+            }
+
+            get_datatype_identifier(snd, datatypes)
         }
-        Prop::False => false,
-        Prop::True => false,
-        Prop::Impl(fst, snd) => {
-            has_datatype_identifier(fst, datatypes) || has_datatype_identifier(snd, datatypes)
+        Prop::Exists { body, .. } | Prop::ForAll { body, .. } => {
+            get_datatype_identifier(body, datatypes)
         }
-        Prop::Exists { body, .. } => has_datatype_identifier(body, datatypes),
-        Prop::ForAll { body, .. } => has_datatype_identifier(body, datatypes),
+        Prop::False => None,
+        Prop::True => None,
     }
 }
 
@@ -107,8 +133,11 @@ fn resolve_datatypes(
         }
 
         // Prop that includes datatype
-        Type::Prop(prop) if has_datatype_identifier(&prop, datatypes) => {
-            Err(ResolveDatatypesStageError::PropContainsDatatypeIdentifier)
+        Type::Prop(prop) if get_datatype_identifier(&prop, datatypes).is_some() => {
+            Err(ResolveDatatypesStageError::PropContainsDatatypeIdentifier {
+                prop: prop.clone(),
+                datatype: get_datatype_identifier(&prop, datatypes).unwrap(),
+            })
         }
 
         // Actual Atom
@@ -138,9 +167,10 @@ fn resolve_datatypes(
             resolve_datatypes(*snd, atoms, datatypes)?.boxed(),
             span,
         )),
-        ProofTerm::Abort(Abort(body, span)) => {
-            ProofTerm::Abort(Abort(resolve_datatypes(*body, atoms, datatypes)?.boxed(), span))
-        }
+        ProofTerm::Abort(Abort(body, span)) => ProofTerm::Abort(Abort(
+            resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
+        )),
         ProofTerm::Application(Application {
             function,
             applicant,
@@ -202,12 +232,14 @@ fn resolve_datatypes(
             span,
         }),
 
-        ProofTerm::OrLeft(OrLeft(body, span)) => {
-            ProofTerm::OrLeft(OrLeft(resolve_datatypes(*body, atoms, datatypes)?.boxed(), span))
-        }
-        ProofTerm::OrRight(OrRight(body, span)) => {
-            ProofTerm::OrRight(OrRight(resolve_datatypes(*body, atoms, datatypes)?.boxed(), span))
-        }
+        ProofTerm::OrLeft(OrLeft(body, span)) => ProofTerm::OrLeft(OrLeft(
+            resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
+        )),
+        ProofTerm::OrRight(OrRight(body, span)) => ProofTerm::OrRight(OrRight(
+            resolve_datatypes(*body, atoms, datatypes)?.boxed(),
+            span,
+        )),
         ProofTerm::ProjectFst(ProjectFst(body, span)) => ProofTerm::ProjectFst(ProjectFst(
             resolve_datatypes(*body, atoms, datatypes)?.boxed(),
             span,
