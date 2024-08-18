@@ -14,8 +14,8 @@ pub mod synthesize;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct TypeCheckerGoal {
-    conclusion: ProofTreeConclusion,
-    solution: Option<ProofTerm>,
+    pub conclusion: ProofTreeConclusion,
+    pub solution: Option<ProofTerm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Tsify)]
