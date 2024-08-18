@@ -3,6 +3,8 @@ import { TutorPropositionSolutionStatus, TutorPropositionSolutionStatusStatus } 
 import { TutorGoalDisplay, TutorGoalDisplayGoal } from './tutor-goal-display';
 import { ProofTerm, ProofTree, TypeCheckerGoal, VerificationResult } from 'alice';
 import { TutorTypeCheckErrorDisplay } from './tutor-type-check-error-display';
+import { TutorSyntaxErrorDisplay } from './tutor-syntax-error-display';
+import { TutorProofPipelineErrorDisplay } from './tutor-proof-pipeline-error-display';
 
 interface TutorProps {
     code: string;
@@ -26,6 +28,19 @@ export function Tutor(props: TutorProps) {
             <hr style={{ borderColor: 'rgba(124, 178, 251, 0.25)' }} />
             <br />
             {
+                (
+                    verificationResult.kind === 'LexerError' ||
+                    verificationResult.kind === 'ParserError'
+                ) && (
+                    <TutorSyntaxErrorDisplay errorMessage={verificationResult.value.error_message} />
+                )
+            }
+            {
+                verificationResult.kind === 'ProofPipelineError' && (
+                    <TutorProofPipelineErrorDisplay error={verificationResult.value.error} />
+                )
+            }
+            {
                 verificationResult.kind === 'TypeCheckerError' && (
                     <TutorTypeCheckErrorDisplay
                         code={code}
@@ -33,7 +48,6 @@ export function Tutor(props: TutorProps) {
                     />
                 )
             }
-            <br />
             {
                 verificationResult.kind === 'TypeCheckSucceeded' && (
                     <TutorGoalDisplay
@@ -46,7 +60,6 @@ export function Tutor(props: TutorProps) {
 }
 
 function getStatus(verificationResult: VerificationResult): TutorPropositionSolutionStatusStatus {
-
     if (verificationResult.kind === 'TypeCheckSucceeded' && verificationResult.value.result.goals.length === 0) {
         return 'solved';
     }
@@ -60,14 +73,19 @@ function getStatus(verificationResult: VerificationResult): TutorPropositionSolu
 
 function getProgress(verificationResult: VerificationResult): number {
 
-    if (verificationResult.kind === 'TypeCheckerError') {
+    if (
+        verificationResult.kind === 'LexerError' ||
+        verificationResult.kind === 'ParserError' ||
+        verificationResult.kind === 'ProofPipelineError' ||
+        verificationResult.kind === 'TypeCheckerError'
+    ) {
         return 0;
     }
 
     const proof_tree = verificationResult.value.result.proof_tree;
     const goals = verificationResult.value.result.goals;
 
-    const userSolutionDepth = getTreeDepth(proof_tree);
+    const userSolutionDepth = getTreeDepth(proof_tree) - 1; // ignore initial node
     const goalSolutions: ProofTerm[] = goals
         .map((goal) => goal.solution)
         .filter((solution) => solution !== null);
