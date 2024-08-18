@@ -46,6 +46,7 @@
         "@monaco-editor/react": "^4.6.0",
         "@react-aria/example-theme": "^1.0.3",
         "alice": "file:../pkg",
+        "ansi-to-html": "^0.7.2",
         "antd": "^5.19.0",
         "better-react-mathjax": "^2.0.3",
         "core-js": "^3.37.0",
