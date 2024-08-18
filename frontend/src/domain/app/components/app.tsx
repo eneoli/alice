@@ -3,7 +3,7 @@ import { Header } from './header';
 import { CodeEditor } from '../../code-editor/components/code-editor';
 import { VisualProofEditor } from '../../visual-proof-editor/components/visual-proof-editor';
 import { ConfigProvider, message, theme as antdTheme, ThemeConfig } from 'antd';
-import { Prop, VerificationResult, export_as_ocaml, generate_proof_term_from_proof_tree, parse_prop, print_prop, verify } from 'alice';
+import { Prop, VerificationResult, export_as_ocaml, generate_proof_term_from_proof_tree, parse_prop, verify } from 'alice';
 import { debounce, isEqual } from 'lodash';
 import { CodeModal } from './code-modal';
 import { VisualProofEditorProofTree, visualProofEditorProofTreeIntoAliceProofTree } from '../../visual-proof-editor/lib/visual-proof-editor-proof-tree';
@@ -43,7 +43,7 @@ export function App() {
                 setProp(newProp);
                 setProofTerm('sorry');
 
-                const verificationResult = verify(propString, 'sorry');
+                const verificationResult = verify(newProp, 'sorry');
                 setVerificationResult(verificationResult);
             }
         } catch (e) {
@@ -53,30 +53,30 @@ export function App() {
     }, 500);
 
     const handleProofTreeChange = (proofTree: VisualProofEditorProofTree) => {
-        try {
-            const code = generate_proof_term_from_proof_tree(visualProofEditorProofTreeIntoAliceProofTree(proofTree));
-            setProofTerm(code);
+        const code = generate_proof_term_from_proof_tree(visualProofEditorProofTreeIntoAliceProofTree(proofTree));
+        setProofTerm(code);
 
-            if (prop) {
-                const result = verify(print_prop(prop), code);
-                setVerificationResult(result);
-            }
-        } catch (e) {
-            console.error(e);
+        if (prop) {
+            const result = verify(prop, code);
+            setVerificationResult(result);
         }
     };
 
     const handleVerify = (prop: string) => {
-        let isProof = false;
-        let allGoalsClosed = false;
-        try {
-            const result = verify(prop, proofTerm);
-            isProof = result.kind === 'TypeCheckSucceeded';
-            allGoalsClosed = result.kind === 'TypeCheckSucceeded' && result.value.result.goals.length === 0;
-            setVerificationResult(result);
-        } catch (e: unknown) {
-            console.error(e);
+        const result = verify(parse_prop(prop), proofTerm);
+        setVerificationResult(result);
+
+        if (
+            result.kind === 'LexerError' ||
+            result.kind === 'ParserError' ||
+            result.kind === 'ProofPipelineError'
+        ) {
+            message.error('Your input is malformed. Check the Tutor for more information.');
+            return;
         }
+
+        const isProof = result.kind === 'TypeCheckSucceeded';
+        const allGoalsClosed = result.kind === 'TypeCheckSucceeded' && result.value.result.goals.length === 0;
 
         if (isProof && allGoalsClosed) {
             message.success('Your proof is correct. Well done!');
@@ -103,7 +103,7 @@ export function App() {
         setProofTerm('sorry');
 
         if (prop) {
-            setVerificationResult(verify(print_prop(prop), 'sorry'));
+            setVerificationResult(verify(prop, 'sorry'));
         }
     };
 
