@@ -28,7 +28,7 @@ export function TutorGoalDisplay(props: TutorGoalDisplayProps) {
     return (
         <div className={cssGoalDisplayContainer}>
             <span className={cssTitle}>
-                🚩 You have <span className={cssTitleGoalNumber}>{goals.length}</span> open goals:
+                🚩 You have <span className={cssTitleGoalNumber}>{goals.length}</span> open {goals.length === 1 ? ('goal') : ('goals')}:
             </span>
 
             <ul className={cssGoalList}>
@@ -114,19 +114,13 @@ const cssProp = css`
 const cssHint = css`
     position: relative;
 
-    :hover:after {
-        opacity: 0.2;
-        transition: all 0.15s;
-    }
+    color: #1e1f22;
+    background-color: rgba(30, 31, 34, 1);
+    border-radius: 5px;
 
-    :after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background-color: #1e1f22;
-        border-radius: 5px;
+    :hover {
+        color: inherit;
+        background-color: rgba(30, 31, 34, 0.25);
+        transition: all 0.15s;
     }
 `;
