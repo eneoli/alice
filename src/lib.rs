@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
-use chumsky::{error::Simple, Parser, Stream};
+use chumsky::{error::Simple, prelude::end, Parser, Stream};
 use itertools::Itertools;
 use kernel::{
     checker::{
@@ -80,6 +80,21 @@ pub enum VerificationResultSolvableStatus {
 #[tsify(into_wasm_abi, from_wasm_abi)]
 #[serde(tag = "kind", content = "value")]
 pub enum VerificationResult {
+    LexerError {
+        error_message: String,
+        solvable: VerificationResultSolvableStatus,
+    },
+
+    ParserError {
+        error_message: String,
+        solvable: VerificationResultSolvableStatus,
+    },
+
+    ProofPipelineError {
+        error: ProofPipelineError,
+        solvable: VerificationResultSolvableStatus,
+    },
+
     TypeCheckerError {
         error: CheckError,
         solvable: VerificationResultSolvableStatus,
@@ -92,47 +107,7 @@ pub enum VerificationResult {
 }
 
 #[wasm_bindgen]
-pub fn verify(prop: &str, proof_term: &str) -> Result<VerificationResult, BackendError> {
-    let proof_term_len = proof_term.chars().count();
-
-    // Step 1: Parse tokens
-    let tokens = lexer()
-        .parse(proof_term)
-        .map_err(|err| BackendError::LexerError(format_errors(err, proof_term)))?;
-
-    // Step 2: Parse Proof
-    let proof = proof_parser()
-        .parse(Stream::from_iter(
-            proof_term_len..proof_term_len + 1,
-            tokens.into_iter(),
-        ))
-        .map_err(|err| BackendError::ParserError(format_errors(err, proof_term)))?;
-
-    // Step 3: Preprocess ProofTerm
-    let processed_proof = ProofPipeline::new()
-        .pipe(ResolveDatatypes::boxed())
-        .apply(proof)?;
-
-    // Parse prop
-    let prop_len = prop.chars().count();
-    let prop_tokens = lexer()
-        .parse(prop)
-        .map_err(|err| BackendError::LexerError(format_errors(err, prop)))?;
-
-    let parsed_prop = fol_parser()
-        .parse(Stream::from_iter(
-            prop_len..prop_len + 1,
-            prop_tokens.into_iter(),
-        ))
-        .map_err(|err| BackendError::ParserError(format_errors(err, prop)))?;
-
-    // Type Checking
-    let type_checking_result = check(
-        &processed_proof.proof_term,
-        &parsed_prop,
-        &IdentifierContext::new(),
-    );
-
+pub fn verify(prop: &Prop, proof_term: &str) -> VerificationResult {
     let get_prop_solvable_status = |prop: &Prop| {
         let mut status = VerificationResultSolvableStatus::Unknown;
 
@@ -154,11 +129,63 @@ pub fn verify(prop: &str, proof_term: &str) -> Result<VerificationResult, Backen
         status
     };
 
+    let proof_term_len = proof_term.chars().count();
+
+    // Step 1: Parse ProofTerm tokens
+    let token_result = lexer().then_ignore(end()).parse(proof_term);
+
+    if let Err(err) = token_result {
+        return VerificationResult::LexerError {
+            error_message: format_errors(err, proof_term),
+            solvable: get_prop_solvable_status(prop),
+        };
+    }
+
+    let tokens = token_result.unwrap();
+
+    // Step 2: Parse ProofTerm
+    let proof_result = proof_parser().then_ignore(end()).parse(Stream::from_iter(
+        proof_term_len..proof_term_len + 1,
+        tokens.into_iter(),
+    ));
+
+    if let Err(err) = proof_result {
+        return VerificationResult::ParserError {
+            error_message: format_errors(err, proof_term),
+            solvable: get_prop_solvable_status(prop),
+        };
+    }
+
+    let proof = proof_result.unwrap();
+
+    // Step 3: Preprocess ProofTerm
+    let processed_proof_result = ProofPipeline::new()
+        .pipe(ResolveDatatypes::boxed())
+        .apply(proof);
+
+    if let Err(err) = processed_proof_result {
+        return VerificationResult::ProofPipelineError {
+            error: err,
+            solvable: get_prop_solvable_status(prop),
+        };
+    }
+
+    let processed_proof = processed_proof_result.unwrap();
+
+    // Step 4: Type Checking
+    let type_checking_result = check(
+        &processed_proof.proof_term,
+        &prop,
+        &IdentifierContext::new(),
+    );
+
+    // Step 5: Prepare response
+
     if type_checking_result.is_err() {
-        return Ok(VerificationResult::TypeCheckerError {
+        return VerificationResult::TypeCheckerError {
             error: type_checking_result.unwrap_err(),
-            solvable: get_prop_solvable_status(&parsed_prop),
-        });
+            solvable: get_prop_solvable_status(&prop),
+        };
     }
 
     let checker_result = type_checking_result.unwrap();
@@ -175,13 +202,13 @@ pub fn verify(prop: &str, proof_term: &str) -> Result<VerificationResult, Backen
     if all_goals_have_solution {
         status = VerificationResultSolvableStatus::Solvable;
     } else {
-        status = get_prop_solvable_status(&parsed_prop);
+        status = get_prop_solvable_status(prop);
     }
 
-    Ok(VerificationResult::TypeCheckSucceeded {
+    VerificationResult::TypeCheckSucceeded {
         result: checker_result,
         solvable: status,
-    })
+    }
 }
 
 #[wasm_bindgen]
@@ -190,11 +217,13 @@ pub fn parse_prop(prop: &str) -> Result<Prop, BackendError> {
 
     // Step 1: Parse tokens
     let tokens = lexer()
+        .then_ignore(end())
         .parse(prop)
         .map_err(|err| BackendError::LexerError(format_errors(err, prop)))?;
 
     // Step 2: Parse Proof
     let prop_ast = fol_parser()
+        .then_ignore(end())
         .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
         .map_err(|err| BackendError::ParserError(format_errors(err, prop)))?;
 
@@ -207,11 +236,13 @@ pub fn parse_proof_term(proof_term: &str) -> Result<Proof, BackendError> {
 
     // Step 1: Parse tokens
     let tokens = lexer()
+        .then_ignore(end())
         .parse(proof_term)
         .map_err(|err| BackendError::LexerError(format_errors(err, proof_term)))?;
 
     // Step 2: Parse Proof
     let proof = proof_parser()
+        .then_ignore(end())
         .parse(Stream::from_iter(len..len + 1, tokens.into_iter()))
         .map_err(|err| BackendError::ParserError(format_errors(err, proof_term)))?;
 
