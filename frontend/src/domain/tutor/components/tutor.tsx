@@ -1,40 +1,43 @@
 import React from 'react';
 import { TutorPropositionSolutionStatus, TutorPropositionSolutionStatusStatus } from './tutor-proposition-solution-status';
 import { TutorGoalDisplay, TutorGoalDisplayGoal } from './tutor-goal-display';
-import { CheckError, ProofTerm, ProofTree, TypeCheckerGoal, TypeCheckerResult } from 'alice';
+import { ProofTerm, ProofTree, TypeCheckerGoal, VerificationResult } from 'alice';
 import { TutorTypeCheckErrorDisplay } from './tutor-type-check-error-display';
 
 interface TutorProps {
     code: string;
-    checkResult?: TypeCheckerResult;
-    checkError?: CheckError;
+    verificationResult?: VerificationResult;
 }
 
 export function Tutor(props: TutorProps) {
-    const { code, checkResult, checkError } = props;
+    const { code, verificationResult } = props;
+
+    if (!verificationResult) {
+        return;
+    }
 
     return (
         <>
             <TutorPropositionSolutionStatus
-                status={getStatus(checkResult)}
-                percentage={checkResult ? getProgress(checkResult) : 0}
+                status={getStatus(verificationResult)}
+                percentage={getProgress(verificationResult)}
             />
             <br />
             <hr style={{ borderColor: 'rgba(124, 178, 251, 0.25)' }} />
             <br />
             {
-                checkError && (
+                verificationResult.kind === 'TypeCheckerError' && (
                     <TutorTypeCheckErrorDisplay
                         code={code}
-                        error={checkError}
+                        error={verificationResult.value.error}
                     />
                 )
             }
             <br />
             {
-                checkResult && (
+                verificationResult.kind === 'TypeCheckSucceeded' && (
                     <TutorGoalDisplay
-                        goals={transformGoalsForTutorGoalDisplay(checkResult?.goals)}
+                        goals={transformGoalsForTutorGoalDisplay(verificationResult.value.result.goals)}
                     />
                 )
             }
@@ -42,31 +45,39 @@ export function Tutor(props: TutorProps) {
     );
 }
 
-function getStatus(checkResult: TypeCheckerResult | undefined): TutorPropositionSolutionStatusStatus {
+function getStatus(verificationResult: VerificationResult): TutorPropositionSolutionStatusStatus {
 
-    if (checkResult && checkResult.goals.length === 0) {
+    if (verificationResult.kind === 'TypeCheckSucceeded' && verificationResult.value.result.goals.length === 0) {
         return 'solved';
     }
 
-    if (checkResult && checkResult.goals.every((goal) => goal.solution)) {
-        return 'solvable';
+    switch (verificationResult.value.solvable) {
+        case 'Solvable': return 'solvable';
+        case 'Unsolvable': return 'unsolvable';
+        case 'Unknown': return 'unknown';
     }
-
-    return 'unknown';
 }
 
-function getProgress(checkResult: TypeCheckerResult): number {
-    const userSolutionDepth = getTreeDepth(checkResult.proof_tree);
-    const solutions: ProofTerm[] = checkResult.goals
+function getProgress(verificationResult: VerificationResult): number {
+
+    if (verificationResult.kind === 'TypeCheckerError') {
+        return 0;
+    }
+
+    const proof_tree = verificationResult.value.result.proof_tree;
+    const goals = verificationResult.value.result.goals;
+
+    const userSolutionDepth = getTreeDepth(proof_tree);
+    const goalSolutions: ProofTerm[] = goals
         .map((goal) => goal.solution)
         .filter((solution) => solution !== null);
 
     const solutionDepth = Math.max(
         0,
-        ...solutions.map(getProofTermDepth)
+        ...goalSolutions.map(getProofTermDepth)
     );
 
-    if (solutionDepth === 0 && checkResult.goals.length > 0) {
+    if (solutionDepth === 0 && goals.length > 0) {
         return 0;
     }
 
