@@ -22,9 +22,10 @@ import { v4 } from 'uuid';
 interface VisualProofEditorProps {
     prop: Prop;
     onProofTreeChange: (tree: VisualProofEditorProofTree) => void;
+    onReset: () => void;
 }
 
-export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditorProps) {
+export function VisualProofEditor({ prop, onProofTreeChange, onReset }: VisualProofEditorProps) {
 
     const isControlKeyActive = useKeyPressed('Control');
 
@@ -62,6 +63,7 @@ export function VisualProofEditor({ prop, onProofTreeChange }: VisualProofEditor
         setAssumptions([]);
 
         generateIdentifier.reset();
+        onReset();
     }, [prop]);
 
     useEffect(resetProofEditor, [prop]);
