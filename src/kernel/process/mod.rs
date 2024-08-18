@@ -1,19 +1,24 @@
 use serde::{Deserialize, Serialize};
 use stages::resolve_datatypes::ResolveDatatypesStageError;
 use thiserror::Error;
+use tsify_next::Tsify;
 
 use super::proof::{Proof, ProofProcessingState};
 
 pub mod stages;
 
 // FIXME: Stage should not decide which stage error it returns
-#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum StageError {
     #[error("An error happened in the Resolve Datatypes stage")]
     ResolveDatatypesStageError(ResolveDatatypesStageError),
 }
 
-#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Error, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
 pub enum ProofPipelineError {
     #[error("Proof in unexpected processing state")]
     UnexpectedProcessingState {
