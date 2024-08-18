@@ -801,7 +801,7 @@ impl Display for Prop {
         // Special display for A -> False
         if let (Prop::Impl(_, _), Prop::False) = (self, &(**snd)) {
             let should_wrap = prop_precedence > fst_precedence;
-            return write!(f, "¬{}", wrap(self, should_wrap));
+            return write!(f, "¬{}", wrap(fst, should_wrap));
         }
 
         let should_wrap_fst = (prop_precedence > fst_precedence)
