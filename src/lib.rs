@@ -7,7 +7,8 @@ use kernel::{
     checker::{
         check::{check, CheckError},
         identifier::Identifier,
-        identifier_context::IdentifierContext, TypeCheckerResult,
+        identifier_context::IdentifierContext,
+        TypeCheckerResult,
     },
     export::{ocaml_exporter::OcamlExporter, ProofExporter},
     parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
@@ -15,6 +16,7 @@ use kernel::{
     proof::Proof,
     proof_tree::{ProofTree, ProofTreeConclusion},
     prop::{Prop, PropParameter, QuantifierKind},
+    prove::prove,
 };
 
 use wasm_bindgen::prelude::*;
@@ -66,8 +68,31 @@ pub fn print_prop(prop: &Prop) -> String {
     format!("{}", prop)
 }
 
+#[derive(Clone, PartialEq, Eq, Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+pub enum VerificationResultSolvableStatus {
+    Solvable,
+    Unsolvable,
+    Unknown,
+}
+
+#[derive(Clone, PartialEq, Eq, Tsify, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(tag = "kind", content = "value")]
+pub enum VerificationResult {
+    TypeCheckerError {
+        error: CheckError,
+        solvable: VerificationResultSolvableStatus,
+    },
+
+    TypeCheckSucceeded {
+        result: TypeCheckerResult,
+        solvable: VerificationResultSolvableStatus,
+    },
+}
+
 #[wasm_bindgen]
-pub fn verify(prop: &str, proof_term: &str) -> Result<TypeCheckerResult, BackendError> {
+pub fn verify(prop: &str, proof_term: &str) -> Result<VerificationResult, BackendError> {
     let proof_term_len = proof_term.chars().count();
 
     // Step 1: Parse tokens
@@ -101,13 +126,62 @@ pub fn verify(prop: &str, proof_term: &str) -> Result<TypeCheckerResult, Backend
         ))
         .map_err(|err| BackendError::ParserError(format_errors(err, prop)))?;
 
-    let checker_result = check(
+    // Type Checking
+    let type_checking_result = check(
         &processed_proof.proof_term,
         &parsed_prop,
         &IdentifierContext::new(),
-    )?;
+    );
 
-    Ok(checker_result)
+    let get_prop_solvable_status = |prop: &Prop| {
+        let mut status = VerificationResultSolvableStatus::Unknown;
+
+        if !prop.has_quantifiers() && !prop.has_free_parameters() {
+            let solvable = prove(&prop).is_some();
+
+            if solvable {
+                status = VerificationResultSolvableStatus::Solvable;
+            } else {
+                let negative_solvable =
+                    prove(&Prop::Impl(prop.boxed(), Prop::False.boxed())).is_some();
+
+                if negative_solvable {
+                    status = VerificationResultSolvableStatus::Unsolvable;
+                }
+            }
+        }
+
+        status
+    };
+
+    if type_checking_result.is_err() {
+        return Ok(VerificationResult::TypeCheckerError {
+            error: type_checking_result.unwrap_err(),
+            solvable: get_prop_solvable_status(&parsed_prop),
+        });
+    }
+
+    let checker_result = type_checking_result.unwrap();
+
+    // Check first if every goal has a solution.
+    // If not, use Prover to determine provability.
+
+    let mut status = VerificationResultSolvableStatus::Unknown;
+    let all_goals_have_solution = checker_result
+        .goals
+        .iter()
+        .all(|goal| goal.solution.is_some());
+
+    if all_goals_have_solution {
+        status = VerificationResultSolvableStatus::Solvable;
+    } else {
+        status = get_prop_solvable_status(&parsed_prop);
+    }
+
+    Ok(VerificationResult::TypeCheckSucceeded {
+        result: checker_result,
+        solvable: status,
+    })
 }
 
 #[wasm_bindgen]
