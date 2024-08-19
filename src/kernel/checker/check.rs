@@ -325,7 +325,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             Type::Prop(ref prop @ Prop::Impl(ref fst, ref snd)) => (
                 Type::Prop(*fst.clone()),
                 *snd.clone(),
-                ProofTreeRule::ImplIntro(param_ident.clone()),
+                ProofTreeRule::ImplIntro(param_identifier.clone()),
                 ProofTreeConclusion::PropIsTrue(prop.clone()),
             ),
 
@@ -344,7 +344,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
                 (
                     Type::Datatype(object_type_ident.clone()),
                     expected_body_prop,
-                    ProofTreeRule::ForAllIntro(param_ident.clone()),
+                    ProofTreeRule::ForAllIntro(param_identifier.clone()),
                     ProofTreeConclusion::PropIsTrue(prop.clone()),
                 )
             }
@@ -506,7 +506,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             // check body
             let mut body_ctx = self.ctx.clone();
             body_ctx.insert(fst_identifier.clone(), Type::Datatype(object_type_ident));
-            body_ctx.insert(snd_identifier, Type::Prop(*exists_body));
+            body_ctx.insert(snd_identifier.clone(), Type::Prop(*exists_body));
             let body_result = check_allowing_free_params(
                 body,
                 &self.expected_type,
@@ -518,7 +518,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
                 // check that quantified object does not escape it's scope
                 if prop
                     .get_free_parameters()
-                    .contains(&PropParameter::Instantiated(fst_identifier))
+                    .contains(&PropParameter::Instantiated(fst_identifier.clone()))
                 {
                     return Err(CheckError::QuantifiedObjectEscapesScope(
                         body.span().clone(),
@@ -529,7 +529,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
                     goals: [head_result.goals, body_result.goals].concat(),
                     proof_tree: ProofTree {
                         premisses: vec![head_result.proof_tree, body_result.proof_tree],
-                        rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
+                        rule: ProofTreeRule::ExistsElim(fst_identifier, snd_identifier),
                         conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
                     },
                 })
@@ -643,7 +643,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
         // check fst case arm
         let fst_identifier = self.identifier_factory.create(fst_ident.clone());
         let mut fst_ctx = self.ctx.clone();
-        fst_ctx.insert(fst_identifier, Type::Prop(*fst));
+        fst_ctx.insert(fst_identifier.clone(), Type::Prop(*fst));
         let fst_result = check_allowing_free_params(
             fst_term,
             &self.expected_type,
@@ -654,7 +654,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
         // check snd case arm
         let snd_identifier = self.identifier_factory.create(snd_ident.clone());
         let mut snd_ctx = self.ctx.clone();
-        snd_ctx.insert(snd_identifier, Type::Prop(*snd));
+        snd_ctx.insert(snd_identifier.clone(), Type::Prop(*snd));
         let snd_result = check_allowing_free_params(
             snd_term,
             &self.expected_type,
@@ -676,7 +676,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
                     fst_result.proof_tree,
                     snd_result.proof_tree,
                 ],
-                rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
+                rule: ProofTreeRule::OrElim(fst_identifier, snd_identifier),
                 conclusion,
             },
         })

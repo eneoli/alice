@@ -8,7 +8,7 @@ mod tests {
         kernel::{
             checker::{
                 check::check,
-                identifier::IdentifierFactory,
+                identifier::{Identifier, IdentifierFactory},
                 identifier_context::IdentifierContext,
                 synthesize::{synthesize, SynthesizeError},
             },
@@ -80,7 +80,7 @@ mod tests {
                         premisses: vec![
                             ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident("u".to_string()),
+                                rule: ProofTreeRule::Ident(Identifier::new("u".to_string(), 0)),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "A".to_string(),
                                     vec![]
@@ -88,7 +88,7 @@ mod tests {
                             },
                             ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident("w".to_string()),
+                                rule: ProofTreeRule::Ident(Identifier::new("w".to_string(), 1)),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "B".to_string(),
                                     vec![]
@@ -101,7 +101,7 @@ mod tests {
                             Prop::Atom("B".to_string(), vec![]).boxed(),
                         ))
                     }],
-                    rule: ProofTreeRule::ImplIntro("w".to_string()),
+                    rule: ProofTreeRule::ImplIntro(Identifier::new("w".to_string(), 1)),
                     conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
                         Prop::Atom("B".to_string(), vec![]).boxed(),
                         Prop::And(
@@ -111,7 +111,7 @@ mod tests {
                         .boxed(),
                     )),
                 }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                rule: ProofTreeRule::ImplIntro(Identifier::new("u".to_string(), 0)),
                 conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
             }
         )
@@ -131,7 +131,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident("u".to_string()),
+                                rule: ProofTreeRule::Ident(Identifier::new("u".to_string(), 0)),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
                                     Prop::Atom("A".to_string(), vec![]).boxed(),
                                     Prop::Atom("B".to_string(), vec![]).boxed(),
@@ -146,7 +146,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident("u".to_string()),
+                                rule: ProofTreeRule::Ident(Identifier::new("u".to_string(), 0)),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::And(
                                     Prop::Atom("A".to_string(), vec![]).boxed(),
                                     Prop::Atom("B".to_string(), vec![]).boxed(),
@@ -165,7 +165,7 @@ mod tests {
                         Prop::Atom("A".to_string(), vec![]).boxed()
                     )),
                 }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                rule: ProofTreeRule::ImplIntro(Identifier::new("u".to_string(), 0)),
                 conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
             }
         )
@@ -190,7 +190,10 @@ mod tests {
                                     premisses: vec![
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident("u".to_string()),
+                                            rule: ProofTreeRule::Ident(Identifier::new(
+                                                "u".to_string(),
+                                                0
+                                            )),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Impl(
                                                     Prop::Atom("A".to_string(), vec![]).boxed(),
@@ -204,7 +207,10 @@ mod tests {
                                         },
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident("w".to_string()),
+                                            rule: ProofTreeRule::Ident(Identifier::new(
+                                                "w".to_string(),
+                                                1
+                                            )),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Atom("A".to_string(), vec![])
                                             ),
@@ -222,7 +228,7 @@ mod tests {
                                     vec![]
                                 )),
                             }],
-                            rule: ProofTreeRule::ImplIntro("w".to_string()),
+                            rule: ProofTreeRule::ImplIntro(Identifier::new("w".to_string(), 1)),
                             conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
                                 Prop::Atom("A".to_string(), vec![]).boxed(),
                                 Prop::Atom("B".to_string(), vec![]).boxed(),
@@ -234,7 +240,10 @@ mod tests {
                                     premisses: vec![
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident("u".to_string()),
+                                            rule: ProofTreeRule::Ident(Identifier::new(
+                                                "u".to_string(),
+                                                0
+                                            )),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Impl(
                                                     Prop::Atom("A".to_string(), vec![]).boxed(),
@@ -248,7 +257,10 @@ mod tests {
                                         },
                                         ProofTree {
                                             premisses: vec![],
-                                            rule: ProofTreeRule::Ident("w".to_string()),
+                                            rule: ProofTreeRule::Ident(Identifier::new(
+                                                "w".to_string(),
+                                                2
+                                            )),
                                             conclusion: ProofTreeConclusion::PropIsTrue(
                                                 Prop::Atom("A".to_string(), vec![])
                                             ),
@@ -266,7 +278,7 @@ mod tests {
                                     vec![]
                                 )),
                             }],
-                            rule: ProofTreeRule::ImplIntro("w".to_string()),
+                            rule: ProofTreeRule::ImplIntro(Identifier::new("w".to_string(), 2)),
                             conclusion: ProofTreeConclusion::PropIsTrue(Prop::Impl(
                                 Prop::Atom("A".to_string(), vec![]).boxed(),
                                 Prop::Atom("C".to_string(), vec![]).boxed(),
@@ -287,7 +299,7 @@ mod tests {
                         .boxed(),
                     ))
                 }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                rule: ProofTreeRule::ImplIntro(Identifier::new("u".to_string(), 0)),
                 conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
             }
         )
@@ -364,7 +376,7 @@ mod tests {
                     premisses: vec![
                         ProofTree {
                             premisses: vec![],
-                            rule: ProofTreeRule::Ident("u".to_string()),
+                            rule: ProofTreeRule::Ident(Identifier::new("u".to_string(), 0)),
                             conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
                                 Prop::Atom("A".to_string(), vec![]).boxed(),
                                 Prop::Atom("B".to_string(), vec![]).boxed(),
@@ -373,7 +385,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident("a".to_string()),
+                                rule: ProofTreeRule::Ident(Identifier::new("a".to_string(), 1)),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "A".to_string(),
                                     vec![]
@@ -388,7 +400,7 @@ mod tests {
                         ProofTree {
                             premisses: vec![ProofTree {
                                 premisses: vec![],
-                                rule: ProofTreeRule::Ident("b".to_string()),
+                                rule: ProofTreeRule::Ident(Identifier::new("b".to_string(), 2)),
                                 conclusion: ProofTreeConclusion::PropIsTrue(Prop::Atom(
                                     "B".to_string(),
                                     vec![]
@@ -401,13 +413,16 @@ mod tests {
                             ))
                         }
                     ],
-                    rule: ProofTreeRule::OrElim("a".to_string(), "b".to_string()),
+                    rule: ProofTreeRule::OrElim(
+                        Identifier::new("a".to_string(), 1),
+                        Identifier::new("b".to_string(), 2)
+                    ),
                     conclusion: ProofTreeConclusion::PropIsTrue(Prop::Or(
                         Prop::Atom("B".to_string(), vec![]).boxed(),
                         Prop::Atom("A".to_string(), vec![]).boxed(),
                     )),
                 }],
-                rule: ProofTreeRule::ImplIntro("u".to_string()),
+                rule: ProofTreeRule::ImplIntro(Identifier::new("u".to_string(), 0)),
                 conclusion: ProofTreeConclusion::PropIsTrue(expected_type),
             }
         )

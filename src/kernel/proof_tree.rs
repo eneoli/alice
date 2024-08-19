@@ -21,17 +21,17 @@ pub enum ProofTreeRule {
     AndElimFst,
     AndElimSnd,
     TrueIntro,
-    ImplIntro(String),
+    ImplIntro(Identifier),
     ImplElim,
-    Ident(String),
+    Ident(Identifier),
     OrIntroFst,
     OrIntroSnd,
-    OrElim(String, String),
+    OrElim(Identifier, Identifier),
     FalsumElim,
-    ForAllIntro(String),
+    ForAllIntro(Identifier),
     ForAllElim,
     ExistsIntro,
-    ExistsElim(String, String),
+    ExistsElim(Identifier, Identifier),
     Sorry,
     AlphaEquivalent,
 }
@@ -159,7 +159,7 @@ impl ProofTreeExporter {
         match rule {
             ProofTreeRule::TrueIntro => ProofTerm::Unit(None),
             ProofTreeRule::Sorry => ProofTerm::Sorry(None),
-            ProofTreeRule::Ident(ident) => Ident::create(ident.clone()),
+            ProofTreeRule::Ident(ident) => Ident::create(ident.name().clone()),
             ProofTreeRule::AlphaEquivalent => {
                 self.do_export_as_proof_term(&premisses[0], reasoning_mode)
             }
@@ -222,7 +222,7 @@ impl ProofTreeExporter {
                 }
 
                 Function::create(
-                    param_ident.clone(),
+                    param_ident.name().clone(),
                     annotation,
                     body_proof_term.boxed(),
                     None,
@@ -324,9 +324,9 @@ impl ProofTreeExporter {
 
                 Case::create(
                     head_proof_term.boxed(),
-                    fst_ident.clone(),
+                    fst_ident.name().clone(),
                     fst_proof_term.boxed(),
-                    snd_ident.clone(),
+                    snd_ident.name().clone(),
                     snd_proof_term.boxed(),
                     None,
                 )
@@ -371,7 +371,7 @@ impl ProofTreeExporter {
                 }
 
                 Function::create(
-                    param_ident.clone(),
+                    param_ident.name().clone(),
                     param_type,
                     body_proof_term.boxed(),
                     None,
@@ -439,8 +439,8 @@ impl ProofTreeExporter {
 
                 ProofTerm::LetIn(LetIn {
                     head: fst_proof_term.boxed(),
-                    fst_ident: fst_ident.clone(),
-                    snd_ident: snd_ident.clone(),
+                    fst_ident: fst_ident.name().clone(),
+                    snd_ident: snd_ident.name().clone(),
                     body: snd_proof_term.boxed(),
                     span: None,
                 })

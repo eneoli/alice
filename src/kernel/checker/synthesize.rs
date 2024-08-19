@@ -118,7 +118,7 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
                 goals: vec![],
                 proof_tree: ProofTree {
                     premisses: vec![],
-                    rule: ProofTreeRule::Ident(ident.clone()),
+                    rule: ProofTreeRule::Ident(identifier.clone()),
                     conclusion,
                 },
             },
@@ -258,7 +258,7 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
         // add param to context
         let param_identifier = self.identifier_factory.create(param_ident.clone());
         let mut body_ctx = self.ctx.clone();
-        body_ctx.insert(param_identifier, bound_param_type.clone());
+        body_ctx.insert(param_identifier.clone(), bound_param_type.clone());
         let (body_type, body_result) = synthesize(body, &body_ctx, self.identifier_factory)?;
 
         match (&bound_param_type, &body_type) {
@@ -276,7 +276,7 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
                         goals: body_result.goals,
                         proof_tree: ProofTree {
                             premisses: vec![body_result.proof_tree],
-                            rule: ProofTreeRule::ForAllIntro(param_ident.clone()),
+                            rule: ProofTreeRule::ForAllIntro(param_identifier),
                             conclusion: ProofTreeConclusion::PropIsTrue(_type),
                         },
                     },
@@ -293,7 +293,7 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
                         goals: body_result.goals,
                         proof_tree: ProofTree {
                             premisses: vec![body_result.proof_tree],
-                            rule: ProofTreeRule::ImplIntro(param_ident.clone()),
+                            rule: ProofTreeRule::ImplIntro(param_identifier),
                             conclusion: ProofTreeConclusion::PropIsTrue(_type),
                         },
                     },
@@ -418,14 +418,14 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
 
             let mut body_ctx = self.ctx.clone();
             body_ctx.insert(fst_identifier.clone(), Type::Datatype(object_type_ident));
-            body_ctx.insert(snd_identifier, Type::Prop(*exists_body));
+            body_ctx.insert(snd_identifier.clone(), Type::Prop(*exists_body));
             let (body_type, body_result) = synthesize(body, &body_ctx, self.identifier_factory)?;
 
             if let Type::Prop(prop) = &body_type {
                 // check that quantified object does not escape it's scope
                 if prop
                     .get_free_parameters()
-                    .contains(&PropParameter::Instantiated(fst_identifier))
+                    .contains(&PropParameter::Instantiated(fst_identifier.clone()))
                 {
                     return Err(SynthesizeError::QuantifiedObjectEscapesScope(
                         body.span().clone(),
@@ -438,7 +438,7 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
                         goals: [pair_result.goals, body_result.goals].concat(),
                         proof_tree: ProofTree {
                             premisses: vec![pair_result.proof_tree, body_result.proof_tree],
-                            rule: ProofTreeRule::ExistsElim(fst_ident.clone(), snd_ident.clone()),
+                            rule: ProofTreeRule::ExistsElim(fst_identifier, snd_identifier),
                             conclusion: ProofTreeConclusion::PropIsTrue(prop.clone()),
                         },
                     },
@@ -505,13 +505,13 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
         // synthesize fst arm
         let fst_identifier = self.identifier_factory.create(fst_ident.clone());
         let mut fst_ctx = self.ctx.clone();
-        fst_ctx.insert(fst_identifier, Type::Prop(*fst));
+        fst_ctx.insert(fst_identifier.clone(), Type::Prop(*fst));
         let (fst_type, fst_result) = synthesize(fst_term, &fst_ctx, self.identifier_factory)?;
 
         // snythesize snd arm
         let snd_identifier = self.identifier_factory.create(snd_ident.clone());
         let mut snd_ctx = self.ctx.clone();
-        snd_ctx.insert(snd_identifier, Type::Prop(*snd));
+        snd_ctx.insert(snd_identifier.clone(), Type::Prop(*snd));
         let (snd_type, snd_result) = synthesize(snd_term, &snd_ctx, self.identifier_factory)?;
 
         // check for alpha-equivalence
@@ -539,7 +539,7 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
                         fst_result.proof_tree,
                         snd_result.proof_tree,
                     ],
-                    rule: ProofTreeRule::OrElim(fst_ident.clone(), snd_ident.clone()),
+                    rule: ProofTreeRule::OrElim(fst_identifier, snd_identifier),
                     conclusion,
                 },
             },
