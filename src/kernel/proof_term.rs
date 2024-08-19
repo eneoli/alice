@@ -375,6 +375,46 @@ impl ProofTerm {
         }
     }
 
+    pub fn annotation_count(&self) -> usize {
+        match self {
+            ProofTerm::Ident(_) => 0,
+            ProofTerm::Pair(Pair(fst, snd, _)) => fst.annotation_count() + snd.annotation_count(),
+            ProofTerm::ProjectFst(ProjectFst(body, _)) => body.annotation_count(),
+            ProofTerm::ProjectSnd(ProjectSnd(body, _)) => body.annotation_count(),
+            ProofTerm::Function(Function {
+                param_type, body, ..
+            }) => {
+                let param_additon = if param_type.is_some() { 1 } else { 0 };
+
+                param_additon + body.annotation_count()
+            }
+            ProofTerm::Application(Application {
+                function,
+                applicant,
+                ..
+            }) => function.annotation_count() + applicant.annotation_count(),
+            ProofTerm::LetIn(LetIn { head, body, .. }) => {
+                head.annotation_count() + body.annotation_count()
+            }
+            ProofTerm::OrLeft(OrLeft(body, _)) => body.annotation_count(),
+            ProofTerm::OrRight(OrRight(body, _)) => body.annotation_count(),
+            ProofTerm::Case(Case {
+                head,
+                fst_term,
+                snd_term,
+                ..
+            }) => {
+                head.annotation_count() + fst_term.annotation_count() + snd_term.annotation_count()
+            }
+            ProofTerm::Abort(Abort(body, _)) => body.annotation_count(),
+            ProofTerm::TypeAscription(TypeAscription { proof_term, .. }) => {
+                1 + proof_term.annotation_count()
+            }
+            ProofTerm::Unit(_) => 0,
+            ProofTerm::Sorry(_) => 0,
+        }
+    }
+
     pub fn visit<R>(&self, visitor: &mut impl ProofTermVisitor<R>) -> R {
         match self {
             ProofTerm::Ident(ident) => visitor.visit_ident(ident),

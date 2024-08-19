@@ -232,6 +232,8 @@ export function VisualProofEditor({ prop, onProofTreeChange, onReset }: VisualPr
     const onAssumptionClick = useCallback((assumptionCtx: AssumptionContext) => {
         const conclusion = createProofTreeConclusionFromAssumption(assumptionCtx.assumption);
         const newReasoningContext = createEmptyVisualProofEditorReasoningContextFromConclusion(conclusion);
+        newReasoningContext.x = 10;
+        newReasoningContext.y = 10;
         newReasoningContext.proofTree.rule = { kind: 'Ident', value: assumptionCtx.assumption.ident.name };
 
         addReasoningContext(newReasoningContext);
