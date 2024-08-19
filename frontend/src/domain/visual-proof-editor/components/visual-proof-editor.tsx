@@ -21,11 +21,21 @@ import { v4 } from 'uuid';
 
 interface VisualProofEditorProps {
     prop: Prop;
+    initialPrimaryReasoningContext: VisualProofEditorReasoningContext;
+    initialAssumptions: AssumptionContext[];
     onProofTreeChange: (tree: VisualProofEditorProofTree) => void;
     onReset: () => void;
 }
 
-export function VisualProofEditor({ prop, onProofTreeChange, onReset }: VisualProofEditorProps) {
+export function VisualProofEditor(props: VisualProofEditorProps) {
+
+    const {
+        prop,
+        initialPrimaryReasoningContext,
+        initialAssumptions,
+        onProofTreeChange,
+        onReset,
+    } = props;
 
     const isControlKeyActive = useKeyPressed('Control');
 
@@ -43,6 +53,27 @@ export function VisualProofEditor({ prop, onProofTreeChange, onReset }: VisualPr
     const [assumptions, setAssumptions] = useState<AssumptionContext[]>([]);
     const { current: generateIdentifier } = useRef(createIdentifierGenerator());
     const { current: generateUniqueNumber } = useRef(createNumberGenerator());
+
+    useEffect(() => {
+        const oldCtx = primaryReasoningCtxId ? getReasoningContext(primaryReasoningCtxId) : null;
+        const x = oldCtx ? oldCtx.x : initialPrimaryReasoningContext.x;
+        const y = oldCtx ? oldCtx.y : initialPrimaryReasoningContext.y;
+
+        updateReasoningContexts([
+            ...reasoningContexts.filter((ctx) => ctx.id !== primaryReasoningCtxId),
+            {
+                ...initialPrimaryReasoningContext,
+                x,
+                y,
+            },
+        ]);
+        setPrimaryReasoningCtxId(initialPrimaryReasoningContext.id);
+    }, [initialPrimaryReasoningContext]);
+
+    useEffect(() => {
+        // Todo what is with assumptions from other proof trees
+        setAssumptions(initialAssumptions);
+    }, [initialAssumptions]);
 
     useKeyUpEvent(() => {
         updateReasoningContexts([
@@ -234,7 +265,7 @@ export function VisualProofEditor({ prop, onProofTreeChange, onReset }: VisualPr
         const newReasoningContext = createEmptyVisualProofEditorReasoningContextFromConclusion(conclusion);
         newReasoningContext.x = 10;
         newReasoningContext.y = 10;
-        newReasoningContext.proofTree.rule = { kind: 'Ident', value: assumptionCtx.assumption.ident.name };
+        newReasoningContext.proofTree.rule = { kind: 'Ident', value: assumptionCtx.assumption.ident };
 
         addReasoningContext(newReasoningContext);
     }, [addReasoningContext]);
