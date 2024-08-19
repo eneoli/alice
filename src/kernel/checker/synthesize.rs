@@ -25,7 +25,7 @@ use super::{
 #[serde(tag = "kind", content = "value")]
 pub enum SynthesizeError {
     #[error("Checking type failed")]
-    CheckError(#[from] Box<CheckError>),
+    CheckError(Box<CheckError>),
 
     #[error("Unknown identifier")]
     UnknownIdentifier(String, Option<Range<usize>>),
@@ -373,7 +373,10 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
             self.ctx,
             self.identifier_factory,
         )
-        .map_err(Box::new)?;
+        .map_err(|check_err| match check_err {
+            CheckError::SynthesizeError(synth_err) => synth_err,
+            _ => SynthesizeError::CheckError(Box::new(check_err)),
+        })?;
 
         Ok((
             Type::Prop(return_type.clone()),
@@ -596,7 +599,10 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
             self.identifier_factory,
         )
         .map(|proof_tree| (instantiated_ascription.clone(), proof_tree))
-        .map_err(|check_err| SynthesizeError::CheckError(Box::new(check_err)))
+        .map_err(|check_err| match check_err {
+            CheckError::SynthesizeError(synth_err) => synth_err,
+            _ => SynthesizeError::CheckError(Box::new(check_err)),
+        })
     }
 
     fn visit_sorry(
