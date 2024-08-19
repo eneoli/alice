@@ -26,43 +26,43 @@ impl OcamlExporter {
 
     fn generate_ocaml_term(proof_term: &ProofTerm) -> String {
         match proof_term {
-            ProofTerm::Unit => "()".to_string(),
-            ProofTerm::Sorry => "sorry ()".to_string(),
-            ProofTerm::Ident(Ident(ident)) => ident.clone(),
-            ProofTerm::Abort(Abort(body)) => {
+            ProofTerm::Unit(_) => "()".to_string(),
+            ProofTerm::Sorry(_) => "sorry ()".to_string(),
+            ProofTerm::Ident(Ident(ident, _)) => ident.clone(),
+            ProofTerm::Abort(Abort(body, _)) => {
                 if Self::should_wrap_unary(proof_term.precedence(), body.precedence()) {
                     format!("abort ({})", Self::generate_ocaml_term(body.as_ref()))
                 } else {
                     format!("abort {}", Self::generate_ocaml_term(body.as_ref()))
                 }
             }
-            ProofTerm::Pair(Pair(fst, snd)) => format!(
+            ProofTerm::Pair(Pair(fst, snd, _)) => format!(
                 "({}, {})",
                 Self::generate_ocaml_term(fst),
                 Self::generate_ocaml_term(snd)
             ),
-            ProofTerm::ProjectFst(ProjectFst(body)) => {
+            ProofTerm::ProjectFst(ProjectFst(body, _)) => {
                 if Self::should_wrap_unary(proof_term.precedence(), body.precedence()) {
                     format!("fst ({})", Self::generate_ocaml_term(body))
                 } else {
                     format!("fst {}", Self::generate_ocaml_term(body))
                 }
             }
-            ProofTerm::ProjectSnd(ProjectSnd(body)) => {
+            ProofTerm::ProjectSnd(ProjectSnd(body, _)) => {
                 if Self::should_wrap_unary(proof_term.precedence(), body.precedence()) {
                     format!("snd ({})", Self::generate_ocaml_term(body))
                 } else {
                     format!("snd {}", Self::generate_ocaml_term(body))
                 }
             }
-            ProofTerm::OrLeft(OrLeft(body)) => {
+            ProofTerm::OrLeft(OrLeft(body, _)) => {
                 if Self::should_wrap_unary(proof_term.precedence(), body.precedence()) {
                     format!("Inl ({})", body)
                 } else {
                     format!("Inl {}", body)
                 }
             }
-            ProofTerm::OrRight(OrRight(body)) => {
+            ProofTerm::OrRight(OrRight(body, _)) => {
                 if Self::should_wrap_unary(proof_term.precedence(), body.precedence()) {
                     format!("Inr ({})", body)
                 } else {
@@ -75,6 +75,7 @@ impl OcamlExporter {
                 fst_term,
                 snd_ident,
                 snd_term,
+                ..
             }) => {
                 format!(
                     "match {} with | Inl {} -> {} | Inr {} -> {}",
@@ -93,6 +94,7 @@ impl OcamlExporter {
             ProofTerm::Application(Application {
                 function,
                 applicant,
+                ..
             }) => {
                 let own_precedence = proof_term.precedence();
                 let function_precedence = function.precedence();
@@ -134,25 +136,26 @@ impl ProofExporter for OcamlExporter {
 
     fn can_export(&self, proof_term: &ProofTerm) -> bool {
         match proof_term {
-            ProofTerm::Unit => true,
+            ProofTerm::Unit(_) => true,
             ProofTerm::Ident(_) => true,
-            ProofTerm::Sorry => true,
+            ProofTerm::Sorry(_) => true,
             ProofTerm::TypeAscription(_) => true,
-            ProofTerm::Abort(Abort(body)) => self.can_export(body),
-            ProofTerm::OrLeft(OrLeft(body)) => self.can_export(body),
-            ProofTerm::OrRight(OrRight(body)) => self.can_export(body),
+            ProofTerm::Abort(Abort(body, _)) => self.can_export(body),
+            ProofTerm::OrLeft(OrLeft(body, _)) => self.can_export(body),
+            ProofTerm::OrRight(OrRight(body, _)) => self.can_export(body),
             ProofTerm::Case(Case {
                 head,
                 fst_term,
                 snd_term,
                 ..
             }) => self.can_export(head) && self.can_export(&fst_term) && self.can_export(&snd_term),
-            ProofTerm::Pair(Pair(fst, snd)) => self.can_export(fst) && self.can_export(snd),
-            ProofTerm::ProjectFst(ProjectFst(body)) => self.can_export(body),
-            ProofTerm::ProjectSnd(ProjectSnd(body)) => self.can_export(body),
+            ProofTerm::Pair(Pair(fst, snd, _)) => self.can_export(fst) && self.can_export(snd),
+            ProofTerm::ProjectFst(ProjectFst(body, _)) => self.can_export(body),
+            ProofTerm::ProjectSnd(ProjectSnd(body, _)) => self.can_export(body),
             ProofTerm::Application(Application {
                 function,
                 applicant,
+                ..
             }) => self.can_export(&function) && self.can_export(&applicant),
             ProofTerm::Function(Function {
                 param_type, body, ..

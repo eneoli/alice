@@ -1,13 +1,9 @@
-use alice::{
-    kernel::{
-        checker::{check::check, identifier_context::IdentifierContext},
-        export::{ocaml_exporter::OcamlExporter, ProofExporter},
-        parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
-        process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
-        proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
-        prove::prove,
-    },
-    parse_prop,
+use alice::kernel::{
+    checker::{check::check, identifier_context::IdentifierContext},
+    export::{ocaml_exporter::OcamlExporter, ProofExporter},
+    parse::{fol::fol_parser, lexer::lexer, proof::proof_parser},
+    process::{stages::resolve_datatypes::ResolveDatatypes, ProofPipeline},
+    prove::prove,
 };
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{Parser, Stream};
@@ -60,7 +56,7 @@ fn main() {
     // Step 3: Preprocess ProofTerm
 
     println!("{:#?}", processed_proof);
-    let fol = "A | B -> B | A";
+    let fol = "A -> A";
     let fol_tokens = lexer().parse(fol).unwrap();
     let fol_len = fol.chars().count();
 
@@ -87,32 +83,32 @@ fn main() {
 
     println!("{}", ocaml_exporter.export(&processed_proof.proof_term));
 
-    let proof_tree = ProofTree {
-        premisses: vec![
-            ProofTree {
-                premisses: vec![ProofTree {
-                    premisses: vec![],
-                    rule: ProofTreeRule::Ident("w".to_string()),
-                    conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A").unwrap()),
-                }],
-                rule: ProofTreeRule::ImplIntro("w".to_string()),
-                conclusion: ProofTreeConclusion::PropIsTrue(
-                    parse_prop("(A -> A) -> A -> A").unwrap(),
-                ),
-            },
-            ProofTree {
-                premisses: vec![ProofTree {
-                    premisses: vec![],
-                    rule: ProofTreeRule::Ident("v".to_string()),
-                    conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A").unwrap()),
-                }],
-                rule: ProofTreeRule::ImplIntro("v".to_string()),
-                conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A -> A").unwrap()),
-            },
-        ],
-        rule: ProofTreeRule::ImplElim,
-        conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A -> A").unwrap()),
-    };
+    // let proof_tree = ProofTree {
+    //     premisses: vec![
+    //         ProofTree {
+    //             premisses: vec![ProofTree {
+    //                 premisses: vec![],
+    //                 rule: ProofTreeRule::Ident("w".to_string()),
+    //                 conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A").unwrap()),
+    //             }],
+    //             rule: ProofTreeRule::ImplIntro("w".to_string()),
+    //             conclusion: ProofTreeConclusion::PropIsTrue(
+    //                 parse_prop("(A -> A) -> A -> A").unwrap(),
+    //             ),
+    //         },
+    //         ProofTree {
+    //             premisses: vec![ProofTree {
+    //                 premisses: vec![],
+    //                 rule: ProofTreeRule::Ident("v".to_string()),
+    //                 conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A").unwrap()),
+    //             }],
+    //             rule: ProofTreeRule::ImplIntro("v".to_string()),
+    //             conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A -> A").unwrap()),
+    //         },
+    //     ],
+    //     rule: ProofTreeRule::ImplElim,
+    //     conclusion: ProofTreeConclusion::PropIsTrue(parse_prop("A -> A").unwrap()),
+    // };
 
     // println!("{}", proof_tree.as_proof_term());
     // println!(

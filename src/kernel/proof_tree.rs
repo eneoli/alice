@@ -136,6 +136,7 @@ impl ProofTreeExporter {
             proof_term = ProofTerm::TypeAscription(TypeAscription {
                 ascription: Type::Prop(prop.clone()),
                 proof_term: proof_term.boxed(),
+                span: None,
             });
 
             self.atoms.append(&mut prop.get_atoms());
@@ -156,8 +157,8 @@ impl ProofTreeExporter {
         } = proof_tree;
 
         match rule {
-            ProofTreeRule::TrueIntro => ProofTerm::Unit,
-            ProofTreeRule::Sorry => ProofTerm::Sorry,
+            ProofTreeRule::TrueIntro => ProofTerm::Unit(None),
+            ProofTreeRule::Sorry => ProofTerm::Sorry(None),
             ProofTreeRule::Ident(ident) => Ident::create(ident.clone()),
             ProofTreeRule::AlphaEquivalent => {
                 self.do_export_as_proof_term(&premisses[0], reasoning_mode)
@@ -173,7 +174,7 @@ impl ProofTreeExporter {
                 let fst_proof_term = self.do_export_as_proof_term(fst, &fst_reasoning_mode);
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
-                Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed())
+                Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None)
             }
             ProofTreeRule::AndElimFst | ProofTreeRule::AndElimSnd => {
                 let expected_reasoning_mode = Self::expected_conclusion_mode(rule);
@@ -188,8 +189,8 @@ impl ProofTreeExporter {
                 let body_proof_term = self.do_export_as_proof_term(body, &body_reasoning_mode);
 
                 let proof_term = match rule {
-                    ProofTreeRule::AndElimFst => ProjectFst::create(body_proof_term.boxed()),
-                    ProofTreeRule::AndElimSnd => ProjectSnd::create(body_proof_term.boxed()),
+                    ProofTreeRule::AndElimFst => ProjectFst::create(body_proof_term.boxed(), None),
+                    ProofTreeRule::AndElimSnd => ProjectSnd::create(body_proof_term.boxed(), None),
                     _ => unreachable!(),
                 };
 
@@ -220,7 +221,7 @@ impl ProofTreeExporter {
                     self.atoms.append(&mut fst.get_atoms());
                 }
 
-                Function::create(param_ident.clone(), annotation, body_proof_term.boxed())
+                Function::create(param_ident.clone(), annotation, body_proof_term.boxed(), None)
             }
             ProofTreeRule::ImplElim => {
                 let [ref fst, ref snd] = premisses[..] else {
@@ -233,7 +234,7 @@ impl ProofTreeExporter {
                 let fst_proof_term = self.do_export_as_proof_term(fst, &fst_reasoning_mode);
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
-                Application::create(fst_proof_term.boxed(), snd_proof_term.boxed())
+                Application::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None)
             }
             ProofTreeRule::OrIntroFst | ProofTreeRule::OrIntroSnd => {
                 let expected_reasoning_mode = Self::expected_conclusion_mode(rule);
@@ -247,8 +248,8 @@ impl ProofTreeExporter {
                 let body_proof_term = self.do_export_as_proof_term(body, &body_reasoning_mode);
 
                 let proof_term = match rule {
-                    ProofTreeRule::OrIntroFst => OrLeft::create(body_proof_term.boxed()),
-                    ProofTreeRule::OrIntroSnd => OrRight::create(body_proof_term.boxed()),
+                    ProofTreeRule::OrIntroFst => OrLeft::create(body_proof_term.boxed(), None),
+                    ProofTreeRule::OrIntroSnd => OrRight::create(body_proof_term.boxed(), None),
                     _ => unreachable!(),
                 };
 
@@ -278,6 +279,7 @@ impl ProofTreeExporter {
                     fst_proof_term.boxed(),
                     snd_ident.clone(),
                     snd_proof_term.boxed(),
+                    None,
                 )
             }
             ProofTreeRule::FalsumElim => {
@@ -292,7 +294,7 @@ impl ProofTreeExporter {
 
                 let body_proof_term = self.do_export_as_proof_term(body, &body_reasoning_mode);
 
-                let proof_term = Abort::create(body_proof_term.boxed());
+                let proof_term = Abort::create(body_proof_term.boxed(), None);
 
                 self.wrap_into_type_ascription(
                     proof_term,
@@ -319,7 +321,7 @@ impl ProofTreeExporter {
                     self.datatypes.push(datatype.clone());
                 }
 
-                Function::create(param_ident.clone(), param_type, body_proof_term.boxed())
+                Function::create(param_ident.clone(), param_type, body_proof_term.boxed(), None)
             }
             ProofTreeRule::ForAllElim => {
                 let expected_reasoning_mode = Self::expected_conclusion_mode(rule);
@@ -337,7 +339,7 @@ impl ProofTreeExporter {
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
                 let proof_term =
-                    Application::create(fst_proof_term.boxed(), snd_proof_term.boxed());
+                    Application::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None);
 
                 self.wrap_into_type_ascription(
                     proof_term,
@@ -361,7 +363,7 @@ impl ProofTreeExporter {
                 let fst_proof_term = self.do_export_as_proof_term(fst, &fst_reasoning_mode);
                 let snd_proof_term = self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
-                let proof_term = Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed());
+                let proof_term = Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed(), None);
 
                 self.wrap_into_type_ascription(
                     proof_term,
@@ -386,6 +388,7 @@ impl ProofTreeExporter {
                     fst_ident: fst_ident.clone(),
                     snd_ident: snd_ident.clone(),
                     body: snd_proof_term.boxed(),
+                    span: None,
                 })
             }
         }

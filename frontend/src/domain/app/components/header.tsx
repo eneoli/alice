@@ -7,10 +7,11 @@ interface HeaderProps {
     onPropChange: (prop: string) => void;
     onVerify: (prop: string) => void;
     onExportAsOcaml: () => void;
+    enableTutor: boolean;
     onTutorClick: () => void;
 }
 
-export function Header({ onPropChange, onVerify, onExportAsOcaml, onTutorClick }: HeaderProps) {
+export function Header({ onPropChange, onVerify, onExportAsOcaml, enableTutor, onTutorClick }: HeaderProps) {
 
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -63,7 +64,13 @@ export function Header({ onPropChange, onVerify, onExportAsOcaml, onTutorClick }
                     <br />
                     <span className={cssHeaderSubtitle}>A constructive logic proof checker</span>
                 </div>
-                <Button onClick={onTutorClick} type={'default'}>💡 Tutor</Button>
+                <Button
+                    onClick={onTutorClick}
+                    type={'default'}
+                    disabled={!enableTutor}
+                >
+                    💡 Tutor
+                </Button>
             </div>
             <div className={cssHeaderContainer}>
                 <SearchField style={{ width: 1000 }}>
@@ -75,7 +82,13 @@ export function Header({ onPropChange, onVerify, onExportAsOcaml, onTutorClick }
 
                 <div className={cssButtonContainer}>
                     <Button type={'primary'} onClick={() => onVerify(prop)}>Verify</Button>
-                    <Button type={'primary'} onClick={onExportAsOcaml} className={cssOcamlButton}>🐫 Export as OCaml</Button>
+                    <Button
+                        type={'primary'}
+                        onClick={onExportAsOcaml}
+                        className={cssOcamlButton}
+                    >
+                        🐫 Export as OCaml
+                    </Button>
                 </div>
             </div>
         </div>

@@ -1,4 +1,5 @@
 use identifier_generator::IdentifierGenerator;
+use itertools::Itertools;
 
 use crate::kernel::proof_term::{ProjectFst, ProjectSnd};
 
@@ -15,9 +16,9 @@ mod identifier_generator;
 mod tests;
 
 #[derive(Debug, Clone)]
-struct TypeJudgment {
-    prop: Prop,
-    proof_term: ProofTerm,
+pub struct TypeJudgment {
+    pub prop: Prop,
+    pub proof_term: ProofTerm,
 }
 
 impl TypeJudgment {
@@ -64,14 +65,35 @@ impl<'a> Sequent<'a> {
 }
 
 pub fn prove(prop: &Prop) -> Option<ProofTerm> {
-    let proof_term = Prover::prove(prop)?;
+    prove_with_ctx(prop, &IdentifierContext::new())
+}
+
+pub fn prove_with_ctx(prop: &Prop, ctx: &IdentifierContext) -> Option<ProofTerm> {
+    let assumptions = ctx
+        .get_all_visible()
+        .iter()
+        .filter_map(|(ident, _type)| {
+            let Type::Prop(prop) = _type else {
+                return None;
+            };
+
+            let name = ident.name();
+
+            Some(TypeJudgment {
+                prop: prop.clone(),
+                proof_term: Ident::create(name.clone()),
+            })
+        })
+        .collect_vec();
+
+    let proof_term = Prover::prove_with_assumptions(prop, assumptions)?;
 
     // sanity check
-    let check_result = check(&proof_term, prop, &IdentifierContext::new());
+    let check_result = check(&proof_term, prop, ctx);
     if check_result.is_err() {
         panic!(
-            "Prover returned wrong proof. Prop: {:#?}, proof term: {:#?}, error: {:#?}",
-            prop, proof_term, check_result,
+            "Prover returned wrong proof. Prop: {:#?}, proof term: {}, context: {:#?}, error: {:#?}",
+            prop, proof_term, ctx, check_result,
         );
     }
 
@@ -79,27 +101,50 @@ pub fn prove(prop: &Prop) -> Option<ProofTerm> {
 }
 
 struct Prover {
+    forbidden_idents: Vec<String>,
     identifier_generator: IdentifierGenerator,
 }
 
 impl Prover {
     pub fn prove(prop: &Prop) -> Option<ProofTerm> {
+        Prover::prove_with_assumptions(prop, vec![])
+    }
+
+    pub fn prove_with_assumptions(
+        prop: &Prop,
+        assumptions: Vec<TypeJudgment>,
+    ) -> Option<ProofTerm> {
         if prop.has_free_parameters() {
             panic!("Cannot prove propositions with quantifiers.");
         }
 
-        Prover::new().prove_right(Sequent::new(prop))
+        let mut sequent = Sequent::new(prop);
+
+        let mut forbidden_idents = vec![];
+        for assumption in assumptions {
+            if let ProofTerm::Ident(Ident(ref name, _)) = assumption.proof_term {
+                forbidden_idents.push(name.clone());
+            }
+
+            sequent.append_ordered(assumption);
+        }
+
+        let mut prover = Prover::new();
+        prover.forbidden_idents = forbidden_idents;
+
+        prover.prove_right(sequent)
     }
 
     fn new() -> Self {
         Self {
             identifier_generator: IdentifierGenerator::new(),
+            forbidden_idents: vec![],
         }
     }
 
     fn prove_right(&mut self, sequent: Sequent) -> Option<ProofTerm> {
         match sequent.goal {
-            Prop::True => Some(ProofTerm::Unit),
+            Prop::True => Some(ProofTerm::Unit(None)),
             Prop::False => self.prove_left(sequent),
             Prop::Atom(_, _) => self.prove_left(sequent),
             Prop::Or(_, _) => self.prove_left(sequent),
@@ -121,7 +166,11 @@ impl Prover {
         let snd_sequent = sequent.with_new_goal(snd);
         let snd_proof_term = self.prove_right(snd_sequent)?;
 
-        Some(Pair::create(fst_proof_term.boxed(), snd_proof_term.boxed()))
+        Some(Pair::create(
+            fst_proof_term.boxed(),
+            snd_proof_term.boxed(),
+            None,
+        ))
     }
 
     fn handle_impl_right(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
@@ -137,7 +186,12 @@ impl Prover {
 
         let body_proof_term = self.prove_right(sequent)?;
 
-        Some(Function::create(param_ident, None, body_proof_term.boxed()))
+        Some(Function::create(
+            param_ident,
+            None,
+            body_proof_term.boxed(),
+            None,
+        ))
     }
 
     fn prove_left(&mut self, mut sequent: Sequent) -> Option<ProofTerm> {
@@ -149,7 +203,7 @@ impl Prover {
 
         match &type_judgment.prop {
             Prop::True => self.prove_left(sequent),
-            Prop::False => Some(Abort::create(type_judgment.proof_term.boxed())),
+            Prop::False => Some(Abort::create(type_judgment.proof_term.boxed(), None)),
             Prop::Atom(_, _) => self.handle_atom_left(type_judgment, sequent),
             Prop::And(_, _) => self.handle_and_left(type_judgment, sequent),
             Prop::Or(_, _) => self.handle_or_left(type_judgment, sequent),
@@ -169,10 +223,10 @@ impl Prover {
             panic!("Exptected conjunction");
         };
 
-        let fst_judgment = TypeJudgment::new(*fst, ProjectFst::create(proof_term.boxed()));
+        let fst_judgment = TypeJudgment::new(*fst, ProjectFst::create(proof_term.boxed(), None));
         sequent.append_ordered(fst_judgment);
 
-        let snd_judgment = TypeJudgment::new(*snd, ProjectSnd::create(proof_term.boxed()));
+        let snd_judgment = TypeJudgment::new(*snd, ProjectSnd::create(proof_term.boxed(), None));
         sequent.append_ordered(snd_judgment);
 
         self.prove_left(sequent)
@@ -206,6 +260,7 @@ impl Prover {
             fst_term.boxed(),
             snd_ident,
             snd_term.boxed(),
+            None,
         ))
     }
 
@@ -236,7 +291,7 @@ impl Prover {
         match *fst {
             Prop::True => {
                 let application_proof_term =
-                    Application::create(proof_term.boxed(), ProofTerm::Unit.boxed());
+                    Application::create(proof_term.boxed(), ProofTerm::Unit(None).boxed(), None);
                 let application_judgment = TypeJudgment::new(*snd, application_proof_term);
                 sequent.append_ordered(application_judgment);
                 self.prove_left(sequent)
@@ -260,14 +315,19 @@ impl Prover {
                                 Pair::create(
                                     Ident::create(fst_ident).boxed(),
                                     Ident::create(snd_ident).boxed(),
+                                    None,
                                 )
                                 .boxed(),
+                                None,
                             )
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
+                        span: None,
                     })
                     .boxed(),
+                    span: None,
                 });
                 let new_judgment = TypeJudgment::new(new_prop, new_proof_term);
                 sequent.append_ordered(new_judgment);
@@ -286,13 +346,17 @@ impl Prover {
                         body: ProofTerm::Application(Application {
                             function: proof_term.boxed(),
                             applicant: ProofTerm::OrLeft(OrLeft(
-                                ProofTerm::Ident(Ident(or_fst_ident)).boxed(),
+                                ProofTerm::Ident(Ident(or_fst_ident, None)).boxed(),
+                                None,
                             ))
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
+                        span: None,
                     })
                     .boxed(),
+                    span: None,
                 });
                 let or_fst_judgment = TypeJudgment::new(or_fst_prop, or_fst_proof_term);
                 sequent.append_ordered(or_fst_judgment);
@@ -307,13 +371,17 @@ impl Prover {
                         body: ProofTerm::Application(Application {
                             function: proof_term.boxed(),
                             applicant: ProofTerm::OrRight(OrRight(
-                                ProofTerm::Ident(Ident(or_snd_ident)).boxed(),
+                                ProofTerm::Ident(Ident(or_snd_ident, None)).boxed(),
+                                None,
                             ))
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
+                        span: None,
                     })
                     .boxed(),
+                    span: None,
                 });
                 let or_snd_judgment = TypeJudgment::new(or_snd_prop, or_snd_proof_term);
                 sequent.append_ordered(or_snd_judgment);
@@ -356,14 +424,14 @@ impl Prover {
         // or left rule
         if let Prop::Or(fst, _) = sequent.goal {
             if let Some(proof_term) = self.prove_right(sequent.with_new_goal(fst)) {
-                return Some(OrLeft::create(proof_term.boxed()));
+                return Some(OrLeft::create(proof_term.boxed(), None));
             }
         }
 
         // or right rule
         if let Prop::Or(_, snd) = sequent.goal {
             if let Some(proof_term) = self.prove_right(sequent.with_new_goal(snd)) {
-                return Some(OrRight::create(proof_term.boxed()));
+                return Some(OrRight::create(proof_term.boxed(), None));
             }
         }
 
@@ -381,7 +449,7 @@ impl Prover {
                     let mut new_sequent = searching_sequent.clone();
                     new_sequent.append_ordered(TypeJudgment::new(
                         *impl_snd.clone(),
-                        Application::create(proof_term.boxed(), elem.proof_term.boxed()),
+                        Application::create(proof_term.boxed(), elem.proof_term.boxed(), None),
                     ));
 
                     if let Some(result_proof_term) = self.prove_left(new_sequent) {
@@ -410,12 +478,16 @@ impl Prover {
                                     param_ident: self.generate_identifier(),
                                     param_type: None,
                                     body: Ident::create(first_param_ident).boxed(),
+                                    span: None,
                                 })
                                 .boxed(),
+                                span: None,
                             })
                             .boxed(),
+                            span: None,
                         })
                         .boxed(),
+                        span: None,
                     }),
                 ));
 
@@ -423,7 +495,7 @@ impl Prover {
                     let mut snd_sequent = searching_sequent.clone();
                     snd_sequent.append_unordered(TypeJudgment::new(
                         *impl_snd,
-                        Application::create(proof_term.boxed(), fst_proof_term.boxed()),
+                        Application::create(proof_term.boxed(), fst_proof_term.boxed(), None),
                     ));
 
                     if let Some(final_proof_term) = self.prove_left(snd_sequent) {
@@ -437,6 +509,12 @@ impl Prover {
     }
 
     fn generate_identifier(&mut self) -> String {
-        self.identifier_generator.generate()
+        let mut ident = self.identifier_generator.generate();
+
+        while self.forbidden_idents.contains(&ident) {
+            ident = self.identifier_generator.generate();
+        }
+
+        ident
     }
 }

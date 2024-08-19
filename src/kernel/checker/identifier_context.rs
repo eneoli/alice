@@ -1,8 +1,10 @@
+use itertools::Itertools;
+
 use crate::kernel::proof_term::Type;
 
 use super::identifier::Identifier;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IdentifierContext {
     ctx: Vec<(Identifier, Type)>,
 }
@@ -24,6 +26,15 @@ impl IdentifierContext {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    pub fn get_all_visible(&self) -> Vec<(Identifier, Type)> {
+        self.ctx
+            .iter()
+            .rev()
+            .unique_by(|(identifier, _)| identifier.name())
+            .cloned()
+            .collect()
     }
 
     pub fn insert(&mut self, ident: Identifier, identifer_type: Type) {

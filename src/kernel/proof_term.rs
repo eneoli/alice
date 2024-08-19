@@ -1,5 +1,6 @@
 use core::fmt;
 use std::fmt::Display;
+use std::ops::Range;
 
 use super::{
     checker::identifier_context::IdentifierContext,
@@ -106,11 +107,11 @@ pub enum ProofTermKind {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct Ident(pub String);
+pub struct Ident(pub String, pub Option<Range<usize>>);
 
 impl Ident {
     pub fn create(ident: String) -> ProofTerm {
-        ProofTerm::Ident(Self(ident))
+        ProofTerm::Ident(Self(ident, None))
     }
 
     pub fn as_str(&self) -> &str {
@@ -119,29 +120,37 @@ impl Ident {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct Pair(pub Box<ProofTerm>, pub Box<ProofTerm>);
+pub struct Pair(
+    pub Box<ProofTerm>,
+    pub Box<ProofTerm>,
+    pub Option<Range<usize>>,
+);
 
 impl Pair {
-    pub fn create(fst: Box<ProofTerm>, snd: Box<ProofTerm>) -> ProofTerm {
-        ProofTerm::Pair(Self(fst, snd))
+    pub fn create(
+        fst: Box<ProofTerm>,
+        snd: Box<ProofTerm>,
+        span: Option<Range<usize>>,
+    ) -> ProofTerm {
+        ProofTerm::Pair(Self(fst, snd, span))
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct ProjectFst(pub Box<ProofTerm>);
+pub struct ProjectFst(pub Box<ProofTerm>, pub Option<Range<usize>>);
 
 impl ProjectFst {
-    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
-        ProofTerm::ProjectFst(ProjectFst(body))
+    pub fn create(body: Box<ProofTerm>, span: Option<Range<usize>>) -> ProofTerm {
+        ProofTerm::ProjectFst(ProjectFst(body, span))
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct ProjectSnd(pub Box<ProofTerm>);
+pub struct ProjectSnd(pub Box<ProofTerm>, pub Option<Range<usize>>);
 
 impl ProjectSnd {
-    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
-        ProofTerm::ProjectSnd(ProjectSnd(body))
+    pub fn create(body: Box<ProofTerm>, span: Option<Range<usize>>) -> ProofTerm {
+        ProofTerm::ProjectSnd(ProjectSnd(body, span))
     }
 }
 
@@ -150,6 +159,7 @@ pub struct Function {
     pub param_ident: String,
     pub param_type: Option<Type>,
     pub body: Box<ProofTerm>,
+    pub span: Option<Range<usize>>,
 }
 
 impl Function {
@@ -157,11 +167,13 @@ impl Function {
         param_ident: String,
         param_type: Option<Type>,
         body: Box<ProofTerm>,
+        span: Option<Range<usize>>,
     ) -> ProofTerm {
         ProofTerm::Function(Function {
             param_ident,
             param_type,
             body,
+            span,
         })
     }
 }
@@ -170,13 +182,19 @@ impl Function {
 pub struct Application {
     pub function: Box<ProofTerm>,
     pub applicant: Box<ProofTerm>,
+    pub span: Option<Range<usize>>,
 }
 
 impl Application {
-    pub fn create(function: Box<ProofTerm>, applicant: Box<ProofTerm>) -> ProofTerm {
+    pub fn create(
+        function: Box<ProofTerm>,
+        applicant: Box<ProofTerm>,
+        span: Option<Range<usize>>,
+    ) -> ProofTerm {
         ProofTerm::Application(Application {
             function,
             applicant,
+            span,
         })
     }
 }
@@ -187,23 +205,24 @@ pub struct LetIn {
     pub snd_ident: String,
     pub head: Box<ProofTerm>,
     pub body: Box<ProofTerm>,
+    pub span: Option<Range<usize>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct OrLeft(pub Box<ProofTerm>);
+pub struct OrLeft(pub Box<ProofTerm>, pub Option<Range<usize>>);
 
 impl OrLeft {
-    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
-        ProofTerm::OrLeft(OrLeft(body))
+    pub fn create(body: Box<ProofTerm>, span: Option<Range<usize>>) -> ProofTerm {
+        ProofTerm::OrLeft(OrLeft(body, span))
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct OrRight(pub Box<ProofTerm>);
+pub struct OrRight(pub Box<ProofTerm>, pub Option<Range<usize>>);
 
 impl OrRight {
-    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
-        ProofTerm::OrRight(OrRight(body))
+    pub fn create(body: Box<ProofTerm>, span: Option<Range<usize>>) -> ProofTerm {
+        ProofTerm::OrRight(OrRight(body, span))
     }
 }
 
@@ -216,6 +235,8 @@ pub struct Case {
 
     pub snd_ident: String,
     pub snd_term: Box<ProofTerm>,
+
+    pub span: Option<Range<usize>>,
 }
 
 impl Case {
@@ -225,6 +246,7 @@ impl Case {
         fst_term: Box<ProofTerm>,
         snd_ident: String,
         snd_term: Box<ProofTerm>,
+        span: Option<Range<usize>>,
     ) -> ProofTerm {
         ProofTerm::Case(Case {
             head,
@@ -232,16 +254,17 @@ impl Case {
             fst_term,
             snd_ident,
             snd_term,
+            span,
         })
     }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
-pub struct Abort(pub Box<ProofTerm>);
+pub struct Abort(pub Box<ProofTerm>, pub Option<Range<usize>>);
 
 impl Abort {
-    pub fn create(body: Box<ProofTerm>) -> ProofTerm {
-        ProofTerm::Abort(Abort(body))
+    pub fn create(body: Box<ProofTerm>, span: Option<Range<usize>>) -> ProofTerm {
+        ProofTerm::Abort(Abort(body, span))
     }
 }
 
@@ -249,6 +272,7 @@ impl Abort {
 pub struct TypeAscription {
     pub proof_term: Box<ProofTerm>,
     pub ascription: Type,
+    pub span: Option<Range<usize>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Tsify)]
@@ -266,8 +290,8 @@ pub enum ProofTerm {
     Case(Case),
     Abort(Abort),
     TypeAscription(TypeAscription),
-    Unit,
-    Sorry,
+    Unit(Option<Range<usize>>),
+    Sorry(Option<Range<usize>>),
 }
 
 impl ProofTerm {
@@ -275,11 +299,30 @@ impl ProofTerm {
         Box::new(self.clone())
     }
 
+    pub fn span(&self) -> &Option<Range<usize>> {
+        match self {
+            ProofTerm::Ident(Ident(_, span)) => span,
+            ProofTerm::Pair(Pair(_, _, span)) => span,
+            ProofTerm::ProjectFst(ProjectFst(_, span)) => span,
+            ProofTerm::ProjectSnd(ProjectSnd(_, span)) => span,
+            ProofTerm::Function(Function { span, .. }) => span,
+            ProofTerm::Application(Application { span, .. }) => span,
+            ProofTerm::LetIn(LetIn { span, .. }) => span,
+            ProofTerm::OrLeft(OrLeft(_, span)) => span,
+            ProofTerm::OrRight(OrRight(_, span)) => span,
+            ProofTerm::Case(Case { span, .. }) => span,
+            ProofTerm::Abort(Abort(_, span)) => span,
+            ProofTerm::TypeAscription(TypeAscription { span, .. }) => span,
+            ProofTerm::Unit(span) => span,
+            ProofTerm::Sorry(span) => span,
+        }
+    }
+
     pub fn precedence(&self) -> usize {
         match self {
-            ProofTerm::Unit => 999,
+            ProofTerm::Unit(_) => 999,
             ProofTerm::Ident(_) => 999,
-            ProofTerm::Sorry => 999,
+            ProofTerm::Sorry(_) => 999,
             ProofTerm::Abort(_) => 3,
             ProofTerm::Pair(_) => 999,
             ProofTerm::ProjectFst(_) => 3,
@@ -296,9 +339,9 @@ impl ProofTerm {
 
     pub fn right_associative(&self) -> bool {
         match self {
-            ProofTerm::Unit => false,
+            ProofTerm::Unit(_) => false,
             ProofTerm::Ident(_) => false,
-            ProofTerm::Sorry => false,
+            ProofTerm::Sorry(_) => false,
             ProofTerm::Abort(_) => false,
             ProofTerm::Pair(_) => false,
             ProofTerm::ProjectFst(_) => false,
@@ -315,9 +358,9 @@ impl ProofTerm {
 
     pub fn left_associative(&self) -> bool {
         match self {
-            ProofTerm::Unit => false,
+            ProofTerm::Unit(_) => false,
             ProofTerm::Ident(_) => false,
-            ProofTerm::Sorry => false,
+            ProofTerm::Sorry(_) => false,
             ProofTerm::Abort(_) => true,
             ProofTerm::Pair(_) => false,
             ProofTerm::ProjectFst(_) => true,
@@ -348,27 +391,27 @@ impl ProofTerm {
             ProofTerm::TypeAscription(type_ascription) => {
                 visitor.visit_type_ascription(type_ascription)
             }
-            ProofTerm::Unit => visitor.visit_unit(),
-            ProofTerm::Sorry => visitor.visit_sorry(),
+            ProofTerm::Unit(span) => visitor.visit_unit(span.clone()),
+            ProofTerm::Sorry(span) => visitor.visit_sorry(span.clone()),
         }
     }
 }
 
 impl Display for ProofTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let ProofTerm::Sorry = self {
+        if let ProofTerm::Sorry(_) = self {
             return write!(f, "sorry");
         }
 
-        if let ProofTerm::Unit = self {
+        if let ProofTerm::Unit(_) = self {
             return write!(f, "()");
         }
 
-        if let ProofTerm::Ident(Ident(ident)) = self {
+        if let ProofTerm::Ident(Ident(ident, _)) = self {
             return write!(f, "{}", ident);
         }
 
-        if let ProofTerm::Pair(Pair(fst, snd)) = self {
+        if let ProofTerm::Pair(Pair(fst, snd, _)) = self {
             return write!(f, "({}, {})", fst, snd);
         }
 
@@ -376,6 +419,7 @@ impl Display for ProofTerm {
             param_ident,
             param_type,
             body,
+            ..
         }) = self
         {
             if let Some(param_type) = param_type {
@@ -391,6 +435,7 @@ impl Display for ProofTerm {
             fst_term,
             snd_ident,
             snd_term,
+            ..
         }) = self
         {
             return write!(
@@ -405,6 +450,7 @@ impl Display for ProofTerm {
             snd_ident,
             head,
             body,
+            ..
         }) = self
         {
             return write!(
@@ -417,6 +463,7 @@ impl Display for ProofTerm {
         if let ProofTerm::Application(Application {
             function,
             applicant,
+            ..
         }) = self
         {
             let own_precedence = self.precedence();
@@ -447,6 +494,7 @@ impl Display for ProofTerm {
         if let ProofTerm::TypeAscription(TypeAscription {
             proof_term,
             ascription,
+            ..
         }) = self
         {
             let should_wrap = match **proof_term {
@@ -467,11 +515,11 @@ impl Display for ProofTerm {
         // named function call
 
         let (function_name, body) = match self {
-            ProofTerm::ProjectFst(ProjectFst(body)) => ("fst", body),
-            ProofTerm::ProjectSnd(ProjectSnd(body)) => ("snd", body),
-            ProofTerm::Abort(Abort(body)) => ("abort", body),
-            ProofTerm::OrLeft(OrLeft(body)) => ("inl", body),
-            ProofTerm::OrRight(OrRight(body)) => ("inr", body),
+            ProofTerm::ProjectFst(ProjectFst(body, _)) => ("fst", body),
+            ProofTerm::ProjectSnd(ProjectSnd(body, _)) => ("snd", body),
+            ProofTerm::Abort(Abort(body, _)) => ("abort", body),
+            ProofTerm::OrLeft(OrLeft(body, _)) => ("inl", body),
+            ProofTerm::OrRight(OrRight(body, _)) => ("inr", body),
             _ => unreachable!(),
         };
 
@@ -501,6 +549,6 @@ pub trait ProofTermVisitor<R> {
     fn visit_case(&mut self, case: &Case) -> R;
     fn visit_abort(&mut self, abort: &Abort) -> R;
     fn visit_type_ascription(&mut self, type_ascription: &TypeAscription) -> R;
-    fn visit_unit(&mut self) -> R;
-    fn visit_sorry(&mut self) -> R;
+    fn visit_unit(&mut self, span: Option<Range<usize>>) -> R;
+    fn visit_sorry(&mut self, span: Option<Range<usize>>) -> R;
 }

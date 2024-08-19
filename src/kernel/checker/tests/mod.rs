@@ -58,7 +58,9 @@ mod tests {
 
         (
             prop_ast.clone(),
-            check(&proof_term_ast, &prop_ast, &IdentifierContext::new()).unwrap(),
+            check(&proof_term_ast, &prop_ast, &IdentifierContext::new())
+                .unwrap()
+                .proof_tree,
         )
     }
 
@@ -542,7 +544,12 @@ mod tests {
             &mut IdentifierFactory::new(Counter::new()),
         );
 
-        assert_eq!(_type, Err(SynthesizeError::QuantifiedObjectEscapesScope))
+        assert_eq!(
+            _type,
+            Err(SynthesizeError::QuantifiedObjectEscapesScope(Some(
+                122..127
+            )))
+        )
     }
 
     #[test]
