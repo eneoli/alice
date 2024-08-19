@@ -4,7 +4,7 @@ use crate::kernel::proof_term::Type;
 
 use super::identifier::Identifier;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct IdentifierContext {
     ctx: Vec<(Identifier, Type)>,
 }
