@@ -29,7 +29,7 @@ use super::{
 #[serde(tag = "kind", content = "value")]
 pub enum CheckError {
     #[error("An error happened while synthesizing")]
-    SynthesizeError(#[from] SynthesizeError),
+    SynthesizeError(SynthesizeError),
 
     #[error("Checkable type cannot include parameters")]
     PropHasFreeParameters(Prop),
@@ -130,7 +130,11 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             &ProofTerm::Ident(ident.clone()),
             self.ctx,
             self.identifier_factory,
-        )?;
+        )
+        .map_err(|synth_err| match synth_err {
+            SynthesizeError::CheckError(check_err) => *check_err,
+            _ => CheckError::SynthesizeError(synth_err),
+        })?;
 
         if Type::eq(&_type, &self.expected_type) {
             return Ok(type_checker_result);
@@ -243,7 +247,11 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             &ProofTerm::ProjectFst(projection.clone()),
             self.ctx,
             self.identifier_factory,
-        )?;
+        )
+        .map_err(|synth_err| match synth_err {
+            SynthesizeError::CheckError(check_err) => *check_err,
+            _ => CheckError::SynthesizeError(synth_err),
+        })?;
 
         if Type::eq(&self.expected_type, &projection_type) {
             return Ok(projection_result);
@@ -276,7 +284,11 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             &ProofTerm::ProjectSnd(projection.clone()),
             self.ctx,
             self.identifier_factory,
-        )?;
+        )
+        .map_err(|synth_err| match synth_err {
+            SynthesizeError::CheckError(check_err) => *check_err,
+            _ => CheckError::SynthesizeError(synth_err),
+        })?;
 
         if Type::eq(&self.expected_type, &projection_type) {
             return Ok(projection_result);
@@ -438,7 +450,11 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             &ProofTerm::Application(application.clone()),
             self.ctx,
             self.identifier_factory,
-        )?;
+        )
+        .map_err(|synth_err| match synth_err {
+            SynthesizeError::CheckError(check_err) => *check_err,
+            _ => CheckError::SynthesizeError(synth_err),
+        })?;
 
         if Type::eq(&application_type, &self.expected_type) {
             return Ok(application_result);
@@ -469,7 +485,11 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             ..
         } = let_in;
 
-        let (head_type, head_result) = synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, head_result) = synthesize(head, self.ctx, self.identifier_factory)
+            .map_err(|synth_err| match synth_err {
+                SynthesizeError::CheckError(check_err) => *check_err,
+                _ => CheckError::SynthesizeError(synth_err),
+            })?;
 
         if let Type::Prop(Prop::Exists {
             object_ident,
@@ -603,7 +623,11 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             span,
         } = case;
 
-        let (head_type, head_result) = synthesize(head, self.ctx, self.identifier_factory)?;
+        let (head_type, head_result) = synthesize(head, self.ctx, self.identifier_factory)
+            .map_err(|synth_err| match synth_err {
+                SynthesizeError::CheckError(check_err) => *check_err,
+                _ => CheckError::SynthesizeError(synth_err),
+            })?;
 
         let (fst, snd) = match head_type {
             Type::Prop(Prop::Or(fst, snd)) => (fst, snd),
