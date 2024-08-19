@@ -1,7 +1,7 @@
 import React from 'react';
 import { TutorPropositionSolutionStatus, TutorPropositionSolutionStatusStatus } from './tutor-proposition-solution-status';
 import { TutorGoalDisplay, TutorGoalDisplayGoal } from './tutor-goal-display';
-import { ProofTerm, ProofTree, TypeCheckerGoal, VerificationResult } from 'alice';
+import { get_free_parameters, has_quantifiers, ProofTerm, ProofTree, TypeCheckerGoal, VerificationResult } from 'alice';
 import { TutorTypeCheckErrorDisplay } from './tutor-type-check-error-display';
 import { TutorSyntaxErrorDisplay } from './tutor-syntax-error-display';
 import { TutorProofPipelineErrorDisplay } from './tutor-proof-pipeline-error-display';
@@ -183,7 +183,11 @@ function createHintFromGoal(goal: TypeCheckerGoal): string {
     const { solution, conclusion } = goal;
 
     if (!solution && conclusion.kind === 'PropIsTrue') {
-        return 'This branch seems to be not solvable. You might want to check your current proof.';
+        if (has_quantifiers(conclusion.value) || get_free_parameters(conclusion.value).length > 0) {
+            return 'This branch contains propositions in first-order logic. Alice can\'t assist you with that. Sorry :(';
+        }
+
+        return 'Alice couldn\'t find a solution for this branch. You might want to check your current proof.';
     }
 
     if (!solution && conclusion.kind === 'TypeJudgement') {
