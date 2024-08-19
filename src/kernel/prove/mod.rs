@@ -92,8 +92,8 @@ pub fn prove_with_ctx(prop: &Prop, ctx: &IdentifierContext) -> Option<ProofTerm>
     let check_result = check(&proof_term, prop, ctx);
     if check_result.is_err() {
         panic!(
-            "Prover returned wrong proof. Prop: {:#?}, proof term: {:#?}, error: {:#?}",
-            prop, proof_term, check_result,
+            "Prover returned wrong proof. Prop: {:#?}, proof term: {}, context: {:#?}, error: {:#?}",
+            prop, proof_term, ctx, check_result,
         );
     }
 
@@ -101,6 +101,7 @@ pub fn prove_with_ctx(prop: &Prop, ctx: &IdentifierContext) -> Option<ProofTerm>
 }
 
 struct Prover {
+    forbidden_idents: Vec<String>,
     identifier_generator: IdentifierGenerator,
 }
 
@@ -119,16 +120,25 @@ impl Prover {
 
         let mut sequent = Sequent::new(prop);
 
+        let mut forbidden_idents = vec![];
         for assumption in assumptions {
+            if let ProofTerm::Ident(Ident(ref name, _)) = assumption.proof_term {
+                forbidden_idents.push(name.clone());
+            }
+
             sequent.append_ordered(assumption);
         }
 
-        Prover::new().prove_right(sequent)
+        let mut prover = Prover::new();
+        prover.forbidden_idents = forbidden_idents;
+
+        prover.prove_right(sequent)
     }
 
     fn new() -> Self {
         Self {
             identifier_generator: IdentifierGenerator::new(),
+            forbidden_idents: vec![],
         }
     }
 
@@ -499,6 +509,12 @@ impl Prover {
     }
 
     fn generate_identifier(&mut self) -> String {
-        self.identifier_generator.generate()
+        let mut ident = self.identifier_generator.generate();
+
+        while self.forbidden_idents.contains(&ident) {
+            ident = self.identifier_generator.generate();
+        }
+
+        ident
     }
 }
