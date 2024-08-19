@@ -125,7 +125,7 @@ export function CodeEditor(props: CodeEditorProps) {
 
     useEffect(() => {
         setValue(initialValue);
-    });
+    }, [initialValue]);
 
     const onValueChange = (value: string | undefined) => {
         setValue(value || '');
