@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Header } from './header';
 import { CodeEditor } from '../../code-editor/components/code-editor';
 import { VisualProofEditor } from '../../visual-proof-editor/components/visual-proof-editor';
@@ -6,12 +6,15 @@ import { ConfigProvider, message, theme as antdTheme, ThemeConfig } from 'antd';
 import { Prop, VerificationResult, export_as_ocaml, generate_proof_term_from_proof_tree, parse_prop, verify } from 'alice';
 import { debounce, isEqual } from 'lodash';
 import { CodeModal } from './code-modal';
-import { VisualProofEditorProofTree, visualProofEditorProofTreeIntoAliceProofTree } from '../../visual-proof-editor/lib/visual-proof-editor-proof-tree';
+import { aliceProofTreeIntoVisualProofEditorProofTree, VisualProofEditorProofTree, visualProofEditorProofTreeIntoAliceProofTree } from '../../visual-proof-editor/lib/visual-proof-editor-proof-tree';
 import { MathJax3Config, MathJaxContext } from 'better-react-mathjax';
 import mathjax from 'mathjax/es5/tex-svg';
 import bussproofs from 'mathjax/es5/input/tex/extensions/bussproofs'
 import { Tutor } from '../../tutor/components/tutor';
 import { css } from '@emotion/css';
+import { AssumptionContext } from '../../visual-proof-editor/proof-rule';
+import { v4 } from 'uuid';
+import { VisualProofEditorReasoningContext } from '../../visual-proof-editor/lib/visual-proof-editor-reasoning-context';
 
 const mathjaxConfig: MathJax3Config = {
     loader: {
@@ -35,34 +38,94 @@ export function App() {
     const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
     const [_messageApi, contextHolder] = message.useMessage();
 
+    const [initialPrimaryContext, setInitialPrimaryContext] = useState<VisualProofEditorReasoningContext | null>(null);
+    const [initialAssumptions, setInitialAssumptions] = useState<AssumptionContext[]>([]);
+
     const handlePropChange = debounce((propString: string) => {
         try {
             const newProp = parse_prop(propString);
 
-            if (!isEqual(prop, newProp)) {
-                setProp(newProp);
-                setProofTerm('sorry');
-
-                const verificationResult = verify(newProp, 'sorry');
-                setVerificationResult(verificationResult);
+            if (isEqual(prop, newProp)) {
+                return;
             }
+
+            setProp(newProp);
+            setProofTerm('sorry');
+
+            const verificationResult = verify(newProp, 'sorry');
+            setVerificationResult(verificationResult);
+
+            const proofTree: VisualProofEditorProofTree = {
+                id: v4(),
+                premisses: [],
+                rule: null,
+                conclusion: { kind: 'PropIsTrue', value: newProp },
+            };
+
+            const primaryCtx: VisualProofEditorReasoningContext = {
+                id: v4(),
+                selectedNodeId: null,
+                isDragging: false,
+                x: 0,
+                y: 0,
+                proofTree: proofTree,
+            };
+
+            setInitialPrimaryContext(primaryCtx);
+            setInitialAssumptions([]);
         } catch (e) {
             setProp(null);
             console.error(e);
         }
     }, 500);
 
-    const handleProofTreeChange = (proofTree: VisualProofEditorProofTree) => {
-        const code = generate_proof_term_from_proof_tree(visualProofEditorProofTreeIntoAliceProofTree(proofTree));
+    const handleProofTermChange = useCallback(debounce((newProofTerm: string) => {
+
+        if (newProofTerm.trim() === proofTerm.trim()) {
+            return;
+        }
+
+        setProofTerm(newProofTerm);
+
+        if (!prop) {
+            return;
+        }
+
+        const verificationResult = verify(prop, newProofTerm);
+        setVerificationResult(verificationResult);
+
+        if (verificationResult.kind === 'TypeCheckSucceeded') {
+            const primaryReasoningCtxId = v4();
+            const proofTree = verificationResult.value.result.proof_tree;
+            const proofTreeResult = aliceProofTreeIntoVisualProofEditorProofTree(primaryReasoningCtxId, proofTree);
+
+            const primaryCtx: VisualProofEditorReasoningContext = {
+                id: primaryReasoningCtxId,
+                selectedNodeId: null,
+                isDragging: false,
+                x: 0,
+                y: 0,
+                proofTree: proofTreeResult.proofTree
+            };
+
+            setInitialPrimaryContext(primaryCtx);
+            setInitialAssumptions(proofTreeResult.assumptions);
+        }
+    }, 500), [prop]);
+
+    const handleProofTreeChange = useCallback((proofTree: VisualProofEditorProofTree) => {
+        const code = generate_proof_term_from_proof_tree(
+            visualProofEditorProofTreeIntoAliceProofTree(proofTree)
+        );
         setProofTerm(code);
 
         if (prop) {
             const result = verify(prop, code);
             setVerificationResult(result);
         }
-    };
+    }, [prop]);
 
-    const handleVerify = (prop: string) => {
+    const handleVerify = useCallback((prop: string) => {
         const result = verify(parse_prop(prop), proofTerm);
         setVerificationResult(result);
 
@@ -89,23 +152,23 @@ export function App() {
         if (!isProof) {
             message.error('Your proof contains errors.');
         }
-    };
+    }, [proofTerm, message]);
 
-    const handleOcamlExport = () => {
+    const handleOcamlExport = useCallback(() => {
         if (!prop) {
             return;
         }
 
         setShowCodeExport(true);
-    };
+    }, [prop]);
 
-    const handleVisualEditorReset = () => {
+    const handleVisualEditorReset = useCallback(() => {
         setProofTerm('sorry');
 
         if (prop) {
             setVerificationResult(verify(prop, 'sorry'));
         }
-    };
+    }, [prop]);
 
     return (
         <ConfigProvider theme={theme}>
@@ -125,25 +188,31 @@ export function App() {
 
                     <div className={cssBodyContainer}>
                         <div className={cssEditorContainer}>
-                            {prop && (
+                            {(!prop && initialPrimaryContext) && (
+                                <div style={{ textAlign: 'center', color: '#192434' }}>
+                                    <h1>Alice is ready.</h1>
+                                    <h2>Please enter a proposition to begin.</h2>
+                                </div>
+                            )}
+
+                            {prop && initialPrimaryContext && (
                                 <>
                                     <VisualProofEditor
                                         prop={prop}
+                                        initialPrimaryReasoningContext={initialPrimaryContext}
+                                        initialAssumptions={initialAssumptions}
                                         onProofTreeChange={handleProofTreeChange}
                                         onReset={handleVisualEditorReset}
                                     />
 
                                     <div style={{ marginTop: 20 }}>
-                                        <CodeEditor height={'20vh'} initialValue={proofTerm} onChange={setProofTerm} />
+                                        <CodeEditor
+                                            height={'20vh'}
+                                            initialValue={proofTerm}
+                                            onChange={handleProofTermChange}
+                                        />
                                     </div>
                                 </>
-                            )}
-
-                            {!prop && (
-                                <div style={{ textAlign: 'center', color: '#192434' }}>
-                                    <h1>Alice is ready.</h1>
-                                    <h2>Please enter a proposition to begin.</h2>
-                                </div>
                             )}
 
                             {
