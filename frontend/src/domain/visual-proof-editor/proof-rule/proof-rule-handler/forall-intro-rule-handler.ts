@@ -67,7 +67,7 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
                 newProofTree: {
                     ...proofTree,
                     premisses: [createEmptyVisualProofEditorProofTreeFromProp(intantiated_body)],
-                    rule: { kind: 'ForAllIntro', value: paramIdent.name },
+                    rule: { kind: 'ForAllIntro', value: paramIdent },
                 },
                 nodeId: proofTree.id,
                 reasoningContextId,

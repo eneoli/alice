@@ -61,7 +61,7 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
                 newProofTree: {
                     ...proofTree,
                     premisses: [createEmptyVisualProofEditorProofTreeFromProp(snd)],
-                    rule: { kind: 'ImplIntro', value: ident.name },
+                    rule: { kind: 'ImplIntro', value: ident },
                 },
                 nodeId: proofTree.id,
                 reasoningContextId,
