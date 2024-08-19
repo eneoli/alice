@@ -258,6 +258,11 @@ pub fn get_free_parameters(prop: &Prop) -> Vec<PropParameter> {
 }
 
 #[wasm_bindgen]
+pub fn has_quantifiers(prop: &Prop) -> bool {
+    prop.has_quantifiers()
+}
+
+#[wasm_bindgen]
 pub fn instantiate_free_parameter(
     mut prop: Prop,
     substituent: String,
