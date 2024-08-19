@@ -152,6 +152,16 @@ export function TutorTypeCheckErrorDisplay(props: TutorTypeCheckErrorDisplayProp
                     )
                 }
                 {
+                    error.kind === 'IncompatibleProofTerm' && (
+                        <li>
+                            {ei('IncompatibleProofTerm')}
+                            Expected this proof term to have type {showType(error.value.expected_type)}, but {error.value.proof_term.kind} cannot have this type.
+                            <br />
+                            {span(error.value.span)}
+                        </li>
+                    )
+                }
+                {
                     error.kind === 'QuantifiedObjectEscapesScope' && (
                         <li>
                             {ei('QuantifiedObjectEscapesScope')}
