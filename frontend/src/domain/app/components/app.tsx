@@ -188,7 +188,7 @@ export function App() {
 
                     <div className={cssBodyContainer}>
                         <div className={cssEditorContainer}>
-                            {(!prop && initialPrimaryContext) && (
+                            {!(prop && initialPrimaryContext) && (
                                 <div style={{ textAlign: 'center', color: '#192434' }}>
                                     <h1>Alice is ready.</h1>
                                     <h2>Please enter a proposition to begin.</h2>
