@@ -206,7 +206,7 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
                 y: 0,
                 proofTree: {
                     id: v4(),
-                    premisses: [fst.proofTree, snd.proofTree],
+                    premisses: [principal.proofTree, applicant.proofTree], // Principal needs to come first
                     rule: { kind: 'ImplElim' },
                     conclusion: { kind: 'PropIsTrue', value: principal.proofTree.conclusion.value.value[1] }
                 },
