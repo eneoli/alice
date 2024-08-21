@@ -17,7 +17,7 @@ import { VisualProofEditorReasoningContext } from '../lib/visual-proof-editor-re
 import { ExistsIntroRuleHandler } from './proof-rule-handler/exists-intro-rule-handler';
 import { ForAllElimRuleHandler } from './proof-rule-handler/forall-elim-rule-handler';
 
-interface SelectedProofTreeNode {
+export interface SelectedProofTreeNode {
     reasoningContextId: string,
     proofTree: VisualProofEditorProofTree,
     isRoot: boolean,
