@@ -38,7 +38,7 @@ export function aliceProofTreeIntoVisualProofEditorProofTree(reasoningContextId:
         conclusion: proofTree.conclusion,
     };
 
-    const assumptions = premisseAssumptions;
+    const assumptions: AssumptionContext[] = [];
 
     if (proofTree.rule.kind === 'ImplIntro') {
 
@@ -160,7 +160,7 @@ export function aliceProofTreeIntoVisualProofEditorProofTree(reasoningContextId:
 
     return {
         proofTree: visualProofTree,
-        assumptions,
+        assumptions: [...assumptions, ...premisseAssumptions],
     };
 }
 
