@@ -1,5 +1,5 @@
 import { Identifier } from 'alice';
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, SelectedProofTreeNode } from '..';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 import { ProofRuleHandler } from './proof-rule-handler';
 
@@ -17,7 +17,7 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    public willReasonDownwards(_params: VisualProofEditorRuleHandlerParams): boolean {
+    public canReasonDownwards(_nodes: SelectedProofTreeNode[]): boolean {
         return false;
     }
 

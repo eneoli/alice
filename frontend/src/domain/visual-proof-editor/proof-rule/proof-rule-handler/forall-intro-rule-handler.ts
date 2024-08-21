@@ -1,5 +1,5 @@
 import { instantiate_free_parameter } from 'alice';
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
+import { ProofRuleHandlerResult, SelectedProofTreeNode, VisualProofEditorRuleHandlerParams } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
@@ -15,7 +15,7 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    public willReasonDownwards(_params: VisualProofEditorRuleHandlerParams): boolean {
+    public canReasonDownwards(_nodes: SelectedProofTreeNode[]): boolean {
         return false;
     }
 
