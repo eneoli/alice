@@ -51,6 +51,7 @@ export function App() {
 
             setProp(newProp);
             setProofTerm('sorry');
+            setInitialAssumptions([]);
 
             const verificationResult = verify(newProp, 'sorry');
             setVerificationResult(verificationResult);
@@ -72,7 +73,6 @@ export function App() {
             };
 
             setInitialPrimaryContext(primaryCtx);
-            setInitialAssumptions([]);
         } catch (e) {
             setProp(null);
             console.error(e);
@@ -80,7 +80,6 @@ export function App() {
     }, 500);
 
     const handleProofTermChange = useCallback(debounce((newProofTerm: string) => {
-
         if (newProofTerm.trim() === proofTerm.trim()) {
             return;
         }
@@ -111,7 +110,7 @@ export function App() {
             setInitialPrimaryContext(primaryCtx);
             setInitialAssumptions(proofTreeResult.assumptions);
         }
-    }, 500), [prop]);
+    }, 500), [proofTerm, prop]);
 
     const handleProofTreeChange = useCallback((proofTree: VisualProofEditorProofTree) => {
         const code = generate_proof_term_from_proof_tree(
