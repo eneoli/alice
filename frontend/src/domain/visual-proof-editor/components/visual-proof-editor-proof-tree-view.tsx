@@ -15,14 +15,20 @@ export interface SelectedProofTreeNode {
     isLeaf: boolean;
 }
 
+export interface RuleDeleteClickHandlerParams {
+    contextId: string;
+    nodeId: string;
+}
+
 interface VisualProofEditorProofTreeViewProps {
     contexts: VisualProofEditorReasoningContext[],
     onNodeSelect: (selection: SelectedProofTreeNode) => void;
+    onRuleDeleteClick: (params: RuleDeleteClickHandlerParams) => void;
     onCanvasClick: () => void;
 }
 
 export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTreeViewProps) {
-    const { contexts, onNodeSelect, onCanvasClick } = props;
+    const { contexts, onNodeSelect, onRuleDeleteClick, onCanvasClick } = props;
 
     const { setNodeRef } = useDroppable({
         id: VisualProofEditorProofTreeViewId,
@@ -32,6 +38,13 @@ export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTree
         onNodeSelect({
             reasoningContextId: contextId,
             ...selection,
+        });
+    };
+
+    const handleRuleDeleteClick = (contextId: string, nodeId: string) => {
+        onRuleDeleteClick({
+            contextId,
+            nodeId,
         });
     };
 
@@ -47,6 +60,7 @@ export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTree
                         <ReasoningContextVisualizer
                             context={ctx}
                             onNodeSelect={(result) => handleNodeSelect(ctx.id, result)}
+                            onRuleDeleteClick={(nodeId) => handleRuleDeleteClick(ctx.id, nodeId)}
                         />
                     </div>
                 ))
@@ -64,6 +78,7 @@ export function VisualProofEditorProofTreeView(props: VisualProofEditorProofTree
                                 key={ctx.id}
                                 context={ctx}
                                 onNodeSelect={(selection) => handleNodeSelect(ctx.id, selection)}
+                                onRuleDeleteClick={(nodeId) => handleRuleDeleteClick(ctx.id, nodeId)}
                             />
                         ))
                     }
