@@ -1,28 +1,46 @@
-import React from 'react';
+import React, { Fragment } from 'react';
 import { css } from '@emotion/css';
-import { VisualProofEditorRule } from '../proof-rule';
+import { SelectedProofTreeNode, VisualProofEditorRule } from '../proof-rule';
 import { VisualProofEditorProofRuleButton } from './visual-proof-editor-proof-rule-button';
+import { RuleDirection } from '../proof-rule/proof-rule-handler/proof-rule-handler';
 
 interface VisualProofEditorSidebarProps {
     rules: VisualProofEditorRule[];
-    onRuleSelect: (id: string) => void;
+    selectedNodes: SelectedProofTreeNode[]
+    onRuleSelect: (id: string, direction: RuleDirection) => void;
 }
 
 export function VisualProofEditorSidebar(props: VisualProofEditorSidebarProps) {
 
-    const { rules, onRuleSelect } = props;
+    const { rules, selectedNodes, onRuleSelect } = props;
 
     return (
         <div className={cssVisualProofEditorSidebar}>
             <span className={cssSidebarTitle}>Inference rules</span>
             {
                 rules.map((rule, i) => (
-                    <VisualProofEditorProofRuleButton
-                        key={i}
-                        title={rule.name}
-                        latex={rule.handler.getLatexCode()}
-                        onClick={() => onRuleSelect(rule.id)}
-                    />
+                    <Fragment key={i}>
+                        {
+                            rule.handler.canReasonUpwards(selectedNodes) && (
+                                <VisualProofEditorProofRuleButton
+                                    title={rule.name}
+                                    direction='Upwards'
+                                    latex={rule.handler.getLatexCode()}
+                                    onClick={() => onRuleSelect(rule.id, 'Upwards')}
+                                />
+                            )
+                        }
+                        {
+                            rule.handler.canReasonDownwards(selectedNodes) && (
+                                <VisualProofEditorProofRuleButton
+                                    title={rule.name}
+                                    direction='Downwards'
+                                    latex={rule.handler.getLatexCode()}
+                                    onClick={() => onRuleSelect(rule.id, 'Downwards')}
+                                />
+                            )
+                        }
+                    </Fragment>
                 ))
             }
         </div>
