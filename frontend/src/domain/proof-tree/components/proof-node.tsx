@@ -7,9 +7,11 @@ interface ProofNodeProps {
     rule: ProofTreeRule | null;
     content: ReactNode
     children?: ReactNode
+    onRuleDeleteClick: () => void;
 }
 
-export function ProofNode({ children, content, rule }: ProofNodeProps) {
+export function ProofNode(props: ProofNodeProps) {
+    const { rule, content, children, onRuleDeleteClick } = props;
 
     return (
         <div className={cssProofNode}>
@@ -18,7 +20,7 @@ export function ProofNode({ children, content, rule }: ProofNodeProps) {
             </div>
 
             {rule && (
-                <ProofLine rule={rule} />
+                <ProofLine onDeleteClick={onRuleDeleteClick} rule={rule} />
             )}
 
             <div className={cssConclusion}>
