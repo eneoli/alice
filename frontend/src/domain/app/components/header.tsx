@@ -114,6 +114,7 @@ const cssHeaderTitle = css`
     font-size: 35px;
     color: white;
     text-align: center;
+    margin-bottom: 10px;
 `;
 
 const cssHeaderSubtitle = css`
