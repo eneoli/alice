@@ -1,10 +1,10 @@
 import { css } from '@emotion/css';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { VisualProofEditorSidebar } from './visual-proof-editor-sidebar';
-import { proof_tree_conclusion_alpha_eq, Prop } from 'alice';
+import { Identifier, proof_tree_conclusion_alpha_eq, Prop } from 'alice';
 import { notification } from 'antd';
 import { DndContext, DragCancelEvent, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
-import { SelectedProofTreeNode, VisualProofEditorProofTreeView, VisualProofEditorProofTreeViewId } from './visual-proof-editor-proof-tree-view';
+import { RuleDeleteClickHandlerParams, SelectedProofTreeNode, VisualProofEditorProofTreeView, VisualProofEditorProofTreeViewId } from './visual-proof-editor-proof-tree-view';
 import { VisualProofEditorAssumptionView } from './visual-proof-editor-assumptiom-view';
 import { TrashOverlayId } from './trash-overlay';
 import bg from '../../../../style/bg.png';
@@ -18,6 +18,7 @@ import { useReasoningContexts } from '../hooks/use-reasoning-contexts';
 import { useKeyPressed, useKeyUpEvent } from '../../../lib/hooks/use-key-event';
 import { createNumberGenerator } from '../proof-rule/proof-rule-handler/create-number-generator';
 import { v4 } from 'uuid';
+import { RuleDirection } from '../proof-rule/proof-rule-handler/proof-rule-handler';
 
 interface VisualProofEditorProps {
     prop: Prop;
@@ -71,8 +72,10 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
     }, [initialPrimaryReasoningContext]);
 
     useEffect(() => {
-        // Todo what is with assumptions from other proof trees
-        setAssumptions(initialAssumptions);
+        setAssumptions([
+            ...initialAssumptions,
+            ...assumptions.filter((assumptionCtx) => assumptionCtx.owningReasoningCtxId !== primaryReasoningCtxId),
+        ]);
     }, [initialAssumptions]);
 
     useKeyUpEvent(() => {
@@ -98,6 +101,24 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
     }, [prop]);
 
     useEffect(resetProofEditor, [prop]);
+
+    const mapSelectedNodesToProofRuleParams = (node: SelectedProofTreeNode) => {
+        const { reasoningContextId, nodeId, isRoot, isLeaf } = node;
+        const context = getReasoningContext(reasoningContextId);
+        const { proofTree: parentProofTree } = context;
+        const selectedTree = getTreeNodeById(parentProofTree, nodeId);
+
+        if (!selectedTree) {
+            throw new Error(`Unknown node. parent id:${reasoningContextId}, node id: ${nodeId}`);
+        }
+
+        return {
+            reasoningContextId: context.id,
+            proofTree: { ...selectedTree },
+            isRoot,
+            isLeaf,
+        };
+    };
 
     const onDragStart = useCallback((e: DragStartEvent) => {
         const contextId = '' + e.active.id;
@@ -167,10 +188,12 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
         const droppedOnPremisse = getTreeNodeById(droppedOnContext.proofTree, droppedOnPremisseId);
 
         const droppedOnIsLeaf = droppedOnPremisse?.premisses.length === 0;
-        const droppedOnIsRoot = e.over?.data.current?.isRoot;
+        // const droppedOnIsRoot = e.over?.data.current?.isRoot;
         const droppedIsPrimary = droppedContextId === primaryReasoningCtxId;
 
-        if (droppedOnIsRoot || !droppedOnIsLeaf || droppedIsPrimary) {
+        if (!droppedOnIsLeaf || droppedIsPrimary) {
+            // TODO was ist mit ROOT wenn jetzt middle trees möglich sind?
+            // TODO warum war root überhaupt verboten?
             // do not allow drop on root or itermediate nodes as we don't know how to merge then.
             // also don't allow to merge with primary if primary is dropped.
             restorePositions();
@@ -250,6 +273,72 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
         }
     }, [getReasoningContext, updateReasoningContext, updateReasoningContexts, reasoningContexts, isControlKeyActive]);
 
+    const handleRuleDeleteClick = useCallback((params: RuleDeleteClickHandlerParams) => {
+        const { nodeId, contextId } = params;
+
+        const reasoningContext = getReasoningContext(contextId);
+
+        const proofTree = getTreeNodeById(reasoningContext.proofTree, nodeId);
+
+        if (!proofTree) {
+            throw new Error('Couldn\'t find node with id ' + nodeId);
+        }
+
+        // remove assumption for appropiate rules
+        const rule = proofTree.rule;
+
+        if (!rule) {
+            return;
+        }
+
+        let removedAssumptionIdentifiers: Identifier[] = [];
+
+        if (rule.kind === 'ImplIntro' || rule.kind === 'ForAllIntro') {
+            removedAssumptionIdentifiers.push(rule.value);
+        }
+
+        if (rule.kind === 'OrElim' || rule.kind === 'ExistsElim') {
+            removedAssumptionIdentifiers = removedAssumptionIdentifiers.concat(rule.value);
+        }
+
+        setAssumptions(assumptions.filter((assumptionCtx) => (
+            !removedAssumptionIdentifiers.includes(assumptionCtx.assumption.ident)
+        )));
+
+        // unglue trees
+
+        const newCtxs: VisualProofEditorReasoningContext[] = [];
+        for (const premisse of proofTree.premisses) {
+            newCtxs.push({
+                id: v4(),
+                isDragging: false,
+                selectedNodeId: null,
+                x: 100,
+                y: 100,
+                proofTree: { ...premisse },
+            });
+        }
+
+        const newProofTree = { ...proofTree };
+        newProofTree.premisses = [];
+        newProofTree.rule = null;
+
+        replaceTreeNodeById(reasoningContext.proofTree, nodeId, newProofTree);
+
+        updateReasoningContexts([
+            ...reasoningContexts.filter((ctx) => ctx.id !== contextId),
+            ...newCtxs,
+            {
+                ...reasoningContext,
+            }
+        ]);
+
+        if (contextId === primaryReasoningCtxId) {
+            onProofTreeChange(reasoningContext.proofTree);
+        }
+
+    }, [reasoningContexts, getReasoningContext, updateReasoningContext]);
+
     const handleCanvasClick = useCallback(() => {
         updateReasoningContexts([
             ...reasoningContexts.map((ctx) => {
@@ -270,7 +359,7 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
         addReasoningContext(newReasoningContext);
     }, [addReasoningContext]);
 
-    const handleRuleSelect = async (ruleId: string) => {
+    const handleRuleSelect = async (ruleId: string, direction: RuleDirection) => {
         const selectedNodes: SelectedProofTreeNode[] = getSelectedNodesFromReasoningContexts(reasoningContexts);
 
         updateReasoningContexts([
@@ -286,24 +375,6 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
             return;
         }
 
-        const mapSelectedNodesToProofRuleParams = (node: SelectedProofTreeNode) => {
-            const { reasoningContextId, nodeId, isRoot, isLeaf } = node;
-            const context = getReasoningContext(reasoningContextId);
-            const { proofTree: parentProofTree } = context;
-            const selectedTree = getTreeNodeById(parentProofTree, nodeId);
-
-            if (!selectedTree) {
-                throw new Error(`Unknown node. parent id:${reasoningContextId}, node id: ${nodeId}`);
-            }
-
-            return {
-                reasoningContextId: context.id,
-                proofTree: { ...selectedTree },
-                isRoot,
-                isLeaf,
-            };
-        };
-
         const handlerParams: VisualProofEditorRuleHandlerParams = {
             generateIdentifier,
             generateUniqueNumber,
@@ -314,12 +385,12 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
 
         const rule = getProofRule(ruleId);
         const hasPrimarySelected = !!selectedNodes.find((ctx) => ctx.reasoningContextId === primaryReasoningCtxId);
-        if (hasPrimarySelected && rule.handler.willReasonDownwards(handlerParams)) {
+        if (hasPrimarySelected && direction === 'Downwards') {
             notificationApi.error({ message: 'Cannot destruct conclusion as that\'s what you want to show' });
             return;
         }
 
-        const ruleHandlerResult = await rule.handler.handleRule(handlerParams);
+        const ruleHandlerResult = await rule.handler.handleRule(handlerParams, direction);
 
         if (!ruleHandlerResult) {
             return;
@@ -368,11 +439,16 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
         })
     );
 
+    const selectedNodes = useMemo(() => {
+        return getSelectedNodesFromReasoningContexts(reasoningContexts).map(mapSelectedNodesToProofRuleParams);
+    }, [reasoningContexts]);
+
     return (
         <div>
             {contextHolder}
             <div className={cssVisualProofEditorContent}>
                 <VisualProofEditorSidebar
+                    selectedNodes={selectedNodes}
                     rules={NaturalDeductionRules}
                     onRuleSelect={handleRuleSelect}
                 />
@@ -393,6 +469,7 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
                         <VisualProofEditorProofTreeView
                             contexts={reasoningContexts}
                             onNodeSelect={handleNodeSelect}
+                            onRuleDeleteClick={handleRuleDeleteClick}
                             onCanvasClick={handleCanvasClick}
                         />
                     </DndContext>
