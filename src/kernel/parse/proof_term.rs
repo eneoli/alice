@@ -16,13 +16,15 @@ use super::{fol::fol_parser, Token};
     Pair            = "(", Expr, ",", Expr, [ "," ], ")" ;
     Atom            = "(", Expr, ")" | Ident | Pair | Unit | Sorry ;
     Function        = "fn", Ident, [ ":", Prop ], "=>", Expr ;
-    CaseExpr        = Case | Application | LetIn;
+    CaseExpr        = (Case | Application | LetIn), [ TypeAscription ];
     Case            = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
     Application     = Atom, { Atom } ;
     LetIn           = "let", "(", Ident, ",", Ident, ")", "=", Expr, "in", Expr ;
 */
 pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token>> {
     let ident_token = select! { Token::IDENT(ident) => ident }.labelled("identifier");
+
+    let type_ascription = just(Token::COLON).ignore_then(fol_parser()).boxed();
 
     let proof_term = recursive(|proof_term| {
         let ident_term = ident_token
@@ -95,7 +97,20 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
 
         let case = |application: Recursive<'static, Token, ProofTerm, Simple<Token>>| {
             recursive(|case| {
-                let case_expr = choice((case.clone(), application.clone(), let_in.clone()));
+                let case_expr = choice((case.clone(), application.clone(), let_in.clone()))
+                    .then(type_ascription.clone().or_not())
+                    .map_with_span(|(proof_term, ascription), span| {
+                        if let Some(ascription) = ascription {
+                            ProofTerm::TypeAscription(TypeAscription {
+                                proof_term: proof_term.boxed(),
+                                ascription: Type::Prop(ascription),
+                                span: Some(span),
+                            })
+                        } else {
+                            proof_term
+                        }
+                    })
+                    .boxed();
 
                 just(Token::CASE)
                     .ignore_then(case_expr.clone())
@@ -195,8 +210,6 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                 })
                 .boxed()
         });
-
-        let type_ascription = just(Token::COLON).ignore_then(fol_parser());
 
         choice((function, case(application.clone()), application, let_in))
             .then(type_ascription.or_not())
