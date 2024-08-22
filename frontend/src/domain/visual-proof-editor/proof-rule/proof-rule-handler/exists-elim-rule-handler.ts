@@ -151,9 +151,6 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        // TODO check that free parameter does not escape scope
-        // Let that handle the type checker
-
         const { object_ident, object_type_ident, body } = propConclusion.value;
 
         const instantiatedObjectIdent = {
