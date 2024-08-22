@@ -23,7 +23,7 @@ mod tests {
 
     // HELPER
 
-    fn parse_proof(proof: &str) -> ProofTerm {
+    fn parse_proof(proof: &str, prop: &Prop) -> ProofTerm {
         let len = proof.chars().count();
         let tokens = lexer().parse(proof).unwrap();
 
@@ -34,7 +34,7 @@ mod tests {
 
         let processed_proof = ProofPipeline::new()
             .pipe(ResolveDatatypes::boxed())
-            .apply(proof_ast)
+            .apply(proof_ast, &prop)
             .unwrap();
 
         processed_proof.proof_term
@@ -53,8 +53,8 @@ mod tests {
     }
 
     fn check_proof_term(proof: &str, prop: &str) -> (Prop, ProofTree) {
-        let proof_term_ast = parse_proof(proof);
         let prop_ast = parse_prop(prop);
+        let proof_term_ast = parse_proof(proof, &prop_ast);
 
         (
             prop_ast.clone(),
@@ -69,7 +69,12 @@ mod tests {
     #[test]
     fn test_proof_implication_to_and() {
         let (expected_type, proof_tree) =
-            check_proof_term("fn u => fn w => (u, w)", "A -> B -> A & B");
+            check_proof_term("
+            atom A;
+            atom B;
+
+            fn u => fn w => (u, w)
+            ", "A -> B -> A & B");
 
         // check proof tree
         assert_eq!(
@@ -120,7 +125,12 @@ mod tests {
     #[test]
     fn test_commutativity_of_conjunction() {
         let (expected_type, proof_tree) =
-            check_proof_term("fn u => (snd u, fst u)", "A & B -> B & A");
+            check_proof_term("
+            atom A;
+            atom B;
+
+            fn u => (snd u, fst u)", "A & B -> B & A
+        ");
 
         // test proof tree
         assert_eq!(
@@ -174,7 +184,13 @@ mod tests {
     #[test]
     fn test_interaction_law_of_distributivity() {
         let (expected_type, proof_tree) = check_proof_term(
-            "fn u => (fn w => fst (u w), fn w => snd (u w))",
+            "
+            atom A;
+            atom B;
+            atom C;
+            
+            fn u => (fn w => fst (u w), fn w => snd (u w))
+            ",
             "(A -> B & C) -> (A -> B) && (A -> C)",
         );
 
@@ -317,18 +333,32 @@ mod tests {
 
     #[test]
     fn test_and_expansion() {
-        check_proof_term("fn u => (fst u, snd u)", "A & B -> A & B");
+        check_proof_term("
+        atom A;
+        atom B;
+
+        fn u => (fst u, snd u)", "A & B -> A & B
+        ");
     }
 
     #[test]
     fn test_implication_expansion() {
-        check_proof_term("fn u => fn w => u w", "(A -> A) -> A -> A");
+        check_proof_term("
+        atom A;
+
+        fn u => fn w => u w
+        ", "(A -> A) -> A -> A");
     }
 
     #[test]
     fn or_expansion() {
         check_proof_term(
-            "fn u  => case u of inl a => inl a, inr b => inr b",
+            "
+            atom A;
+            atom B;
+            
+            fn u  => case u of inl a => inl a, inr b => inr b
+            ",
             "A || B -> A || B",
         );
     }
@@ -336,7 +366,12 @@ mod tests {
     #[test]
     fn test_forall_expansion() {
         check_proof_term(
-            "datatype t; fn u => fn w => u w",
+            "
+            atom A(1);
+            datatype t;
+            
+            fn u => fn w => u w
+            ",
             "(\\forall x:t. A(x)) -> (\\forall x:t. A(x))",
         );
     }
@@ -344,7 +379,12 @@ mod tests {
     #[test]
     fn test_exsists_expansion() {
         check_proof_term(
-            "fn u => let (w, p) = u in (w, p)",
+            "
+            atom A(1);
+            datatype t;
+
+            fn u => let (w, p) = u in (w, p)
+            ",
             "(\\exists x:t. A(x)) -> (\\exists x:t. A(x))",
         );
     }
@@ -364,7 +404,12 @@ mod tests {
     #[test]
     fn test_commutativity_of_disjunction() {
         let (expected_type, proof_tree) = check_proof_term(
-            "fn u => case u of inl a => inr a, inr b => inl b",
+            "
+            atom A;
+            atom B;
+            
+            fn u => case u of inl a => inr a, inr b => inl b
+            ",
             "A || B -> B || A",
         );
 
@@ -445,7 +490,13 @@ mod tests {
     #[test]
     fn test_composition() {
         check_proof_term(
-            "fn u => fn w => (snd u) ((fst u) w)",
+            "
+            atom A;
+            atom B;
+            atom C;
+            
+            fn u => fn w => (snd u) ((fst u) w)
+            ",
             "(A -> B) && (B -> C) -> A -> C",
         );
     }
@@ -474,28 +525,50 @@ mod tests {
 
     #[test]
     fn test_non_minimal_identity_proof() {
-        check_proof_term("fn u => (fn w => w) u", "A -> A");
+        check_proof_term("
+        atom A;
+
+        fn u => (fn w => w) u
+        ", "A -> A");
     }
 
     #[test]
     fn test_projection_function() {
-        check_proof_term("fn u => fst u", "A & B -> A");
+        check_proof_term("
+        atom A;
+        atom B;
+
+        fn u => fst u
+        ", "A & B -> A");
     }
 
     #[test]
     fn test_implication_chain() {
-        check_proof_term("fn u => u (fn u => u)", "((A -> A) -> B) -> B");
+        check_proof_term("
+        atom A;
+        atom B;
+
+        fn u => u (fn u => u)
+        ", "((A -> A) -> B) -> B");
     }
 
     #[test]
     fn test_piano_number_2() {
-        check_proof_term("fn z => fn s => s(s(z))", "A -> ((A -> A) -> A)");
+        check_proof_term("
+        atom A;
+
+        fn z => fn s => s(s(z))
+        ", "A -> ((A -> A) -> A)");
     }
 
     #[test]
     fn test_tripple_neagation_elimination() {
         // ~~~A = ((A => False) => False) => False
-        check_proof_term("fn u => fn v => u (fn w => w v)", "~~~A -> ~A");
+        check_proof_term("
+        atom A;
+
+        fn u => fn v => u (fn w => w v)
+        ", "~~~A -> ~A");
     }
 
     #[test]
@@ -551,6 +624,7 @@ mod tests {
 
                 fn u: \\exists x:t. C(x) => let (a, proof) = u in proof
             ",
+            &parse_prop("(\\exists x:t. C(x)) -> C(a)"),
         );
 
         let _type = synthesize(
@@ -598,6 +672,7 @@ mod tests {
         check_proof_term(
             "
                 atom A(1);
+                datatype t;
 
                 fn u => fn a => snd (fn x: A(a) => (), ())
             ",
@@ -610,6 +685,7 @@ mod tests {
         check_proof_term(
             "
                 atom A(1);
+                datatype t;
                 fn u => fn a => snd (abort u : A(a), ())
             ",
             "\\bot -> \\forall x:t. \\top",
@@ -632,12 +708,21 @@ mod tests {
 
     #[test]
     fn test_root_sorry() {
-        check_proof_term("sorry", "A");
+        check_proof_term("
+        atom A;
+
+        sorry
+        ", "A");
     }
 
     #[test]
     fn test_sorry_in_function_body() {
-        check_proof_term("fn u => sorry", "A -> B");
+        check_proof_term("
+        atom A;
+        atom B;
+
+        fn u => sorry
+        ", "A -> B");
     }
 
     #[test]
@@ -648,7 +733,12 @@ mod tests {
 
     #[test]
     fn test_sorry_in_pair() {
-        check_proof_term("(sorry, sorry)", "A & B");
+        check_proof_term("
+        atom A;
+        atom B;
+
+        (sorry, sorry)
+        ", "A & B");
     }
 
     #[test]
