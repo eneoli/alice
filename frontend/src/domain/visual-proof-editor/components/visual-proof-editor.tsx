@@ -52,8 +52,21 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
     } = useReasoningContexts();
     const [primaryReasoningCtxId, setPrimaryReasoningCtxId] = useState<string | null>(null);
     const [assumptions, setAssumptions] = useState<AssumptionContext[]>([]);
-    const { current: generateIdentifier } = useRef(createIdentifierGenerator());
+    const { current: generateIdentifierGenerator } = useRef(createIdentifierGenerator());
     const { current: generateUniqueNumber } = useRef(createNumberGenerator());
+
+    const generateIdentifier = useCallback(() => {
+        const usedIdents = assumptions
+            .map((assumption) => assumption.assumption.ident.name);
+
+        let ident = generateIdentifierGenerator();
+
+        while (usedIdents.includes(ident)) {
+            ident = generateIdentifierGenerator();
+        }
+
+        return ident;
+    }, []);
 
     useEffect(() => {
         const oldCtx = primaryReasoningCtxId ? getReasoningContext(primaryReasoningCtxId) : null;
@@ -96,7 +109,7 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
         setPrimaryReasoningCtxId(mainCtx.id);
         setAssumptions([]);
 
-        generateIdentifier.reset();
+        generateIdentifierGenerator.reset();
         onReset();
     }, [prop]);
 
@@ -157,7 +170,6 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
             });
         }
 
-        //  FIXME: Shall I delete trees with assumptions?
         const dropsOnTrash = e.over?.id === TrashOverlayId;
         if (dropsOnTrash) {
 
@@ -221,8 +233,6 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
                 conclusion: droppedOnPremisse.conclusion,
             }
         }
-
-        // FIXME: shall I check if all assumptions can be used?
 
         // Merge
 
