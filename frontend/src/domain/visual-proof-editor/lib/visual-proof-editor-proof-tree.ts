@@ -88,15 +88,21 @@ export function aliceProofTreeIntoVisualProofEditorProofTree(reasoningContextId:
 
     if (proofTree.rule.kind === 'OrElim') {
 
-        if (proofTree.conclusion.kind !== 'PropIsTrue') {
+        if (proofTree.premisses.length !== 3) {
+            throw new Error('Expected three premisses.');
+        }
+
+        const orPremisse = proofTree.premisses[0].conclusion;
+
+        if (orPremisse.kind !== 'PropIsTrue') {
             throw new Error('Expected conclusion to be a proposition.');
         }
 
-        if (proofTree.conclusion.value.kind !== 'Or') {
+        if (orPremisse.value.kind !== 'Or') {
             throw new Error('Expected conclusion to be a disjunction.');
         }
 
-        const [fst, snd] = proofTree.conclusion.value.value;
+        const [fst, snd] = orPremisse.value.value;
 
         assumptions.push({
             owningReasoningCtxId: reasoningContextId,
