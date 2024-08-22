@@ -189,7 +189,6 @@ export abstract class ProofRuleHandler {
     };
 
     public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
-        console.log(nodes);
         return (
             this.allNodesAreRoots(nodes)
             // && this.allNodesHaveRules(params) // from willReasonDownwards, can be removed
