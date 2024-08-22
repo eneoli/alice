@@ -158,10 +158,19 @@ impl ProofTreeExporter {
 
         match rule {
             ProofTreeRule::TrueIntro => ProofTerm::Unit(None),
-            ProofTreeRule::Sorry => ProofTerm::Sorry(None),
             ProofTreeRule::Ident(ident) => Ident::create(ident.name().clone()),
             ProofTreeRule::AlphaEquivalent => {
                 self.do_export_as_proof_term(&premisses[0], reasoning_mode)
+            }
+            ProofTreeRule::Sorry => {
+                let proof_term = ProofTerm::Sorry(None);
+
+                self.wrap_into_type_ascription(
+                    proof_term,
+                    conclusion,
+                    reasoning_mode,
+                    &ReasoningMode::Check,
+                )
             }
             ProofTreeRule::AndIntro => {
                 let [ref fst, ref snd] = premisses[..] else {
