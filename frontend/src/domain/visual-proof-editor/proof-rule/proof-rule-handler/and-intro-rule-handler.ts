@@ -1,5 +1,5 @@
 import { v4 } from 'uuid';
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
+import { ProofRuleHandlerResult, SelectedProofTreeNode, VisualProofEditorRuleHandlerParams } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
@@ -14,6 +14,24 @@ export class AndIntroRuleHandler extends ProofRuleHandler {
                 \\BinaryInfC{$A \\land B$}
             \\end{prooftree}
         `;
+    }
+
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'And'
+        );
+    }
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonDownwards(nodes) &&
+            nodes.length == 2 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[1].proofTree.conclusion.kind === 'PropIsTrue'
+        );
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {

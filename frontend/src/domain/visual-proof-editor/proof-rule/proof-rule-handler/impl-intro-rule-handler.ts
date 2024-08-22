@@ -1,5 +1,5 @@
 import { Identifier } from 'alice';
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, SelectedProofTreeNode } from '..';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 import { ProofRuleHandler } from './proof-rule-handler';
 
@@ -17,7 +17,16 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    public willReasonDownwards(_params: VisualProofEditorRuleHandlerParams): boolean {
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'Impl'
+        );
+    }
+
+    public canReasonDownwards(_nodes: SelectedProofTreeNode[]): boolean {
         return false;
     }
 
@@ -61,7 +70,7 @@ export class ImplIntroRuleHandler extends ProofRuleHandler {
                 newProofTree: {
                     ...proofTree,
                     premisses: [createEmptyVisualProofEditorProofTreeFromProp(snd)],
-                    rule: { kind: 'ImplIntro', value: ident.name },
+                    rule: { kind: 'ImplIntro', value: ident },
                 },
                 nodeId: proofTree.id,
                 reasoningContextId,

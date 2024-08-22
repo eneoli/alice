@@ -1,7 +1,7 @@
 import { v4 } from 'uuid';
 import Swal from 'sweetalert2';
 import { bind_identifier, get_free_parameters, Identifier, instantiate_free_parameter, Prop } from 'alice';
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, SelectedProofTreeNode } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { createEmptyVisualProofEditorProofTreeFromProp, createEmptyVisualProofEditorProofTreeFromTypeJudgment } from '../../lib/visual-proof-editor-proof-tree';
 import { VisualProofEditorParameterBindingSelector } from '../../components/visual-proof-editor-parameter-binding-selector';
@@ -23,6 +23,38 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
                 \\BinaryInfC{$A(a)$}
             \\end{prooftree}
         `;
+    }
+
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue'
+        );
+    }
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        if (!super.canReasonDownwards(nodes)) {
+            return false;
+        }
+
+        if (nodes.length !== 2) {
+            return false;
+        }
+
+        const [fst, snd] = nodes;
+
+        const fstIsProp = fst.proofTree.conclusion.kind === 'PropIsTrue';
+        const sndIsProp = snd.proofTree.conclusion.kind === 'PropIsTrue';
+
+        if (fstIsProp === sndIsProp) {
+            return false;
+        }
+
+        const propPremisse = fstIsProp ? fst : snd;
+        const prop = propPremisse.proofTree.conclusion.value as Prop;
+
+        return prop.kind === 'ForAll';
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {

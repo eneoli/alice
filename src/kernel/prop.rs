@@ -159,6 +159,21 @@ impl Prop {
         }
     }
 
+    pub fn get_datatypes(&self) -> Vec<String> {
+        match self {
+            Prop::True | Prop::False | Prop::Atom(_, _) => vec![],
+            Prop::ForAll {
+                object_type_ident, ..
+            }
+            | Prop::Exists {
+                object_type_ident, ..
+            } => vec![object_type_ident.clone()],
+            Prop::And(fst, snd) | Prop::Or(fst, snd) | Prop::Impl(fst, snd) => {
+                [fst.get_datatypes(), snd.get_datatypes()].concat()
+            }
+        }
+    }
+
     pub fn has_quantifiers(&self) -> bool {
         match self {
             Prop::Atom(_, _) => false,

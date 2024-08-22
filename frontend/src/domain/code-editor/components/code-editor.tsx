@@ -11,7 +11,7 @@ interface CodeEditorProps {
 function handleEditorWillMount(monaco: Monaco) {
     monaco.languages.typescript.javascriptDefaults.setEagerModelSync(true);
 
-    const keywords = ['fn', 'case', 'of', 'let', 'in', 'datatype', 'inl', 'inr', 'fst', 'snd', 'sorry'];
+    const keywords = ['fn', 'case', 'of', 'let', 'in', 'atom', 'datatype', 'inl', 'inr', 'fst', 'snd', 'sorry'];
 
     monaco.languages.register({ id: 'alice' });
     monaco.languages.setMonarchTokensProvider('alice', {
@@ -125,7 +125,7 @@ export function CodeEditor(props: CodeEditorProps) {
 
     useEffect(() => {
         setValue(initialValue);
-    });
+    }, [initialValue]);
 
     const onValueChange = (value: string | undefined) => {
         setValue(value || '');

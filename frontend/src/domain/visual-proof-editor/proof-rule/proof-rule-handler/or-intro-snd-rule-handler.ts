@@ -1,4 +1,4 @@
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, SelectedProofTreeNode } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { v4 } from 'uuid';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
@@ -13,6 +13,23 @@ export class OrIntroSndRuleHandler extends ProofRuleHandler {
                 \\UnaryInfC{$A \\lor B$}
             \\end{prooftree}
         `;
+    }
+
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'Or'
+        );
+    }
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonDownwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue'
+        );
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {

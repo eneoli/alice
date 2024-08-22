@@ -3,7 +3,7 @@ use stages::resolve_datatypes::ResolveDatatypesStageError;
 use thiserror::Error;
 use tsify_next::Tsify;
 
-use super::proof::{Proof, ProofProcessingState};
+use super::{proof::{Proof, ProofProcessingState}, prop::Prop};
 
 pub mod stages;
 
@@ -32,7 +32,7 @@ pub enum ProofPipelineError {
 
 pub trait ProofPipelineStage {
     fn expected_processing_states(&self) -> Vec<ProofProcessingState>;
-    fn process(&self, proof: Proof) -> Result<Proof, StageError>;
+    fn process(&self, proof: Proof, prop: &Prop) -> Result<Proof, StageError>;
 }
 
 pub struct ProofPipeline {
@@ -56,7 +56,7 @@ impl ProofPipeline {
         self
     }
 
-    pub fn apply(&self, proof: Proof) -> Result<Proof, ProofPipelineError> {
+    pub fn apply(&self, proof: Proof, prop: &Prop) -> Result<Proof, ProofPipelineError> {
         let mut p = proof;
 
         for stage in self.stages.iter() {
@@ -70,7 +70,7 @@ impl ProofPipeline {
                 });
             }
 
-            p = stage.process(p)?;
+            p = stage.process(p, prop)?;
         }
 
         Ok(p)

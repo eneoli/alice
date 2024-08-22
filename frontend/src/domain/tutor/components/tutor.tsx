@@ -85,6 +85,10 @@ function getProgress(verificationResult: VerificationResult): number {
     const proof_tree = verificationResult.value.result.proof_tree;
     const goals = verificationResult.value.result.goals;
 
+    if (goals.length === 0) {
+        return 100;
+    }
+
     const userSolutionDepth = getTreeDepth(proof_tree) - 1; // ignore initial node
     const goalSolutions: ProofTerm[] = goals
         .map((goal) => goal.solution)

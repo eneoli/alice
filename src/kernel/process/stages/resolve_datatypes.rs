@@ -21,8 +21,11 @@ pub enum ResolveDatatypesStageError {
     #[error("Proposition contains a datatype identifier")]
     PropContainsDatatypeIdentifier { prop: Prop, datatype: String },
 
-    #[error("Identifier \"{0}\" is unknown")]
+    #[error("Atom \"{0}\" is unknown")]
     AtomUnknown(String),
+
+    #[error("Datatype \"{0}\" is unknown")]
+    DatatypeUnknown(String),
 
     #[error("Identifier \"{0}\" is defined multiple times")]
     DuplicateIdentifier(String),
@@ -58,7 +61,7 @@ impl ProofPipelineStage for ResolveDatatypes {
         vec![ProofProcessingState::Parsed]
     }
 
-    fn process(&self, proof: Proof) -> Result<Proof, StageError> {
+    fn process(&self, proof: Proof, prop: &Prop) -> Result<Proof, StageError> {
         let Proof {
             proof_term,
             atoms,
@@ -67,11 +70,11 @@ impl ProofPipelineStage for ResolveDatatypes {
         } = proof;
 
         // check for duplicates
-        let atom_names: Vec<&String> = atoms.iter().map(|(name, _)| name).collect();
-        let datatype_names = datatypes.iter().map(|datatype| datatype).collect();
+        let atom_names: Vec<&String> = atoms.iter().map(|(name, _)| name).collect(); // collect as ref
+        let datatype_names: Vec<&String> = datatypes.iter().map(|datatype| datatype).collect(); // collect as ref
 
         let mut seen_names = vec![];
-        for name in [atom_names, datatype_names].concat() {
+        for name in [&atom_names[..], &datatype_names[..]].concat() {
             if seen_names.contains(&name) {
                 return Err(StageError::ResolveDatatypesStageError(
                     ResolveDatatypesStageError::DuplicateIdentifier(name.clone()),
@@ -79,6 +82,41 @@ impl ProofPipelineStage for ResolveDatatypes {
             }
 
             seen_names.push(name);
+        }
+
+        // check if Atom/Datatype decl from Prop is missing
+        let prop_atoms = prop.get_atoms();
+        let prop_datatypes = prop.get_datatypes();
+
+        for (prop_atom_name, prop_atom_arity) in prop_atoms {
+            if !atom_names.contains(&&prop_atom_name) {
+                return Err(StageError::ResolveDatatypesStageError(
+                    ResolveDatatypesStageError::AtomUnknown(prop_atom_name),
+                ));
+            }
+
+            let mismatch_atom = atoms
+                .iter()
+                .filter(|(atom_name, _)| *atom_name == prop_atom_name)
+                .find(|(_, arity)| *arity != prop_atom_arity);
+
+            if let Some((_, actual_arity)) = mismatch_atom {
+                return Err(StageError::ResolveDatatypesStageError(
+                    ResolveDatatypesStageError::ArityWrong {
+                        ident: prop_atom_name,
+                        expected: prop_atom_arity,
+                        actual: *actual_arity,
+                    },
+                ));
+            }
+        }
+
+        for prop_datatype in prop_datatypes {
+            if !datatypes.contains(&prop_datatype) {
+                return Err(StageError::ResolveDatatypesStageError(
+                    ResolveDatatypesStageError::DatatypeUnknown(prop_datatype),
+                ));
+            }
         }
 
         let atom_map = HashMap::from_iter(atoms.clone());

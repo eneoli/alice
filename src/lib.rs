@@ -161,7 +161,7 @@ pub fn verify(prop: &Prop, proof_term: &str) -> VerificationResult {
     // Step 3: Preprocess ProofTerm
     let processed_proof_result = ProofPipeline::new()
         .pipe(ResolveDatatypes::boxed())
-        .apply(proof);
+        .apply(proof, prop);
 
     if let Err(err) = processed_proof_result {
         return VerificationResult::ProofPipelineError {
@@ -231,7 +231,7 @@ pub fn parse_prop(prop: &str) -> Result<Prop, BackendError> {
 }
 
 #[wasm_bindgen]
-pub fn parse_proof_term(proof_term: &str) -> Result<Proof, BackendError> {
+pub fn parse_proof_term(proof_term: &str, prop: &Prop) -> Result<Proof, BackendError> {
     let len = proof_term.chars().count();
 
     // Step 1: Parse tokens
@@ -249,7 +249,7 @@ pub fn parse_proof_term(proof_term: &str) -> Result<Proof, BackendError> {
     // Step 3: Preprocess ProofTerm
     Ok(ProofPipeline::new()
         .pipe(ResolveDatatypes::boxed())
-        .apply(proof)?)
+        .apply(proof, prop)?)
 }
 
 #[wasm_bindgen]
@@ -301,7 +301,7 @@ pub fn bind_identifier(
 }
 
 #[wasm_bindgen]
-pub fn generate_proof_term_from_proof_tree(proof_tree: &ProofTree) -> String {
+pub fn generate_proof_term_from_proof_tree(proof_tree: &ProofTree, prop: &Prop) -> String {
     let Proof {
         atoms,
         datatypes,
@@ -309,7 +309,8 @@ pub fn generate_proof_term_from_proof_tree(proof_tree: &ProofTree) -> String {
         ..
     } = proof_tree.as_proof();
 
-    let atom_decls = atoms
+    let atom_decls = [atoms, prop.get_atoms()]
+        .concat()
         .iter()
         .unique() // print Atom with multiple arities, let type checker throw error
         .map(|(atom_name, arity)| {
@@ -321,13 +322,44 @@ pub fn generate_proof_term_from_proof_tree(proof_tree: &ProofTree) -> String {
         })
         .join("\n");
 
-    let datatype_decls = datatypes
+    let datatype_decls = [datatypes, prop.get_datatypes()]
+        .concat()
         .iter()
         .unique()
         .map(|datatype| format!("datatype {};", datatype))
         .join("\n");
 
     format!("{}\n{}\n\n{}", atom_decls, datatype_decls, proof_term)
+}
+
+#[wasm_bindgen]
+pub fn print_prop_decls(prop: &Prop) -> String {
+    let atom_decls = print_atom_decls(prop.get_atoms());
+    let datatype_decls = print_datatype_decls(prop.get_datatypes());
+
+    format!("{}\n{}", atom_decls, datatype_decls)
+}
+
+pub fn print_atom_decls(atoms: Vec<(String, usize)>) -> String {
+    atoms
+        .iter()
+        .unique() // print Atom with multiple arities, let type checker throw error
+        .map(|(atom_name, arity)| {
+            if *arity == 0 {
+                format!("atom {};", atom_name)
+            } else {
+                format!("atom {}({});", atom_name, arity)
+            }
+        })
+        .join("\n")
+}
+
+pub fn print_datatype_decls(datatypes: Vec<String>) -> String {
+    datatypes
+        .iter()
+        .unique()
+        .map(|datatype| format!("datatype {};", datatype))
+        .join("\n")
 }
 
 #[wasm_bindgen]
@@ -353,7 +385,7 @@ pub fn export_as_ocaml(prop: &Prop, proof_term: &str) -> String {
 
     let ocaml_exporter = OcamlExporter::new();
 
-    if let Ok(proof) = parse_proof_term(proof_term) {
+    if let Ok(proof) = parse_proof_term(proof_term, prop) {
         ocaml_exporter.export(&proof.proof_term)
     } else {
         "Invalid proof term".to_string()

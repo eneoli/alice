@@ -566,7 +566,8 @@ impl Display for ProofTerm {
         let parent_precedence = self.precedence();
         let child_precedence = body.precedence();
 
-        let should_wrap = parent_precedence > child_precedence;
+        let should_wrap = (parent_precedence > child_precedence)
+            || (parent_precedence == child_precedence && body.left_associative());
 
         if should_wrap {
             return write!(f, "{} ({})", function_name, body);

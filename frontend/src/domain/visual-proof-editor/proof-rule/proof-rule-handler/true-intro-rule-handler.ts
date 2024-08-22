@@ -1,4 +1,4 @@
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, SelectedProofTreeNode } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 
 export class TrueIntroRuleHandler extends ProofRuleHandler {
@@ -13,7 +13,16 @@ export class TrueIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    public willReasonDownwards(_params: VisualProofEditorRuleHandlerParams): boolean {
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'True'
+        );
+    }
+
+    public canReasonDownwards(_nodes: SelectedProofTreeNode[]): boolean {
         return false;
     }
 

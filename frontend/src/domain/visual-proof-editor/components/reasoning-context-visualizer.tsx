@@ -16,10 +16,11 @@ export interface ReasoningContextNodeSelection {
 interface ReasoningContextVisualizerProps {
     context: VisualProofEditorReasoningContext;
     onNodeSelect: (nodeSelection: ReasoningContextNodeSelection) => void;
+    onRuleDeleteClick: (nodeId: string) => void;
 }
 
 export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProps) {
-    const { context, onNodeSelect } = props;
+    const { context, onNodeSelect, onRuleDeleteClick } = props;
     const { proofTree } = context;
 
     const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: context.id });
@@ -44,6 +45,10 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
             e.stopPropagation();
         };
 
+        const handleRuleDeleteClick = () => {
+            onRuleDeleteClick(proofTree.id);
+        };
+
         const conclusion = (
             <Conclusion contextId={context.id}
                 nodeId={proofTree.id}
@@ -56,7 +61,7 @@ export function ReasoningContextVisualizer(props: ReasoningContextVisualizerProp
 
         return (
             <div onClick={onNodeClick}>
-                <ProofNode rule={proofTree.rule} content={conclusion}>
+                <ProofNode rule={proofTree.rule} content={conclusion} onRuleDeleteClick={handleRuleDeleteClick}>
                     {
                         proofTree.premisses.map((child: VisualProofEditorProofTree, i: number) => (
                             <Fragment key={i}>

@@ -33,6 +33,17 @@ export function TutorProofPipelineErrorDisplay(props: TutorProofPipelineErrorDis
                     )
                 }
                 {
+                    resolveDatatypesError.kind === 'DatatypeUnknown' && (
+                        <li>
+                            {ei('DatatypeUnknown')}
+                            Datatype `{resolveDatatypesError.value}` is unknown.
+                            <br />
+                            <br />
+                            <span style={{ color: '#50B498' }}>Hint</span>: Add a declaration: `datatype {resolveDatatypesError.value};`
+                        </li>
+                    )
+                }
+                {
                     resolveDatatypesError.kind === 'DuplicateIdentifier' && (
                         <li>
                             {ei('DuplicateIdentifier')}

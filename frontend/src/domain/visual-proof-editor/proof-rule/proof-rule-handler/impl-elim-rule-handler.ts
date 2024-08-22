@@ -1,5 +1,5 @@
 import { v4 } from 'uuid';
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, SelectedProofTreeNode } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { isEqual } from 'lodash';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
@@ -15,6 +15,96 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
                 \\BinaryInfC{$B$}
             \\end{prooftree}
         `;
+    }
+
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue'
+        );
+    }
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        if (!super.canReasonDownwards(nodes)) {
+            return false;
+        }
+
+        if (nodes.length !== 1 && nodes.length !== 2) {
+            return false;
+        }
+
+        if (nodes.length === 1) {
+            return (
+                nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+                nodes[0].proofTree.conclusion.value.kind === 'Impl'
+            );
+        }
+
+        if (nodes.length === 2) {
+            const [fst, snd] = nodes;
+
+            const fstConclusion = fst.proofTree.conclusion;
+            const sndConclusion = snd.proofTree.conclusion;
+
+            const fstIsProp = fstConclusion.kind === 'PropIsTrue';
+            const sndIsProp = sndConclusion.kind === 'PropIsTrue';
+
+            if (!fstIsProp || !sndIsProp) {
+                return false;
+            }
+
+            const fstIsImpl = fstConclusion.value.kind === 'Impl';
+            const sndIsImpl = sndConclusion.value.kind === 'Impl';
+
+            if (!fstIsImpl && !sndIsImpl) {
+                return false;
+            }
+
+            // find principal connective
+
+            let principal;
+            let applicant;
+            if (fstIsImpl && !sndIsImpl) {
+                principal = fst;
+                applicant = snd;
+            }
+
+            if (!fstIsImpl && sndIsImpl) {
+                principal = snd;
+                applicant = fst;
+            }
+
+            // We cannot use fstIsImpl and sndIsImpl because of Typescript's type system ._.
+            if (fstConclusion.value.kind === 'Impl' && sndConclusion.value.kind === 'Impl') {
+                const fstAntecedent = fstConclusion.value.value[0];
+
+                if (fstAntecedent === sndConclusion.value) {
+                    principal = fst;
+                    applicant = snd;
+                } else {
+                    principal = snd;
+                    applicant = fst;
+                }
+            }
+
+            // check for compatibility
+
+            // The first three checks are needed because TypeScript is not smart enough ._.
+
+            if (
+                principal?.proofTree.conclusion.kind !== 'PropIsTrue' ||
+                applicant?.proofTree.conclusion.kind !== 'PropIsTrue' ||
+                principal?.proofTree.conclusion.value.kind !== 'Impl' ||
+                !isEqual(principal?.proofTree.conclusion.value.value![0], applicant?.proofTree.conclusion.value)
+            ) {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
@@ -206,7 +296,7 @@ export class ImplElimRuleHandler extends ProofRuleHandler {
                 y: 0,
                 proofTree: {
                     id: v4(),
-                    premisses: [fst.proofTree, snd.proofTree],
+                    premisses: [principal.proofTree, applicant.proofTree], // Principal needs to come first
                     rule: { kind: 'ImplElim' },
                     conclusion: { kind: 'PropIsTrue', value: principal.proofTree.conclusion.value.value[1] }
                 },

@@ -1,6 +1,6 @@
 import { instantiate_free_parameter } from 'alice';
 import { v4 } from 'uuid';
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, SelectedProofTreeNode } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
@@ -18,6 +18,23 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
                 \\BinaryInfC{$C$}
             \\end{prooftree}
         `;
+    }
+
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue'
+        );
+    }
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonDownwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'Exists'
+        );
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
@@ -85,7 +102,7 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
                         createEmptyVisualProofEditorProofTreeFromProp(existsProp),
                         createEmptyVisualProofEditorProofTreeFromProp(conclusion.value),
                     ],
-                    rule: { kind: 'ExistsElim', value: [instantiatedObjectIdent.name, propIdent.name] },
+                    rule: { kind: 'ExistsElim', value: [instantiatedObjectIdent, propIdent] },
                 },
                 reasoningContextId,
                 nodeId: proofTree.id,
@@ -134,9 +151,6 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
             return;
         }
 
-        // TODO check that free parameter does not escape scope
-        // Let that handle the type checker
-
         const { object_ident, object_type_ident, body } = propConclusion.value;
 
         const instantiatedObjectIdent = {
@@ -167,7 +181,7 @@ export class ExistsElimRuleHandler extends ProofRuleHandler {
                         { ...proofTree },
                         createEmptyVisualProofEditorProofTreeFromProp(newConclusion),
                     ],
-                    rule: { kind: 'ExistsElim', value: [instantiatedObjectIdent.name, propIdent.name] },
+                    rule: { kind: 'ExistsElim', value: [instantiatedObjectIdent, propIdent] },
                     conclusion: { kind: 'PropIsTrue', value: newConclusion },
                 },
                 nodeId: proofTree.id,

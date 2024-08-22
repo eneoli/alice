@@ -12,11 +12,6 @@ export function createIdentifierGenerator(givenAlphabet: string[] = []) {
 
         generator.idx = generator.idx + 1;
 
-        console.log(identifier
-            .split('')
-            .reverse()
-            .join(''));
-
         return identifier
             .split('')
             .reverse()

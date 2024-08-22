@@ -1,14 +1,16 @@
 import { css } from '@emotion/css';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, MouseEvent } from 'react';
 import Katex from 'katex';
 import { ProofTreeRule } from 'alice';
 import { printProofRule } from '../../../util/print-proof-rule';
+import { Cross } from './cross';
 
 interface ProofLineProps {
     rule: ProofTreeRule;
+    onDeleteClick: () => void;
 }
 
-export function ProofLine({ rule }: ProofLineProps) {
+export function ProofLine({ rule, onDeleteClick }: ProofLineProps) {
 
     const labelRef = useRef<HTMLDivElement>(null);
 
@@ -24,6 +26,11 @@ export function ProofLine({ rule }: ProofLineProps) {
         });
     }, [labelRef.current, rule]);
 
+    const handleDeleteClick = (e: MouseEvent) => {
+        e.stopPropagation();
+        onDeleteClick();
+    }
+
     return (
         <div className={cssLineContainer}>
             <div
@@ -31,8 +38,15 @@ export function ProofLine({ rule }: ProofLineProps) {
                 style={{ borderStyle: rule.kind === 'AlphaEquivalent' ? 'dashed' : undefined }}
             />
             <div className={cssLabelContainer}>
-                <div className={cssLabel}>
+                <div className={cssLabel} style={{ display: 'flex' }}>
                     <div ref={labelRef} />
+                    <span
+                        className='cssProofRuleDeleteButton'
+                        style={{ cursor: 'pointer' }}
+                        onClick={handleDeleteClick}
+                    >
+                        <Cross />
+                    </span>
                 </div>
             </div>
         </div>);
@@ -43,6 +57,14 @@ const cssLineContainer = css`
     align-items: center;
     gap: 2px;
     user-select: none;
+
+    .cssProofRuleDeleteButton {
+        display: none;
+    }
+
+    :hover .cssProofRuleDeleteButton {
+        display: block;
+    }
 `;
 
 const cssLine = css`

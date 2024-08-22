@@ -5,6 +5,7 @@ target
 pkg
 
 dist
+dist.zip
 frontend/dist
 frontend/node_modules
 

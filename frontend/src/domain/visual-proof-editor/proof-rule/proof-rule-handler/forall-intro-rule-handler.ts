@@ -1,5 +1,5 @@
 import { instantiate_free_parameter } from 'alice';
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
+import { ProofRuleHandlerResult, SelectedProofTreeNode, VisualProofEditorRuleHandlerParams } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
@@ -15,7 +15,16 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
-    public willReasonDownwards(_params: VisualProofEditorRuleHandlerParams): boolean {
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length == 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'ForAll'
+        );
+    }
+
+    public canReasonDownwards(_nodes: SelectedProofTreeNode[]): boolean {
         return false;
     }
 
@@ -67,7 +76,7 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
                 newProofTree: {
                     ...proofTree,
                     premisses: [createEmptyVisualProofEditorProofTreeFromProp(intantiated_body)],
-                    rule: { kind: 'ForAllIntro', value: paramIdent.name },
+                    rule: { kind: 'ForAllIntro', value: paramIdent },
                 },
                 nodeId: proofTree.id,
                 reasoningContextId,

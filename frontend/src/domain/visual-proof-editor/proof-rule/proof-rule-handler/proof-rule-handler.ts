@@ -1,5 +1,5 @@
 import { get_free_parameters, Identifier, instantiate_free_parameter, parse_prop, Prop } from 'alice';
-import { AssumptionContext, ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
+import { AssumptionContext, ProofRuleHandlerResult, SelectedProofTreeNode, VisualProofEditorRuleHandlerParams } from '..';
 import Swal from 'sweetalert2';
 import { uniq } from 'lodash';
 import withReactContent from 'sweetalert2-react-content';
@@ -7,6 +7,8 @@ import React from 'react';
 import { VisualProofEditorParameterIdentifierSelector } from '../../components/visual-proof-editor-parameter-identifier-selector';
 
 const ReactSwal = withReactContent(Swal);
+
+export type RuleDirection = 'Upwards' | 'Downwards';
 
 interface PromptAssumptionIdentOptions {
     title: string;
@@ -30,7 +32,7 @@ export abstract class ProofRuleHandler {
     protected abstract handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined>;
 
     protected async promptAssumptionIdent(options: PromptAssumptionIdentOptions): Promise<Identifier | null> {
-        const {title, assumptions, error} = options;
+        const { title, assumptions, error } = options;
 
         const selectOptions = assumptions
             .reduce((accu, current, i) => {
@@ -163,43 +165,40 @@ export abstract class ProofRuleHandler {
         };
     }
 
-    protected allNodesAreLeafs(params: VisualProofEditorRuleHandlerParams): boolean {
-        return params.selectedProofTreeNodes.every((node) => node.isLeaf);
+    protected allNodesAreLeafs(nodes: SelectedProofTreeNode[]): boolean {
+        return nodes.every((node) => node.isLeaf);
     }
 
-    protected allNodesAreRoots(params: VisualProofEditorRuleHandlerParams): boolean {
-        return params.selectedProofTreeNodes.every((node) => node.isRoot);
+    protected allNodesAreRoots(nodes: SelectedProofTreeNode[]): boolean {
+        return nodes.every((node) => node.isRoot);
     }
 
-    protected allNodesHaveRules(params: VisualProofEditorRuleHandlerParams): boolean {
-        return params.selectedProofTreeNodes.every((node) => node.proofTree.rule !== null);
+    protected allNodesHaveRules(nodes: SelectedProofTreeNode[]): boolean {
+        return nodes.every((node) => node.proofTree.rule !== null);
     }
 
-    protected isSingleNodeSelected(params: VisualProofEditorRuleHandlerParams): boolean {
-        return params.selectedProofTreeNodes.length === 1;
+    protected isSingleNodeSelected(nodes: SelectedProofTreeNode[]): boolean {
+        return nodes.length === 1;
     }
 
-    public willReasonDownwards(params: VisualProofEditorRuleHandlerParams): boolean {
-        return this.allNodesAreRoots(params) && this.allNodesHaveRules(params);
-    }
-
-    public willReasonUpwards(params: VisualProofEditorRuleHandlerParams): boolean {
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
         return (
-            !this.willReasonDownwards(params) &&
-            this.isSingleNodeSelected(params) &&
-            this.allNodesAreLeafs(params)
+            this.isSingleNodeSelected(nodes) &&
+            this.allNodesAreLeafs(nodes) // single selected node is leaf
+        );
+    };
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            this.allNodesAreRoots(nodes)
+            // && this.allNodesHaveRules(params) // from willReasonDownwards, can be removed
         );
     }
 
-    public async handleRule(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
-        if (this.willReasonDownwards(params)) {
-            return this.handleRuleDownards(params);
+    public async handleRule(params: VisualProofEditorRuleHandlerParams, direction: RuleDirection): Promise<ProofRuleHandlerResult | undefined> {
+        switch (direction) {
+            case 'Upwards': return this.handleRuleUpwards(params);
+            case 'Downwards': return this.handleRuleDownards(params);
         }
-
-        if (this.willReasonUpwards(params)) {
-            return this.handleRuleUpwards(params);
-        }
-
-        throw new Error('Cannot reason on this node.');
     }
 }

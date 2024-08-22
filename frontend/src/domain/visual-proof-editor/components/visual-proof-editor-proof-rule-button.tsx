@@ -4,16 +4,19 @@ import React from 'react';
 
 interface VisualProofEditorProofRuleButtonProps {
     title: string;
+    direction: 'Upwards' | 'Downwards';
     latex: string;
     onClick: () => void;
 }
 
 export function VisualProofEditorProofRuleButton(props: VisualProofEditorProofRuleButtonProps) {
-    const { title, latex, onClick } = props;
+    const { title, direction, latex, onClick } = props;
 
     return (
         <div className={cssProofRuleButton} onClick={onClick}>
             <div className={cssProofRuleButtonHeader}>
+                {direction === 'Upwards' ? '↑' : '↓'}
+                &nbsp;
                 {title}
             </div>
             <div className={cssProofRuleButtonBody}>
