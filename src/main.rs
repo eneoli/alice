@@ -48,14 +48,6 @@ fn main() {
         return;
     }
 
-    let processed_proof = ProofPipeline::new()
-        .pipe(ResolveDatatypes::boxed())
-        .apply(proof.unwrap())
-        .unwrap();
-
-    // Step 3: Preprocess ProofTerm
-
-    println!("{:#?}", processed_proof);
     let fol = "A -> A";
     let fol_tokens = lexer().parse(fol).unwrap();
     let fol_len = fol.chars().count();
@@ -66,6 +58,15 @@ fn main() {
             fol_tokens.into_iter(),
         ))
         .unwrap();
+
+    let processed_proof = ProofPipeline::new()
+        .pipe(ResolveDatatypes::boxed())
+        .apply(proof.unwrap(), &prop)
+        .unwrap();
+
+    // Step 3: Preprocess ProofTerm
+
+    println!("{:#?}", processed_proof);
 
     // println!("{:#?}", prop.get_free_parameters());
 
