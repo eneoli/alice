@@ -3,7 +3,7 @@ import { Header } from './header';
 import { CodeEditor } from '../../code-editor/components/code-editor';
 import { VisualProofEditor } from '../../visual-proof-editor/components/visual-proof-editor';
 import { ConfigProvider, message, theme as antdTheme, ThemeConfig } from 'antd';
-import { Prop, VerificationResult, export_as_ocaml, generate_proof_term_from_proof_tree, parse_prop, verify } from 'alice';
+import { Prop, VerificationResult, export_as_ocaml, generate_proof_term_from_proof_tree, parse_prop, print_prop_decls, verify } from 'alice';
 import { debounce, isEqual } from 'lodash';
 import { CodeModal } from './code-modal';
 import { aliceProofTreeIntoVisualProofEditorProofTree, VisualProofEditorProofTree, visualProofEditorProofTreeIntoAliceProofTree } from '../../visual-proof-editor/lib/visual-proof-editor-proof-tree';
@@ -50,10 +50,13 @@ export function App() {
             }
 
             setProp(newProp);
-            setProofTerm('sorry');
+
+            const newProofTerm = `${print_prop_decls(newProp)}\n\nsorry`;
+
+            setProofTerm(newProofTerm);
             setInitialAssumptions([]);
 
-            const verificationResult = verify(newProp, 'sorry');
+            const verificationResult = verify(newProp, newProofTerm);
             setVerificationResult(verificationResult);
 
             const proofTree: VisualProofEditorProofTree = {
@@ -113,15 +116,18 @@ export function App() {
     }, 500), [proofTerm, prop]);
 
     const handleProofTreeChange = useCallback((proofTree: VisualProofEditorProofTree) => {
+        if (!prop) {
+            return;
+        }
+
         const code = generate_proof_term_from_proof_tree(
-            visualProofEditorProofTreeIntoAliceProofTree(proofTree)
+            visualProofEditorProofTreeIntoAliceProofTree(proofTree),
+            prop,
         );
         setProofTerm(code);
 
-        if (prop) {
-            const result = verify(prop, code);
-            setVerificationResult(result);
-        }
+        const result = verify(prop, code);
+        setVerificationResult(result);
     }, [prop]);
 
     const handleVerify = useCallback((prop: string) => {
@@ -162,11 +168,15 @@ export function App() {
     }, [prop]);
 
     const handleVisualEditorReset = useCallback(() => {
-        setProofTerm('sorry');
-
-        if (prop) {
-            setVerificationResult(verify(prop, 'sorry'));
+        if (!prop) {
+            return;
         }
+
+        const proofTerm = `${print_prop_decls(prop)}\n\nsorry`;
+
+        setProofTerm(proofTerm);
+
+        setVerificationResult(verify(prop, proofTerm));
     }, [prop]);
 
     return (
