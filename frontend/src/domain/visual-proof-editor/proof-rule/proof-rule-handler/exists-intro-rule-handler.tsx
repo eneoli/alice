@@ -1,6 +1,6 @@
 import { bind_identifier, get_free_parameters, Identifier, instantiate_free_parameter, Prop } from 'alice';
 import Swal from 'sweetalert2';
-import { ProofRuleHandlerResult, VisualProofEditorRuleHandlerParams } from '..';
+import { ProofRuleHandlerResult, SelectedProofTreeNode, VisualProofEditorRuleHandlerParams } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { v4 } from 'uuid';
 import { createEmptyVisualProofEditorProofTreeFromProp, createEmptyVisualProofEditorProofTreeFromTypeJudgment } from '../../lib/visual-proof-editor-proof-tree';
@@ -21,6 +21,32 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
                 \\BinaryInfC{$\\exists x: \\tau. A(x)$}
             \\end{prooftree}
         `;
+    }
+
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'Exists'
+        );
+    }
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        if (!super.canReasonDownwards(nodes)) {
+            return false;
+        }
+
+        if (nodes.length !== 2) {
+            return false;
+        }
+
+        const [fst, snd] = nodes;
+
+        const fstIsTypeJudgment = fst.proofTree.conclusion.kind === 'TypeJudgement';
+        const sndIsTypeJudgment = snd.proofTree.conclusion.kind === 'TypeJudgement';
+
+        return fstIsTypeJudgment !== sndIsTypeJudgment;
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {

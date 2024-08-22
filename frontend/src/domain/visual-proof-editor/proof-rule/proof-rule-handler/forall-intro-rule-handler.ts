@@ -15,6 +15,15 @@ export class ForallIntroRuleHandler extends ProofRuleHandler {
         `;
     }
 
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length == 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'ForAll'
+        );
+    }
+
     public canReasonDownwards(_nodes: SelectedProofTreeNode[]): boolean {
         return false;
     }

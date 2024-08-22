@@ -1,6 +1,6 @@
 import { Identifier, Prop } from 'alice';
 import { v4 } from 'uuid';
-import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, AssumptionContext } from '..';
+import { VisualProofEditorRuleHandlerParams, ProofRuleHandlerResult, AssumptionContext, SelectedProofTreeNode } from '..';
 import { ProofRuleHandler } from './proof-rule-handler';
 import { createEmptyVisualProofEditorProofTreeFromProp } from '../../lib/visual-proof-editor-proof-tree';
 
@@ -20,6 +20,23 @@ export class OrElimRuleHandler extends ProofRuleHandler {
                 \\TrinaryInfC{$C$}
             \\end{prooftree}
         `;
+    }
+
+    public canReasonUpwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonUpwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue'
+        );
+    }
+
+    public canReasonDownwards(nodes: SelectedProofTreeNode[]): boolean {
+        return (
+            super.canReasonDownwards(nodes) &&
+            nodes.length === 1 &&
+            nodes[0].proofTree.conclusion.kind === 'PropIsTrue' &&
+            nodes[0].proofTree.conclusion.value.kind === 'Or'
+        );
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
