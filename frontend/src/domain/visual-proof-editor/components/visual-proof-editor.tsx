@@ -66,7 +66,7 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
         }
 
         return ident;
-    }, []);
+    }, [assumptions]);
 
     useEffect(() => {
         const oldCtx = primaryReasoningCtxId ? getReasoningContext(primaryReasoningCtxId) : null;
