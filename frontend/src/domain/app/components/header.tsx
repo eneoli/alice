@@ -36,6 +36,7 @@ export function Header({ onPropChange, onVerify, onExportAsOcaml, enableTutor, o
 
         replaceSymbol('\\not', '¬');
         replaceSymbol('!', '¬');
+        replaceSymbol('~', '¬');
 
         replaceSymbol('\\and', '∧');
         replaceSymbol('&', '∧');
@@ -43,9 +44,9 @@ export function Header({ onPropChange, onVerify, onExportAsOcaml, enableTutor, o
         replaceSymbol('\\or', '∨');
         replaceSymbol('|', '∨');
 
-        replaceSymbol('\\implies', '→');
-        replaceSymbol('->', '→');
-        replaceSymbol('=>', '→');
+        replaceSymbol('\\implies', '⊃');
+        replaceSymbol('->', '⊃');
+        replaceSymbol('=>', '⊃');
 
         replaceSymbol('\\top', '⊤');
         replaceSymbol('\\bot', '⊥');
