@@ -33,7 +33,6 @@ pub enum Token {
     EQUAL,
     ATOM,
     DATATYPE,
-
     SORRY,
 }
 

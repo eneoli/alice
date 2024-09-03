@@ -7,10 +7,6 @@ use super::{proof_term::proof_term_parser, Token};
 
 /**
  *     == Proof Parser ==
- *
- *     Proof    = {Datatype | Atom}, ProofTerm ;
- *     Datatype = "datatype", Ident, ";" ;
- *     Atom     = "atom", Ident, [ "(", Num, ")" ] , ";" ;
  */
 pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
     let ident = select! { Token::IDENT(ident) => ident };
@@ -21,7 +17,7 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
         Datatype(String),
     }
 
-    let atom = just(Token::ATOM)
+    let atom_decl = just(Token::ATOM)
         .ignore_then(ident)
         .then(
             just(Token::LROUND)
@@ -33,14 +29,15 @@ pub fn proof_parser() -> impl Parser<Token, Proof, Error = Simple<Token>> {
         .map(|(atom, arity)| DeclarationType::Atom(atom, arity.unwrap_or(0)))
         .boxed();
 
-    let datatype = just(Token::DATATYPE)
+    let datatype_decl = just(Token::DATATYPE)
         .ignore_then(ident)
         .then_ignore(just(Token::SEMICOLON))
         .map(DeclarationType::Datatype)
         .boxed();
 
-    choice((datatype, atom))
-        .repeated()
+    let decls = choice((datatype_decl, atom_decl)).repeated().boxed();
+
+    decls
         .then(proof_term_parser().then_ignore(end()))
         .map(|(declarations, proof_term)| {
             let (atoms, datatypes): (Vec<(String, usize)>, Vec<String>) =

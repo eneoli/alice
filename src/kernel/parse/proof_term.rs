@@ -9,17 +9,6 @@ use super::{fol::fol_parser, Token};
 
 /*
     == Proof Term Parser ==
-
-    Expr            = (Function | Case | Application | LetIn ), [ TypeAscription ] ;
-    TypeAscription  = ":", Prop ;
-    Unit            = "(", ")" ;
-    Pair            = "(", Expr, ",", Expr, [ "," ], ")" ;
-    Atom            = "(", Expr, ")" | Ident | Pair | Unit | Sorry ;
-    Function        = "fn", Ident, [ ":", Prop ], "=>", Expr ;
-    CaseExpr        = (Case | Application | LetIn), [ TypeAscription ];
-    Case            = "case", CaseExpr, "of", "inl", Ident, "=>", Expr, ",", "inr", Ident, "=>", Expr, [","] ;
-    Application     = Atom, { Atom } ;
-    LetIn           = "let", "(", Ident, ",", Ident, ")", "=", Expr, "in", Expr ;
 */
 pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token>> {
     let ident_token = select! { Token::IDENT(ident) => ident }.labelled("identifier");
@@ -95,7 +84,7 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
                 })
             });
 
-        let case = |application: Recursive<'static, Token, ProofTerm, Simple<Token>>| {
+        let case = |application: BoxedParser<'static, Token, ProofTerm, Simple<Token>>| {
             recursive(|case| {
                 let case_expr = choice((case.clone(), application.clone(), let_in.clone()))
                     .then(type_ascription.clone().or_not())
@@ -144,72 +133,63 @@ pub fn proof_term_parser() -> impl Parser<Token, ProofTerm, Error = Simple<Token
             })
         };
 
-        let application = recursive(|application| {
-            atom.clone()
-                .then(
-                    choice((
-                        atom.clone(),
-                        function.clone(),
-                        case(application).clone(),
-                        let_in.clone(),
-                    ))
-                    .repeated(),
-                )
-                .try_map(|(lhs, rhs), span| {
-                    //  check that if lhs is constructor/destructor, we got a rhs
-                    let identifiers = ["inl", "inr", "abort", "fst", "snd"];
-                    if let ProofTerm::Ident(Ident(ref ident, _)) = lhs {
-                        if identifiers.contains(&ident.as_str()) && rhs.is_empty() {
-                            return Err(Simple::custom(span, "Missing applicant"));
+        let application = atom
+            .clone()
+            .then(atom.clone().repeated())
+            .try_map(|(lhs, rhs), span| {
+                //  check that if lhs is constructor/destructor, we got a rhs
+                let identifiers = ["inl", "inr", "abort", "fst", "snd"];
+                if let ProofTerm::Ident(Ident(ref ident, _)) = lhs {
+                    if identifiers.contains(&ident.as_str()) && rhs.is_empty() {
+                        return Err(Simple::custom(span, "Missing applicant"));
+                    }
+                }
+
+                // check rhs does not include constructor/destructor
+                for element in rhs.iter() {
+                    if let ProofTerm::Ident(ident) = element {
+                        if identifiers.contains(&ident.as_str()) {
+                            return Err(Simple::custom(
+                                span.clone(),
+                                format!(
+                                    "Right-hand side of an applicant cannot contain {}",
+                                    ident.as_str()
+                                ),
+                            ));
                         }
                     }
+                }
 
-                    // check rhs does not include constructor/destructor
-                    for element in rhs.iter() {
-                        if let ProofTerm::Ident(ident) = element {
-                            if identifiers.contains(&ident.as_str()) {
-                                return Err(Simple::custom(
-                                    span.clone(),
-                                    format!(
-                                        "Right-hand side of an applicant cannot contain {}",
-                                        ident.as_str()
-                                    ),
-                                ));
-                            }
-                        }
-                    }
+                Ok((lhs, rhs))
+            })
+            .foldl(|lhs, rhs| {
+                let lhs_span_start = lhs.span().as_ref().unwrap().start();
+                let rhs_span_end = rhs.span().as_ref().unwrap().end();
 
-                    Ok((lhs, rhs))
-                })
-                .foldl(|lhs, rhs| {
-                    let lhs_span_start = lhs.span().as_ref().unwrap().start();
-                    let rhs_span_end = rhs.span().as_ref().unwrap().end();
+                let span = Some(lhs_span_start..rhs_span_end);
 
-                    let span = Some(lhs_span_start..rhs_span_end);
-
-                    if let ProofTerm::Ident(ident) = lhs.clone() {
-                        match ident.as_str() {
-                            "inl" => ProofTerm::OrLeft(OrLeft(Box::new(rhs), span)),
-                            "inr" => ProofTerm::OrRight(OrRight(Box::new(rhs), span)),
-                            "abort" => ProofTerm::Abort(Abort(Box::new(rhs), span)),
-                            "fst" => ProofTerm::ProjectFst(ProjectFst(Box::new(rhs), span)),
-                            "snd" => ProofTerm::ProjectSnd(ProjectSnd(Box::new(rhs), span)),
-                            _ => ProofTerm::Application(Application {
-                                function: Box::new(lhs),
-                                applicant: Box::new(rhs),
-                                span,
-                            }),
-                        }
-                    } else {
-                        ProofTerm::Application(Application {
+                if let ProofTerm::Ident(ident) = lhs.clone() {
+                    match ident.as_str() {
+                        "inl" => ProofTerm::OrLeft(OrLeft(Box::new(rhs), span)),
+                        "inr" => ProofTerm::OrRight(OrRight(Box::new(rhs), span)),
+                        "abort" => ProofTerm::Abort(Abort(Box::new(rhs), span)),
+                        "fst" => ProofTerm::ProjectFst(ProjectFst(Box::new(rhs), span)),
+                        "snd" => ProofTerm::ProjectSnd(ProjectSnd(Box::new(rhs), span)),
+                        _ => ProofTerm::Application(Application {
                             function: Box::new(lhs),
                             applicant: Box::new(rhs),
                             span,
-                        })
+                        }),
                     }
-                })
-                .boxed()
-        });
+                } else {
+                    ProofTerm::Application(Application {
+                        function: Box::new(lhs),
+                        applicant: Box::new(rhs),
+                        span,
+                    })
+                }
+            })
+            .boxed();
 
         choice((function, case(application.clone()), application, let_in))
             .then(type_ascription.or_not())
@@ -574,7 +554,7 @@ mod tests {
 
     #[test]
     pub fn test_higher_order_function_application() {
-        let proof_term = "(fn u => u) fn x => x";
+        let proof_term = "(fn u => u) (fn x => x)";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -595,18 +575,18 @@ mod tests {
                 applicant: ProofTerm::Function(Function {
                     param_ident: "x".to_string(),
                     param_type: None,
-                    body: ProofTerm::Ident(Ident("x".to_string(), Some(20..21))).boxed(),
-                    span: Some(12..21),
+                    body: ProofTerm::Ident(Ident("x".to_string(), Some(21..22))).boxed(),
+                    span: Some(13..22),
                 })
                 .boxed(),
-                span: Some(1..21),
+                span: Some(1..22),
             })
         )
     }
 
     #[test]
     pub fn test_higher_order_function_application_annotated() {
-        let proof_term = "(fn u: \\top => u) fn x: \\bot => x";
+        let proof_term = "(fn u: \\top => u) (fn x: \\bot => x)";
         let len = proof_term.chars().count();
 
         let tokens = lexer().parse(proof_term).unwrap();
@@ -627,11 +607,11 @@ mod tests {
                 applicant: ProofTerm::Function(Function {
                     param_ident: "x".to_string(),
                     param_type: Some(Type::Prop(Prop::False)),
-                    body: ProofTerm::Ident(Ident("x".to_string(), Some(32..33))).boxed(),
-                    span: Some(18..33),
+                    body: ProofTerm::Ident(Ident("x".to_string(), Some(33..34))).boxed(),
+                    span: Some(19..34),
                 })
                 .boxed(),
-                span: Some(1..33),
+                span: Some(1..34),
             })
         )
     }

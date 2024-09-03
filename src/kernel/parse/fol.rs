@@ -9,25 +9,6 @@ use super::Token;
 
 /*
     == FOL Parser ==
-    ----------------
-
-    Prop = Implication ;
-
-    Implication = { Or, "->" }, (Or | Quantor) ; // This prevents LL(1) but isn't that dramatic.
-
-    Or          = And, { "||", (And | Quantor) } ;
-
-    And         = Not, { "&&", (Not | Quantor) } ;
-
-    Not         = { "~" }, Atom ;
-
-    Atom        = ⊤ | ⊥ | Ident, [ "(", Ident, { ",", Ident }, [","],  ")" ] | "(", Prop, ")" ;
-
-    Quantor     = Allquant | Existsquant ;
-
-    Allquant    = "∀", Ident, ":", Ident, ".", Prop ;
-
-    Existsquant = "∃", Ident, ":", Ident, ".", Prop ;
 */
 pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
     let ident = select! { Token::IDENT(ident) => ident }.labelled("identifier");
@@ -59,20 +40,19 @@ pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
             })
             .boxed();
 
-        let quantor = choice((existsquant, allquant)).boxed();
+        let quantor = choice((allquant, existsquant)).boxed();
+
+        let ident_list = ident
+            .then(just(Token::COMMA).ignore_then(ident).repeated())
+            .boxed();
+
+        let atom_params = ident_list
+            .then_ignore(just(Token::COMMA).or_not())
+            .delimited_by(just(Token::LROUND), just(Token::RROUND))
+            .boxed();
 
         let atom = ident
-            .then(
-                ident
-                    .then(
-                        just(Token::COMMA)
-                            .ignore_then(ident)
-                            .repeated()
-                            .then_ignore(just(Token::COMMA).or_not()),
-                    )
-                    .delimited_by(just(Token::LROUND), just(Token::RROUND))
-                    .or_not(),
-            )
+            .then(atom_params.or_not())
             .map(|(ident, params)| {
                 if let Some((head, mut tail)) = params {
                     tail.insert(0, head);
@@ -93,40 +73,68 @@ pub fn fol_parser() -> impl Parser<Token, Prop, Error = Simple<Token>> {
             .or(just(Token::FALSE).map(|_| Prop::False))
             .boxed();
 
-        let not = just(Token::NOT)
+        let not_continue = just(Token::NOT)
             .repeated()
-            .then(atom)
-            .foldr(|_op, rhs| Prop::Impl(Box::new(rhs), Box::new(Prop::False)))
+            .then(choice((atom.clone(), quantor.clone())))
+            .foldr(|_, rhs| Prop::Impl(rhs.boxed(), Prop::False.boxed()))
             .boxed();
 
-        let and = not
-            .clone()
-            .then(
-                just(Token::AND)
-                    .to(Prop::And)
-                    .then(choice((not, quantor.clone())))
-                    .repeated(),
-            )
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
+        let not = just(Token::NOT)
+            .then(not_continue)
+            .map(|(_, prop)| Prop::Impl(prop.boxed(), Prop::False.boxed()))
+            .or(atom.clone())
             .boxed();
 
-        let or = and
+        let and_quantor = just(Token::AND)
+            .ignore_then(quantor.clone())
+            .or_not()
+            .boxed();
+
+        let and_list = not
             .clone()
-            .then(
-                just(Token::OR)
-                    .to(Prop::Or)
-                    .then(choice((and, quantor.clone())))
-                    .repeated(),
-            )
-            .foldl(|lhs, (op, rhs)| op(Box::new(lhs), Box::new(rhs)))
+            .then(just(Token::AND).ignore_then(not.clone()).repeated())
+            .foldl(|lhs, rhs| Prop::And(lhs.boxed(), rhs.boxed()))
+            .boxed();
+
+        let and = and_list
+            .then(and_quantor)
+            .map(|(lhs, quantor_prop)| {
+                if let Some(quantor_prop) = quantor_prop {
+                    Prop::And(lhs.boxed(), quantor_prop.boxed())
+                } else {
+                    lhs
+                }
+            })
+            .boxed();
+
+        let or_quantor = just(Token::OR)
+            .ignore_then(quantor.clone())
+            .or_not()
+            .boxed();
+
+        let or_list = and
+            .clone()
+            .then(just(Token::OR).ignore_then(and.clone()).repeated())
+            .foldl(|lhs, rhs| Prop::Or(lhs.boxed(), rhs.boxed()))
+            .boxed();
+
+        let or = or_list
+            .then(or_quantor)
+            .map(|(lhs, quantor_prop)| {
+                if let Some(quantor_prop) = quantor_prop {
+                    Prop::Or(lhs.boxed(), quantor_prop.boxed())
+                } else {
+                    lhs
+                }
+            })
             .boxed();
 
         let implication = or
             .clone()
-            .then(just(Token::IMPLICATION).to(Prop::Impl))
+            .then_ignore(just(Token::IMPLICATION))
             .repeated()
-            .then(choice((or, quantor.clone())))
-            .foldr(|(lhs, op), rhs| op(Box::new(lhs), Box::new(rhs)))
+            .then(choice((or.clone(), quantor.clone())))
+            .foldr(|lhs, rhs| Prop::Impl(lhs.boxed(), rhs.boxed()))
             .boxed();
 
         implication
