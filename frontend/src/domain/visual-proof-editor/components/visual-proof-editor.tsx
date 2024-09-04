@@ -247,6 +247,14 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
             }
         ]);
 
+        // update assumptions
+        setAssumptions(assumptions.map((assumption) => ({
+            ...assumption,
+            owningReasoningCtxId: assumption.owningReasoningCtxId === droppedContextId
+                ? droppedOnContextId
+                : assumption.owningReasoningCtxId,
+        })));
+
         const droppedOnIsPrimary = droppedOnContext.id === primaryReasoningCtxId;
         if (droppedOnIsPrimary) {
             onProofTreeChange(droppedOnContext.proofTree);
@@ -312,23 +320,40 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
             removedAssumptionIdentifiers = removedAssumptionIdentifiers.concat(rule.value);
         }
 
-        setAssumptions(assumptions.filter((assumptionCtx) => (
+        let newAssumptions = assumptions.filter((assumptionCtx) => (
             !removedAssumptionIdentifiers.includes(assumptionCtx.assumption.ident)
-        )));
+        ));
 
         // unglue trees
 
         const newCtxs: VisualProofEditorReasoningContext[] = [];
         for (const premisse of proofTree.premisses) {
+
+            const reasoningContextId = v4();
+
             newCtxs.push({
-                id: v4(),
+                id: reasoningContextId,
                 isDragging: false,
                 selectedNodeId: null,
                 x: 100,
                 y: 100,
                 proofTree: { ...premisse },
             });
+
+            const getAllIds: (proofTree: VisualProofEditorProofTree) => string[] = (proofTree: VisualProofEditorProofTree) =>
+                [proofTree.id].concat(proofTree.premisses.flatMap(getAllIds));
+
+            const allNodeIds = getAllIds(premisse);
+
+            newAssumptions = newAssumptions.map((assumption) => ({
+                ...assumption,
+                owningReasoningCtxId: allNodeIds.includes(assumption.owningNodeId)
+                    ? reasoningContextId
+                    : assumption.owningReasoningCtxId
+            }));
         }
+
+        setAssumptions(newAssumptions);
 
         const newProofTree = { ...proofTree };
         newProofTree.premisses = [];
