@@ -371,12 +371,16 @@ impl ProofTreeExporter {
 
                 let mut param_type = None;
                 if *reasoning_mode == ReasoningMode::Synthesize {
-                    let ProofTreeConclusion::TypeJudgement(_, datatype) = conclusion else {
-                        panic!("Expected datatype.");
+                    let ProofTreeConclusion::PropIsTrue(Prop::ForAll {
+                        object_type_ident,
+                        ..
+                    }) = conclusion
+                    else {
+                        panic!("Expected universal quantification.");
                     };
 
-                    param_type = Some(Type::Datatype(datatype.clone()));
-                    self.datatypes.push(datatype.clone());
+                    param_type = Some(Type::Datatype(object_type_ident.clone()));
+                    self.datatypes.push(object_type_ident.clone());
                 }
 
                 Function::create(
