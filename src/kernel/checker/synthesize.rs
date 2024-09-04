@@ -10,7 +10,7 @@ use crate::kernel::{
         ProjectSnd, ProofTerm, ProofTermKind, ProofTermVisitor, Type, TypeAscription,
     },
     proof_tree::{ProofTree, ProofTreeConclusion, ProofTreeRule},
-    prop::{InstatiationError, Prop, PropKind, PropParameter},
+    prop::{InstatiationError, Prop, PropKind, PropParameter, QuantifierKind},
 };
 
 use super::{
@@ -263,12 +263,14 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
 
         match (&bound_param_type, &body_type) {
             // Forall
-            (Type::Datatype(ident), Type::Prop(body_type)) => {
-                let _type = Prop::ForAll {
-                    object_ident: param_ident.clone(),
-                    object_type_ident: ident.clone(),
-                    body: body_type.boxed(),
-                };
+            (Type::Datatype(datatype_ident), Type::Prop(body_type)) => {
+                let _type = body_type.bind_identifier(
+                    QuantifierKind::ForAll,
+                    param_identifier.clone(),
+                    None,
+                    &param_ident,
+                    datatype_ident,
+                );
 
                 Ok((
                     _type.clone().into(),

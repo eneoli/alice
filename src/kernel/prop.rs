@@ -416,14 +416,14 @@ impl Prop {
         &self,
         quantifier_kind: QuantifierKind,
         identifier: Identifier,
-        identifier_indices: &mut Vec<usize>,
+        identifier_indices: Option<&Vec<usize>>,
         bind_name: &str,
         type_name: &str,
     ) -> Prop {
         fn _bind_identifier<'a>(
             prop: &'a Prop,
             identifier: &Identifier,
-            identifier_indices: &Vec<usize>,
+            identifier_indices: Option<&Vec<usize>>,
             bind_name: &str,
             bound_identifiers: &mut Vec<&'a str>,
             current_index: &mut usize,
@@ -539,7 +539,7 @@ impl Prop {
                                 && param.name() == identifier.name()
                                 && param.unique_id().unwrap() == identifier.unique_id()
                             {
-                                if identifier_indices.contains(&current_index) {
+                                if identifier_indices.is_none() || identifier_indices.unwrap().contains(&current_index) {
                                     *current_index += 1;
                                     return PropParameter::Uninstantiated(bind_name.to_string());
                                 }
@@ -559,7 +559,7 @@ impl Prop {
         let bound_body = _bind_identifier(
             self,
             &identifier,
-            &identifier_indices,
+            identifier_indices,
             &bind_name,
             &mut vec![],
             &mut 0,
@@ -1621,7 +1621,7 @@ mod tests {
             &parse_prop("A").bind_identifier(
                 QuantifierKind::ForAll,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![],
+                Some(&mut vec![]),
                 "x",
                 "t"
             ),
@@ -1643,7 +1643,7 @@ mod tests {
             &prop.bind_identifier(
                 QuantifierKind::ForAll,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![0],
+                Some(&mut vec![0]),
                 "x",
                 "t"
             ),
@@ -1665,7 +1665,7 @@ mod tests {
             &prop.bind_identifier(
                 QuantifierKind::ForAll,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![0, 1],
+                Some(&mut vec![0, 1]),
                 "x",
                 "t"
             ),
@@ -1687,7 +1687,7 @@ mod tests {
             prop.bind_identifier(
                 QuantifierKind::ForAll,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![0],
+                Some(&mut vec![0]),
                 "x",
                 "t",
             ),
@@ -1729,7 +1729,7 @@ mod tests {
             prop.bind_identifier(
                 QuantifierKind::Exists,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![0],
+                Some(&mut vec![0]),
                 "x",
                 "t",
             ),
@@ -1743,7 +1743,7 @@ mod tests {
             parse_prop("\\forall a:t. A(a)").bind_identifier(
                 QuantifierKind::ForAll,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![0],
+                Some(&mut vec![0]),
                 "x",
                 "t",
             ),
@@ -1765,7 +1765,7 @@ mod tests {
             .bind_identifier(
                 QuantifierKind::ForAll,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![0, 2],
+                Some(&mut vec![0, 2]),
                 "x",
                 "t",
             ),
@@ -1809,7 +1809,7 @@ mod tests {
             .bind_identifier(
                 QuantifierKind::ForAll,
                 Identifier::new("a".to_string(), 42),
-                &mut vec![0, 1],
+                Some(&mut vec![0, 1]),
                 "x",
                 "t",
             ),
