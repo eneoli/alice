@@ -15,18 +15,51 @@ function handleEditorWillMount(monaco: Monaco) {
 
     monaco.languages.register({ id: 'alice' });
     monaco.languages.setMonarchTokensProvider('alice', {
+        brackets: [{ token: 'delimiter.parenthesis', open: '(', close: ')' }],
         keywords,
         tokenizer: {
             root: [
-                [/@?[a-zA-Z][\w$]*/, {
-                    cases: {
-                        '@keywords': 'keyword',
-                        '@default': 'variable',
-                    }
-                }]
-            ]
-        }
+                [
+                    /@?[a-zA-Z][\w$]*/, {
+                        cases: {
+                            '@keywords': 'keyword',
+                            '@default': 'variable',
+                        }
+                    }],
+                { include: '@whitespace' },],
+            whitespace: [
+                [/[ \t\r\n]+/, ''],
+                [/\/\*/, 'comment', '@comment'],
+                [/\/\/.*\\$/, 'comment', '@linecomment'],
+                [/\/\/.*$/, 'comment']
+            ],
+            comment: [
+                [/[^\/*]+/, 'comment'],
+                [/\*\//, 'comment', '@pop'],
+                [/[\/*]/, 'comment']
+            ],
+            linecomment: [
+                [/.*[^\\]$/, 'comment', '@pop'],
+                [/[^]+/, 'comment']
+            ],
+        },
     });
+
+    monaco.languages.setLanguageConfiguration('alice', {
+        comments: {
+            lineComment: '//',
+            blockComment: ['/*', '*/'],
+        },
+        brackets: [
+            ['(', ')']
+        ],
+        autoClosingPairs: [
+            { open: '(', close: ')' },
+        ],
+        surroundingPairs: [
+            { open: '(', close: ')' },
+        ],
+    })
 
     monaco.languages.registerCompletionItemProvider('alice', {
         provideCompletionItems: function (model, position) {
