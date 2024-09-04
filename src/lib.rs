@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, panic};
 
 use ariadne::{Color, Label, Report, ReportKind, Source};
 use chumsky::{error::Simple, prelude::end, Parser, Stream};
@@ -43,6 +43,11 @@ pub enum BackendError {
 
     #[error("Failed to type check")]
     CheckError(#[from] CheckError),
+}
+
+#[wasm_bindgen]
+pub fn initialize()  {
+    panic::set_hook(Box::new(console_error_panic_hook::hook));
 }
 
 pub fn format_errors<T: std::hash::Hash + Eq + std::fmt::Display>(
@@ -287,14 +292,14 @@ pub fn bind_identifier(
     prop: &Prop,
     quantifier_kind: QuantifierKind,
     identifier: Identifier,
-    mut identifier_indices: Vec<usize>,
+    identifier_indices: Vec<usize>,
     bind_name: &str,
     type_name: &str,
 ) -> Prop {
     prop.bind_identifier(
         quantifier_kind,
         identifier,
-        &mut identifier_indices,
+        Some(&identifier_indices),
         bind_name,
         type_name,
     )
