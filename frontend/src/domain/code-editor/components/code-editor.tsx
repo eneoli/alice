@@ -34,9 +34,9 @@ function handleEditorWillMount(monaco: Monaco) {
                 [/\/\/.*$/, 'comment']
             ],
             comment: [
-                [/[^\/*]+/, 'comment'],
+                [/[^/*]+/, 'comment'],
                 [/\*\//, 'comment', '@pop'],
-                [/[\/*]/, 'comment']
+                [/[/*]/, 'comment']
             ],
             linecomment: [
                 [/.*[^\\]$/, 'comment', '@pop'],
