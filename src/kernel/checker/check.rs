@@ -186,7 +186,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
                         ProofTerm::Ident(Ident(ref ident, ref ident_span)) => {
                             (ident.clone(), ident_span.clone())
                         }
-                        _ => unreachable!(),
+                        _ => return Err(CheckError::CannotReturnDatatype(fst_term.span().clone())),
                     };
 
                     // instantiate body
