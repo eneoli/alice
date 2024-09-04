@@ -333,6 +333,8 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
         newProofTree.premisses = [];
         newProofTree.rule = null;
 
+        reasoningContext.selectedNodeId = null;
+
         replaceTreeNodeById(reasoningContext.proofTree, nodeId, newProofTree);
 
         updateReasoningContexts([
