@@ -243,6 +243,7 @@ export function VisualProofEditor(props: VisualProofEditorProps) {
             {
                 ...droppedOnContext,
                 proofTree: droppedOnContext.proofTree,
+                selectedNodeId: null,
             }
         ]);
 
