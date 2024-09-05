@@ -17,9 +17,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install wasm-pack
         run: cargo install wasm-pack
-      - name: Build
+      - name: cargo build
         run: cargo build --verbose
-      - name: Run tests
+      - name: Run Rust tests
         run: cargo test --verbose
       - name: Build WASM Binary
         run: wasm-pack build
