@@ -23,7 +23,6 @@ const config = {
         new EsLintWebpackPlugin({
             extensions: ['js', 'jsx', 'ts', 'tsx'],
             configType: 'flat',
-            eslintPath: 'eslint/use-at-your-own-risk',
         }),
         new ForkTsCheckerWebpackPlugin(),
         new HtmlWebpackPlugin({ template: 'index.html' }),
