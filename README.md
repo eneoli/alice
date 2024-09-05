@@ -28,6 +28,7 @@ Alice is licensed under the MIT License. See [LICENSE] for the full license text
 
 <!-----------------------{ Badges }--------------------------->
 
+[GitHub Workflow]: https://github.com/eneoli/alice/actions/workflows/automatic_tests.yml/badge.svg
 [GitHub Workflow]: https://github.com/eneoli/alice/actions/workflows/rust.yml/badge.svg
 [Commit Activity]: https://img.shields.io/github/commit-activity/m/eneoli/alice/main
 [Last Commit]: https://img.shields.io/github/last-commit/eneoli/alice
