@@ -17,7 +17,9 @@ echo ""
 echo "--> Compiling frontend..."
 echo ""
 
+cd frontend
 npm run build:$BUILD_MODE
+cd ..
 
 echo ""
 echo "--> Uploading to deployment server..."
