@@ -31,5 +31,5 @@ jobs:
         run: npm i
         working-directory: frontend
       - name: Build frontend
-        run: npm run prod
+        run: npm run build:prod
         working-directory: frontend
