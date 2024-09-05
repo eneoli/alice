@@ -46,7 +46,7 @@ pub enum BackendError {
 }
 
 #[wasm_bindgen]
-pub fn initialize()  {
+pub fn initialize() {
     panic::set_hook(Box::new(console_error_panic_hook::hook));
 }
 
@@ -198,17 +198,16 @@ pub fn verify(prop: &Prop, proof_term: &str) -> VerificationResult {
     // Check first if every goal has a solution.
     // If not, use Prover to determine provability.
 
-    let mut status = VerificationResultSolvableStatus::Unknown;
     let all_goals_have_solution = checker_result
         .goals
         .iter()
         .all(|goal| goal.solution.is_some());
 
-    if all_goals_have_solution {
-        status = VerificationResultSolvableStatus::Solvable;
+    let status = if all_goals_have_solution {
+        VerificationResultSolvableStatus::Solvable
     } else {
-        status = get_prop_solvable_status(prop);
-    }
+        get_prop_solvable_status(prop)
+    };
 
     VerificationResult::TypeCheckSucceeded {
         result: checker_result,

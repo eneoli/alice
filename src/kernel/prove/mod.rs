@@ -106,10 +106,6 @@ struct Prover {
 }
 
 impl Prover {
-    pub fn prove(prop: &Prop) -> Option<ProofTerm> {
-        Prover::prove_with_assumptions(prop, vec![])
-    }
-
     pub fn prove_with_assumptions(
         prop: &Prop,
         assumptions: Vec<TypeJudgment>,
