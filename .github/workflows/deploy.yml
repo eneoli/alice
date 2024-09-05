@@ -13,6 +13,10 @@ jobs:
         environment: Deployment
         steps:
             - uses: actions/checkout@v4
+            - name: Install wasm-pack
+              run: cargo install wasm-pack
+            - name: Install NodeJs
+              uses: actions/setup-node@v4
             - run: npm install
             - run: ./deploy.sh
               env:
