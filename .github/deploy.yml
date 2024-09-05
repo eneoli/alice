@@ -1,0 +1,23 @@
+name: Deploy
+
+on:
+    pull_request:
+        types: [ closed ]
+        branches:
+            - release
+
+jobs:
+    deploy:
+        if: github.event.pull_request.merged == true
+        runs-on: ubuntu-latest
+        environment: Deployment
+        steps:
+            - uses: actions/checkout@v4
+            - run: npm install
+            - run: ./deploy.sh
+              env:
+                BUILD_MODE: ${{ vars.BUILD_MODE }}
+                DEPLOYMENT_RES_PATH: ${{ vars.DEPLOYMENT_RES_PATH }}
+                DEPLOYMENT_SERVER: ${{ vars.DEPLOYMENT_SERVER }}
+                DEPLOYMENT_USER: ${{ vars.DEPLOYMENT_USER }}
+                SSH_KEY: ${{ secrets.SSH_KEY }}
