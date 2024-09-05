@@ -25,3 +25,4 @@ jobs:
                 DEPLOYMENT_SERVER: ${{ vars.DEPLOYMENT_SERVER }}
                 DEPLOYMENT_USER: ${{ vars.DEPLOYMENT_USER }}
                 SSH_KEY: ${{ secrets.SSH_KEY }}
+                SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}

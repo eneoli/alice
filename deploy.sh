@@ -19,14 +19,19 @@ echo ""
 
 cd frontend
 npm install
-npm run build:$BUILD_MODE
+npm run bui
+ld:$BUILD_MODE
 cd ..
 
 echo ""
 echo "--> Uploading to deployment server..."
 echo ""
 
-ssh-add - <<< "${SSH_KEY}"
+mkdir -p ~/.ssh/
+echo "$SSH_KEY" > ~/.ssh/deploy.key
+sudo chmod 600 ~/.ssh/deploy.key
+echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_host
+
 ssh $DEPLOYMENT_USER@$DEPLOYMENT_SERVER "rm -rf $DEPLOYMENT_RES_PATH/*"
 scp -r dist $DEPLOYMENT_USER@$DEPLOYMENT_SERVER:$DEPLOYMENT_RES_PATH
 
