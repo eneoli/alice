@@ -19,8 +19,7 @@ echo ""
 
 cd frontend
 npm install
-npm run bui
-ld:$BUILD_MODE
+npm run build:$BUILD_MODE
 cd ..
 
 echo ""
