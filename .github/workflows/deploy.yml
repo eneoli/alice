@@ -17,7 +17,6 @@ jobs:
               run: cargo install wasm-pack
             - name: Install NodeJs
               uses: actions/setup-node@v4
-            - run: Deployment
             - run: ./deploy.sh
               env:
                 BUILD_MODE: ${{ vars.BUILD_MODE }}
