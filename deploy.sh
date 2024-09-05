@@ -18,6 +18,7 @@ echo "--> Compiling frontend..."
 echo ""
 
 cd frontend
+npm install
 npm run build:$BUILD_MODE
 cd ..
 
