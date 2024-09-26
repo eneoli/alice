@@ -110,10 +110,6 @@ impl Prover {
         prop: &Prop,
         assumptions: Vec<TypeJudgment>,
     ) -> Option<ProofTerm> {
-        if prop.has_free_parameters() {
-            panic!("Cannot prove propositions with quantifiers.");
-        }
-
         let mut sequent = Sequent::new(prop);
 
         let mut forbidden_idents = vec![];
@@ -146,8 +142,10 @@ impl Prover {
             Prop::Or(_, _) => self.prove_left(sequent),
             Prop::And(_, _) => self.handle_and_right(sequent),
             Prop::Impl(_, _) => self.handle_impl_right(sequent),
-            Prop::ForAll { .. } => panic!("Cannot prove quantified propositions."),
-            Prop::Exists { .. } => panic!("Cannot prove quantified propositions."),
+            Prop::ForAll { .. } | Prop::Exists { .. } => {
+                // treat quantifiers as atoms
+                self.prove_left(sequent)
+            }
         }
     }
 
@@ -204,8 +202,10 @@ impl Prover {
             Prop::And(_, _) => self.handle_and_left(type_judgment, sequent),
             Prop::Or(_, _) => self.handle_or_left(type_judgment, sequent),
             Prop::Impl(_, _) => self.handle_impl_left(type_judgment, sequent),
-            Prop::ForAll { .. } => panic!("Cannot prove quantified propositions."),
-            Prop::Exists { .. } => panic!("Cannot prove quantified propositions."),
+            Prop::ForAll { .. } | Prop::Exists { .. } => {
+                // handle quantifiers as atoms
+                self.handle_atom_left(type_judgment, sequent)
+            }
         }
     }
 
@@ -266,9 +266,13 @@ impl Prover {
         mut sequent: Sequent,
     ) -> Option<ProofTerm> {
         let TypeJudgment { ref prop, .. } = type_judgment;
-        let Prop::Atom(_, _) = prop else {
-            panic!("Expected atom");
-        };
+
+        if !(matches!(prop, Prop::Atom(_, _))
+            | matches!(prop, Prop::ForAll { .. })
+            | matches!(prop, Prop::Exists { .. }))
+        {
+            panic!("Expected atom or quantifier");
+        }
 
         sequent.append_unordered(type_judgment);
         self.prove_left(sequent)
@@ -394,8 +398,11 @@ impl Prover {
                 sequent.append_unordered(TypeJudgment::new(Prop::Impl(fst, snd), proof_term));
                 self.prove_left(sequent)
             }
-            Prop::ForAll { .. } => panic!("Cannot prove quantified propositions."),
-            Prop::Exists { .. } => panic!("Cannot prove quantified propositions."),
+            Prop::ForAll { .. } | Prop::Exists { .. } => {
+                // handle quantifiers as atoms
+                sequent.append_unordered(TypeJudgment::new(Prop::Impl(fst, snd), proof_term));
+                self.prove_left(sequent)
+            }
         }
     }
 
@@ -405,16 +412,72 @@ impl Prover {
             "Do not search when ordered context is not empty."
         );
 
-        let goal_in_unordered_context = sequent.find_in_unordered_context_by_prop(sequent.goal);
-
         // id rule
-        if let (Prop::Atom(_, _), Some(elem)) = (sequent.goal, goal_in_unordered_context) {
-            return Some(elem.proof_term.clone());
+        if let Prop::Atom(_, _) = sequent.goal {
+            if let Some(elem) = sequent.find_in_unordered_context_by_prop(sequent.goal) {
+                return Some(elem.proof_term.clone());
+            }
+        }
+
+        // id rule universal quantification
+        if let Prop::ForAll { .. } = sequent.goal {
+            if let Some(elem) = sequent.find_in_unordered_context_by_prop(sequent.goal) {
+                return Some(elem.proof_term.clone());
+            }
+        }
+
+        // id rule existential quantification
+        if let Prop::Exists { .. } = sequent.goal {
+            if let Some(elem) = sequent.find_in_unordered_context_by_prop(sequent.goal) {
+                return Some(elem.proof_term.clone());
+            }
         }
 
         // falsum rule
-        if let (Prop::False, Some(elem)) = (sequent.goal, goal_in_unordered_context) {
-            return Some(elem.proof_term.clone());
+        if let Prop::False = sequent.goal {
+            if let Some(elem) = sequent.find_in_unordered_context_by_prop(sequent.goal) {
+                return Some(elem.proof_term.clone());
+            }
+        }
+
+        // impl atom rule
+        let mut changes = vec![];
+        for i in 0..sequent.unordered_ctx.len() {
+            let TypeJudgment { prop, proof_term } = &sequent.unordered_ctx[i];
+            let Prop::Impl(impl_fst, impl_snd) = prop else {
+                continue;
+            };
+
+            let is_atom = matches!(**impl_fst, Prop::Atom(_, _))
+                || matches!(**impl_fst, Prop::ForAll { .. })
+                || matches!(**impl_fst, Prop::Exists { .. });
+
+            if !is_atom {
+                continue;
+            }
+
+            if let Some(elem) = sequent.find_in_unordered_context_by_prop(&impl_fst) {
+                let new_judgment = TypeJudgment::new(
+                    *impl_snd.clone(),
+                    Application::create(proof_term.boxed(), elem.proof_term.boxed(), None),
+                );
+
+                changes.push((i, new_judgment));
+            }
+        }
+
+        let has_changes = changes.len() > 0;
+        if has_changes {
+            changes.reverse();
+            let mut impl_sequent = sequent.clone();
+            for (i, new_judgment) in changes {
+                impl_sequent.unordered_ctx.remove(i);
+                impl_sequent.append_ordered(new_judgment);
+            }
+
+            if let Some(result_proof_term) = self.prove_left(impl_sequent) {
+                return Some(result_proof_term);
+            }
         }
 
         // or left rule
@@ -438,21 +501,6 @@ impl Prover {
             let Prop::Impl(impl_fst, impl_snd) = prop else {
                 continue;
             };
-
-            // impl atom rule
-            if let Prop::Atom(_, _) = *impl_fst {
-                if let Some(elem) = sequent.find_in_unordered_context_by_prop(&impl_fst) {
-                    let mut new_sequent = searching_sequent.clone();
-                    new_sequent.append_ordered(TypeJudgment::new(
-                        *impl_snd.clone(),
-                        Application::create(proof_term.boxed(), elem.proof_term.boxed(), None),
-                    ));
-
-                    if let Some(result_proof_term) = self.prove_left(new_sequent) {
-                        return Some(result_proof_term);
-                    }
-                }
-            }
 
             // Impl Impl left rule
             if let Prop::Impl(impl_impl_fst, impl_impl_snd) = *impl_fst {

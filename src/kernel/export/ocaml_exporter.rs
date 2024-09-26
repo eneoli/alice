@@ -177,6 +177,6 @@ impl ProofExporter for OcamlExporter {
             return false;
         };
 
-        prop.has_quantifiers()
+        !prop.has_quantifiers()
     }
 }
