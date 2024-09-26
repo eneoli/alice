@@ -285,7 +285,7 @@ impl ProofTreeExporter {
                     None,
                 );
 
-                if proof_term_checking.annotation_count() < proof_term_synth.annotation_count() {
+                if proof_term_checking.annotation_count() <= proof_term_synth.annotation_count() {
                     self.atoms = checking_atoms;
                     self.datatypes = checking_datatypes;
 
