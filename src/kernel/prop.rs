@@ -163,11 +163,15 @@ impl Prop {
         match self {
             Prop::True | Prop::False | Prop::Atom(_, _) => vec![],
             Prop::ForAll {
-                object_type_ident, ..
+                object_type_ident,
+                body,
+                 ..
             }
             | Prop::Exists {
-                object_type_ident, ..
-            } => vec![object_type_ident.clone()],
+                object_type_ident,
+                body,
+                ..
+            } => [vec![object_type_ident.clone()], body.get_datatypes()].concat(),
             Prop::And(fst, snd) | Prop::Or(fst, snd) | Prop::Impl(fst, snd) => {
                 [fst.get_datatypes(), snd.get_datatypes()].concat()
             }
@@ -410,7 +414,7 @@ impl Prop {
         }
     }
 
-    // Warning: This might bind free (uninstantiated) parameters.
+    // Warning: This might bind parameters to an inner quantifier
     // Choose bind name with care.
     pub fn bind_identifier(
         &self,
