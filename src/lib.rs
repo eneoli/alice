@@ -114,24 +114,22 @@ pub enum VerificationResult {
 #[wasm_bindgen]
 pub fn verify(prop: &Prop, proof_term: &str) -> VerificationResult {
     let get_prop_solvable_status = |prop: &Prop| {
-        let mut status = VerificationResultSolvableStatus::Unknown;
+        let solvable = prove(&prop).is_some();
 
-        if !prop.has_quantifiers() && !prop.has_free_parameters() {
-            let solvable = prove(&prop).is_some();
-
-            if solvable {
-                status = VerificationResultSolvableStatus::Solvable;
-            } else {
-                let negative_solvable =
-                    prove(&Prop::Impl(prop.boxed(), Prop::False.boxed())).is_some();
-
-                if negative_solvable {
-                    status = VerificationResultSolvableStatus::Unsolvable;
-                }
+        if solvable {
+            VerificationResultSolvableStatus::Solvable
+        } else {
+            if !prop.has_quantifiers() && !prop.has_free_parameters() {
+                return VerificationResultSolvableStatus::Unsolvable;
             }
-        }
 
-        status
+            let negative_solvable = prove(&Prop::Impl(prop.boxed(), Prop::False.boxed())).is_some();
+            if negative_solvable {
+                return VerificationResultSolvableStatus::Unsolvable;
+            }
+
+            VerificationResultSolvableStatus::Unknown
+        }
     };
 
     let proof_term_len = proof_term.chars().count();
