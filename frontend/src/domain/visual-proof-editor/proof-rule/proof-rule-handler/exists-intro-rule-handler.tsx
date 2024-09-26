@@ -7,7 +7,6 @@ import { createEmptyVisualProofEditorProofTreeFromProp, createEmptyVisualProofEd
 import withReactContent from 'sweetalert2-react-content';
 import React from 'react';
 import { VisualProofEditorParameterBindingSelector } from '../../components/visual-proof-editor-parameter-binding-selector';
-import { createIdentifierGenerator } from './create-identifier-generator';
 
 const ReactSwal = withReactContent(Swal);
 
@@ -111,7 +110,7 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleDownards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
-        const { selectedProofTreeNodes, error } = params;
+        const { selectedProofTreeNodes, generateIdentifier, error } = params;
 
         if (selectedProofTreeNodes.length !== 2) {
             error('Need exactly two nodes to form an existential proposition.');
@@ -163,11 +162,9 @@ export class ExistsIntroRuleHandler extends ProofRuleHandler {
         const freeParamNames = freeParams
             .map((ident) => ident.kind === 'Instantiated' ? ident.value.name : ident.value);
 
-        const generateLocalIdentifier = createIdentifierGenerator('xyzuvwabcdefghijklmnopqrst'.split(''));
-
-        let bindIdentifier = generateLocalIdentifier();
+        let bindIdentifier = generateIdentifier();
         while (freeParamNames.includes(bindIdentifier)) {
-            bindIdentifier = generateLocalIdentifier();
+            bindIdentifier = generateIdentifier();
         }
 
         const boundProp = bind_identifier(
