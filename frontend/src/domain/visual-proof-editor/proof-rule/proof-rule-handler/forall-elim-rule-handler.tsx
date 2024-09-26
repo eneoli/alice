@@ -7,7 +7,6 @@ import { createEmptyVisualProofEditorProofTreeFromProp, createEmptyVisualProofEd
 import { VisualProofEditorParameterBindingSelector } from '../../components/visual-proof-editor-parameter-binding-selector';
 import React from 'react';
 import withReactContent from 'sweetalert2-react-content';
-import { createIdentifierGenerator } from './create-identifier-generator';
 import { isEqual } from 'lodash';
 
 const ReactSwal = withReactContent(Swal);
@@ -58,7 +57,7 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
     }
 
     protected async handleRuleUpwards(params: VisualProofEditorRuleHandlerParams): Promise<ProofRuleHandlerResult | undefined> {
-        const { selectedProofTreeNodes, assumptions, error } = params;
+        const { selectedProofTreeNodes, assumptions, generateIdentifier, error } = params;
 
         if (selectedProofTreeNodes.length !== 1) {
             error('Cannot apply this rule on multiple nodes.');
@@ -111,10 +110,9 @@ export class ForAllElimRuleHandler extends ProofRuleHandler {
         const freeParamNames = freeParams
             .map((ident) => ident.kind === 'Instantiated' ? ident.value.name : ident.value);
 
-        const generateLocalIdentifier = createIdentifierGenerator('xyzuvwabcdefghijklmnopqrst'.split(''));
-        let bindIdentifier = generateLocalIdentifier();
+        let bindIdentifier = generateIdentifier();
         while (freeParamNames.includes(bindIdentifier)) {
-            bindIdentifier = generateLocalIdentifier();
+            bindIdentifier = generateIdentifier();
         }
 
         // find type name
