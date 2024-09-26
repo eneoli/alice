@@ -441,7 +441,7 @@ impl Prover {
         }
 
         // impl atom rule
-        let mut changes = vec![];
+        let mut atom_impl_changes = vec![];
         for i in 0..sequent.unordered_ctx.len() {
             let TypeJudgment { prop, proof_term } = &sequent.unordered_ctx[i];
             let Prop::Impl(impl_fst, impl_snd) = prop else {
@@ -462,22 +462,19 @@ impl Prover {
                     Application::create(proof_term.boxed(), elem.proof_term.boxed(), None),
                 );
 
-                changes.push((i, new_judgment));
+                atom_impl_changes.push((i, new_judgment));
             }
         }
 
-        let has_changes = changes.len() > 0;
-        if has_changes {
-            changes.reverse();
+        if atom_impl_changes.len() > 0 {
+            atom_impl_changes.reverse();
             let mut impl_sequent = sequent.clone();
-            for (i, new_judgment) in changes {
+            for (i, new_judgment) in atom_impl_changes {
                 impl_sequent.unordered_ctx.remove(i);
                 impl_sequent.append_ordered(new_judgment);
             }
 
-            if let Some(result_proof_term) = self.prove_left(impl_sequent) {
-                return Some(result_proof_term);
-            }
+            return self.prove_left(impl_sequent);
         }
 
         // or left rule
