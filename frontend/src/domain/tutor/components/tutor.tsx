@@ -82,28 +82,22 @@ function getProgress(verificationResult: VerificationResult): number {
         return 0;
     }
 
-    const proof_tree = verificationResult.value.result.proof_tree;
     const goals = verificationResult.value.result.goals;
 
     if (goals.length === 0) {
         return 100;
     }
 
-    const userSolutionDepth = getTreeDepth(proof_tree) - 1; // ignore initial node
-    const goalSolutions: ProofTerm[] = goals
-        .map((goal) => goal.solution)
-        .filter((solution) => solution !== null);
-
-    const solutionDepth = Math.max(
-        0,
-        ...goalSolutions.map(getProofTermDepth)
-    );
-
-    if (solutionDepth === 0 && goals.length > 0) {
+    if (goals.some((goal) => !goal.solution)) {
         return 0;
     }
 
-    return Math.round(100 * userSolutionDepth / (userSolutionDepth + solutionDepth));
+    const proof_tree = verificationResult.value.result.proof_tree;
+    const userSolutionDepth = getTreeDepth(proof_tree) - 1; // ignore initial node
+    const goalSolutions: ProofTerm[] = goals.map((goal) => goal.solution!);
+    const solutionDepth = Math.max(...goalSolutions.map(getProofTermDepth));
+
+    return Math.floor(100 * userSolutionDepth / (userSolutionDepth + solutionDepth));
 }
 
 function getTreeDepth(proofTree: ProofTree): number {
