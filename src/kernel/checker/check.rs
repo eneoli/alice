@@ -789,9 +789,7 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
         };
 
         // Run G4IP
-        if !prop.has_quantifiers() && !prop.has_free_parameters() {
-            goal.solution = prove_with_ctx(prop, self.ctx);
-        }
+        goal.solution = prove_with_ctx(prop, self.ctx);
 
         // save result as goal
         Ok(TypeCheckerResult {
