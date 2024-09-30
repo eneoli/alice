@@ -41,7 +41,7 @@ In the root directory of the project, run the following command to build the Web
 
 ## Step 2: Build the Frontend
 
-Navigate to the `frontend` directory. Make sure the required dependices are installed by running `npm install`. Then run
+Navigate to the `frontend` directory. Make sure the required dependencies are installed by running `npm install`. Then run
 
 `npm run build`
 
@@ -49,7 +49,7 @@ This will bundle the frontend assets and the WebAssembly binary and the final fi
 
 # Tests
 
-Alice has a series of autmatic tests. To run them, make sure you are in the project root and run:
+Alice has a series of autmatic tests. To run them, make sure you are in the project root directory and run:
 
 `cargo test`
 
