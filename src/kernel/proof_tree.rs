@@ -242,57 +242,57 @@ impl ProofTreeExporter {
                     panic!("Not enough premisses given.");
                 };
 
-                let old_atoms = self.atoms.clone();
-                let old_datatypes = self.datatypes.clone();
+                // let old_atoms = self.atoms.clone();
+                // let old_datatypes = self.datatypes.clone();
 
-                let fst_reasoning_mode = Self::expected_premisse_mode(rule, reasoning_mode, 0);
-                let snd_reasoning_mode = Self::expected_premisse_mode(rule, reasoning_mode, 1);
+                // let fst_reasoning_mode = Self::expected_premisse_mode(rule, reasoning_mode, 0);
+                // let snd_reasoning_mode = Self::expected_premisse_mode(rule, reasoning_mode, 1);
 
-                let fst_proof_term_checking =
-                    self.do_export_as_proof_term(fst, &fst_reasoning_mode);
-                let snd_proof_term_checking =
-                    self.do_export_as_proof_term(snd, &snd_reasoning_mode);
+                // let fst_proof_term_checking =
+                //     self.do_export_as_proof_term(fst, &fst_reasoning_mode);
+                // let snd_proof_term_checking =
+                //     self.do_export_as_proof_term(snd, &snd_reasoning_mode);
 
-                let proof_term_checking = Application::create(
-                    fst_proof_term_checking.boxed(),
-                    snd_proof_term_checking.boxed(),
-                    None,
-                );
+                // let proof_term_checking = Application::create(
+                //     fst_proof_term_checking.boxed(),
+                //     snd_proof_term_checking.boxed(),
+                //     None,
+                // );
 
-                let annotation_count = fst_proof_term_checking.annotation_count()
-                    + snd_proof_term_checking.annotation_count();
+                // let annotation_count = fst_proof_term_checking.annotation_count()
+                //     + snd_proof_term_checking.annotation_count();
 
-                if *reasoning_mode == ReasoningMode::Synthesize || annotation_count == 0 {
-                    return proof_term_checking;
-                }
+                // if *reasoning_mode == ReasoningMode::Synthesize || annotation_count == 0 {
+                //     return proof_term_checking;
+                // }
 
                 // use =>
                 //     <= rule
 
-                let checking_atoms = self.atoms.clone();
-                let checking_datatypes = self.datatypes.clone();
+                // let checking_atoms = self.atoms.clone();
+                // let checking_datatypes = self.datatypes.clone();
 
-                self.atoms = old_atoms;
-                self.datatypes = old_datatypes;
+                // self.atoms = old_atoms;
+                // self.datatypes = old_datatypes;
 
                 let fst_proof_term_synth =
                     self.do_export_as_proof_term(fst, &ReasoningMode::Synthesize);
                 let snd_proof_term_synth = self.do_export_as_proof_term(snd, &ReasoningMode::Check);
 
-                let proof_term_synth = Application::create(
+                Application::create(
                     fst_proof_term_synth.boxed(),
                     snd_proof_term_synth.boxed(),
                     None,
-                );
+                )
 
-                if proof_term_checking.annotation_count() <= proof_term_synth.annotation_count() {
-                    self.atoms = checking_atoms;
-                    self.datatypes = checking_datatypes;
+                // if proof_term_checking.annotation_count() <= proof_term_synth.annotation_count() {
+                //     self.atoms = checking_atoms;
+                //     self.datatypes = checking_datatypes;
 
-                    proof_term_checking
-                } else {
-                    proof_term_synth
-                }
+                //     proof_term_checking
+                // } else {
+                //     proof_term_synth
+                // }
             }
             ProofTreeRule::OrIntroFst | ProofTreeRule::OrIntroSnd => {
                 let expected_reasoning_mode = Self::expected_conclusion_mode(rule);

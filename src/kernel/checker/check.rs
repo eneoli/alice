@@ -409,38 +409,38 @@ impl<'a> ProofTermVisitor<Result<TypeCheckerResult, CheckError>> for CheckVisito
             span,
         } = application;
 
-        let (expected_return_prop, conclusion) = match self.expected_type {
-            Type::Prop(ref prop) => (prop, ProofTreeConclusion::PropIsTrue(prop.clone())),
-            Type::Datatype(_) => return Err(CheckError::CannotReturnDatatype(span.clone())),
-        };
+        // let (expected_return_prop, conclusion) = match self.expected_type {
+        //     Type::Prop(ref prop) => (prop, ProofTreeConclusion::PropIsTrue(prop.clone())),
+        //     Type::Datatype(_) => return Err(CheckError::CannotReturnDatatype(span.clone())),
+        // };
 
-        // synthesize applicant
-        let applicant_synthesize_result = synthesize(applicant, self.ctx, self.identifier_factory);
+        // // synthesize applicant
+        // let applicant_synthesize_result = synthesize(applicant, self.ctx, self.identifier_factory);
 
-        // use  ⊃ E<= rule
-        if let Ok((Type::Prop(applicant_prop), applicant_result)) = applicant_synthesize_result {
-            // check function
-            let expected_function_type = Type::Prop(Prop::Impl(
-                applicant_prop.boxed(),
-                expected_return_prop.boxed(),
-            ));
+        // // use  ⊃ E<= rule
+        // if let Ok((Type::Prop(applicant_prop), applicant_result)) = applicant_synthesize_result {
+        //     // check function
+        //     let expected_function_type = Type::Prop(Prop::Impl(
+        //         applicant_prop.boxed(),
+        //         expected_return_prop.boxed(),
+        //     ));
 
-            let function_result = check_allowing_free_params(
-                function,
-                &expected_function_type,
-                self.ctx,
-                self.identifier_factory,
-            )?;
+        //     let function_result = check_allowing_free_params(
+        //         function,
+        //         &expected_function_type,
+        //         self.ctx,
+        //         self.identifier_factory,
+        //     )?;
 
-            return Ok(TypeCheckerResult {
-                goals: vec![function_result.goals, applicant_result.goals].concat(),
-                proof_tree: ProofTree {
-                    premisses: vec![function_result.proof_tree, applicant_result.proof_tree],
-                    rule: ProofTreeRule::ImplElim,
-                    conclusion,
-                },
-            });
-        }
+        //     return Ok(TypeCheckerResult {
+        //         goals: vec![function_result.goals, applicant_result.goals].concat(),
+        //         proof_tree: ProofTree {
+        //             premisses: vec![function_result.proof_tree, applicant_result.proof_tree],
+        //             rule: ProofTreeRule::ImplElim,
+        //             conclusion,
+        //         },
+        //     });
+        // }
 
         // use =>
         //     <= rule
