@@ -434,11 +434,11 @@ impl Prover {
         }
 
         // falsum rule
-        if let Prop::False = sequent.goal {
-            if let Some(elem) = sequent.find_in_unordered_context_by_prop(sequent.goal) {
-                return Some(elem.proof_term.clone());
-            }
-        }
+        // if let Prop::False = sequent.goal {
+        //     if let Some(elem) = sequent.find_in_unordered_context_by_prop(sequent.goal) {
+        //         return Some(elem.proof_term.clone());
+        //     }
+        // }
 
         // impl atom rule
         let mut atom_impl_changes = vec![];
@@ -506,7 +506,7 @@ impl Prover {
                 let first_param_ident = self.generate_identifier();
 
                 let new_prop = Prop::Impl(impl_impl_snd.boxed(), impl_snd.boxed());
-                fst_sequent.append_unordered(TypeJudgment::new(
+                fst_sequent.append_ordered(TypeJudgment::new(
                     new_prop.clone(),
                     ProofTerm::TypeAscription(TypeAscription {
                         ascription: Type::Prop(new_prop),
@@ -534,7 +534,7 @@ impl Prover {
 
                 if let Some(fst_proof_term) = self.prove_right(fst_sequent) {
                     let mut snd_sequent = searching_sequent.clone();
-                    snd_sequent.append_unordered(TypeJudgment::new(
+                    snd_sequent.append_ordered(TypeJudgment::new(
                         *impl_snd,
                         Application::create(proof_term.boxed(), fst_proof_term.boxed(), None),
                     ));
