@@ -263,6 +263,7 @@ impl<'a> ProofTermVisitor<Result<(Type, TypeCheckerResult), SynthesizeError>>
 
         match (&bound_param_type, &body_type) {
             // Forall
+            // TODO name clash
             (Type::Datatype(datatype_ident), Type::Prop(body_type)) => {
                 let _type = body_type.bind_identifier(
                     QuantifierKind::ForAll,

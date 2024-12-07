@@ -14,7 +14,7 @@ fn main() {
     // Step 1: Parse tokens
     let tokens = lexer().parse(src.clone());
 
-    println!("{:#?}", tokens);
+    // println!("{:#?}", tokens);
 
     if let Err(err) = tokens.clone() {
         err.into_iter().for_each(|e| {
@@ -48,7 +48,7 @@ fn main() {
         return;
     }
 
-    let fol = "A -> A";
+    let fol = "A";
     let fol_tokens = lexer().parse(fol).unwrap();
     let fol_len = fol.chars().count();
 
@@ -66,7 +66,7 @@ fn main() {
 
     // Step 3: Preprocess ProofTerm
 
-    println!("{:#?}", processed_proof);
+    // println!("{:#?}", processed_proof);
 
     // println!("{:#?}", prop.get_free_parameters());
 
@@ -78,11 +78,11 @@ fn main() {
 
     println!("{:#?}", _type);
 
-    println!("{}", prove(&prop).unwrap());
+    // println!("{}", prove(&prop).unwrap());
 
-    let ocaml_exporter = OcamlExporter::new();
+    // let ocaml_exporter = OcamlExporter::new();
 
-    println!("{}", ocaml_exporter.export(&processed_proof.proof_term));
+    // println!("{}", ocaml_exporter.export(&processed_proof.proof_term));
 
     // let proof_tree = ProofTree {
     //     premisses: vec![
