@@ -57,7 +57,7 @@ pub fn format_errors<T: std::hash::Hash + Eq + std::fmt::Display>(
     let mut error_output = Vec::new();
 
     errors.into_iter().for_each(|e| {
-        Report::build(ReportKind::Error, (), e.span().start)
+        Report::build(ReportKind::Error, e.span())
             .with_message(e.to_string())
             .with_label(Label::new(e.span()).with_color(Color::Red))
             .finish()

@@ -18,7 +18,7 @@ fn main() {
 
     if let Err(err) = tokens.clone() {
         err.into_iter().for_each(|e| {
-            Report::build(ReportKind::Error, (), e.span().start)
+            Report::build(ReportKind::Error, e.span())
                 .with_message(e.to_string())
                 .with_label(Label::new(e.span()).with_color(Color::Red))
                 .finish()
@@ -37,7 +37,7 @@ fn main() {
         println!("{:#?}", err);
 
         err.into_iter().for_each(|e| {
-            Report::build(ReportKind::Error, (), e.span().start)
+            Report::build(ReportKind::Error, e.span())
                 .with_message(e.to_string())
                 .with_label(Label::new(e.span()).with_color(Color::Red))
                 .finish()
