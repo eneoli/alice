@@ -1,0 +1,10 @@
+version: 2
+updates:
+  - directory: /
+    package-ecosystem: cargo
+    schedule:
+      interval: weekly
+  - directory: /frontend
+    package-ecosystem: npm
+    schedule:
+      interval: weekly
