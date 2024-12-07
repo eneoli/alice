@@ -27,7 +27,11 @@
               rust-toolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
             in
             pkgs.mkShell {
-              packages = [ rust-toolchain ];
+              packages = [ 
+                rust-toolchain
+                pkgs.wasm-pack
+                pkgs.nodejs
+              ];
             };
         };
       };
