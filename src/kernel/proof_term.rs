@@ -566,8 +566,22 @@ impl Display for ProofTerm {
         let parent_precedence = self.precedence();
         let child_precedence = body.precedence();
 
-        let should_wrap = (parent_precedence > child_precedence)
-            || (parent_precedence == child_precedence && body.left_associative());
+        // let should_wrap = (parent_precedence > child_precedence)
+        // || (parent_precedence == child_precedence && body.left_associative());
+
+        let should_wrap = match **body {
+            ProofTerm::ProjectFst(_)
+            | ProofTerm::ProjectSnd(_)
+            | ProofTerm::Function(_)
+            | ProofTerm::Application(_)
+            | ProofTerm::LetIn(_)
+            | ProofTerm::OrLeft(_)
+            | ProofTerm::OrRight(_)
+            | ProofTerm::Case(_)
+            | ProofTerm::Abort(_)
+            | ProofTerm::TypeAscription(_) => true,
+            _ => false,
+        };
 
         if should_wrap {
             return write!(f, "{} ({})", function_name, body);
