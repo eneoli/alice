@@ -49,7 +49,7 @@ This will bundle the frontend assets and the WebAssembly binary and the final fi
 
 # Tests
 
-Alice has a series of autmatic tests. To run them, make sure you are in the project root directory and run:
+Alice has a series of automatic tests. To run them, make sure you are in the project root directory and run:
 
 `cargo test`
 
