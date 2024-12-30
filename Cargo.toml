@@ -11,7 +11,7 @@ ariadne = "0.5.0"
 chumsky = "0.9.3"
 console_error_panic_hook = "0.1.7"
 itertools = "0.13.0"
-serde = { version = "1.0.215", features = ["derive"] }
+serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.133"
 thiserror = "2.0.6"
 tsify-next = "0.5.4"
